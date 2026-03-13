@@ -72,7 +72,32 @@ const db = {
   getOnlineUsers:()=>T.users.findAll(u=>u.online),
   getAllUsers:(search)=>search?T.users.findAll(u=>u.username.toLowerCase().includes(search.toLowerCase())):T.users.findAll(),
   // Posts
-  getPosts:(tab,userId,game)=>{let p;if(tab==='following'&&userId){const ids=T.follows.findAll(f=>f.follower_id===+userId).map(f=>f.following_id);p=T.posts.findAll(x=>ids.includes(x.user_id));}else if(tab==='hot'){p=T.posts.findAll().sort((a,b)=>(b.reactions_gg+b.reactions_fire+b.reactions_epic+b.reactions_king)-(a.reactions_gg+a.reactions_fire+a.reactions_epic+a.reactions_king)).slice(0,30);return p.map(x=>formatPost(x,userId));}else if(game){p=T.posts.findAll(x=>x.game===game);}else{p=T.posts.findAll();}return p.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,30).map(x=>formatPost(x,userId));},
+  getPosts:(tab,userId,game)=>{
+    if(tab==='following'&&userId){
+      const ids=T.follows.findAll(f=>f.follower_id===+userId).map(f=>f.following_id);
+      const p=T.posts.findAll(x=>ids.includes(x.user_id)).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,30);
+      return p.map(x=>formatPost(x,userId));
+    }
+    if(tab==='hot'){
+      const p=T.posts.findAll().sort((a,b)=>((b.reactions_gg||0)+(b.reactions_fire||0)+(b.reactions_epic||0)+(b.reactions_king||0)+(b.comments_count||0)*2+(b.reposts_count||0)*2)-((a.reactions_gg||0)+(a.reactions_fire||0)+(a.reactions_epic||0)+(a.reactions_king||0)+(a.comments_count||0)*2+(a.reposts_count||0)*2)).slice(0,30);
+      return p.map(x=>formatPost(x,userId));
+    }
+    if(game){
+      const p=T.posts.findAll(x=>x.game===game).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,30);
+      return p.map(x=>formatPost(x,userId));
+    }
+    // For-you: scored feed — following boost + recency + engagement
+    const followedIds=userId?T.follows.findAll(f=>f.follower_id===+userId).map(f=>f.following_id):[];
+    const now=Date.now();
+    const scored=T.posts.findAll().map(p=>{
+      const hoursOld=Math.max(0,(now-new Date(p.created_at).getTime())/(1000*60*60));
+      const recency=Math.max(0,72-hoursOld)/72*50;
+      const engagement=((p.reactions_gg||0)+(p.reactions_fire||0)+(p.reactions_rekt||0)+(p.reactions_king||0)+(p.reactions_epic||0)+(p.reactions_lul||0)+(p.comments_count||0)*2+(p.reposts_count||0)*2)*0.5;
+      const followBoost=followedIds.includes(p.user_id)?30:0;
+      return{post:p,score:recency+engagement+followBoost};
+    });
+    return scored.sort((a,b)=>b.score-a.score).slice(0,30).map(x=>formatPost(x.post,userId));
+  },
   getUserPosts:(uid,viewerId)=>T.posts.findAll(p=>p.user_id===+uid).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(p=>formatPost(p,viewerId)),
   getPost:(id)=>T.posts.findOne(p=>p.id===+id),
   createPost:(data)=>{const p=T.posts.insert(data);return formatPost(p,data.user_id);},
@@ -113,8 +138,13 @@ const db = {
     const now=new Date().toISOString();
     T.stories.delete(s=>s.expires_at<now);
     const stories=T.stories.findAll().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+    // Only show stories from followed users + own stories
+    const followedIds=viewerId?T.follows.findAll(f=>f.follower_id===+viewerId).map(f=>f.following_id):[];
     const byUser={};
     stories.forEach(s=>{
+      const isOwn=viewerId&&s.user_id===+viewerId;
+      const isFollowed=followedIds.includes(s.user_id);
+      if(!isOwn&&!isFollowed)return;
       if(!byUser[s.user_id])byUser[s.user_id]={user:safeUser(T.users.findOne(u=>u.id===s.user_id),viewerId),stories:[]};
       const viewed=viewerId?!!T.story_views.findOne(v=>v.story_id===s.id&&v.viewer_id===+viewerId):false;
       byUser[s.user_id].stories.push({...s,viewed});

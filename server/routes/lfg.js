@@ -23,7 +23,7 @@ router.post('/:id/join', requireAuth, (req, res) => {
   const action = db.joinLFG(req.params.id, req.user.userId);
   if (action === 'joined') {
     const me = db.getUser(req.user.userId);
-    db.addNotif({ user_id: post.user_id, type:'system', icon:'👥', text:`<strong>${me.username}</strong> joined your LFG for ${post.game}!`, read:0 });
+    db.addNotif({ user_id: post.user_id, actor_id: req.user.userId, type:'system', icon:'👥', text:`<strong>${me.username}</strong> joined your LFG for ${post.game}!`, read:0 });
   }
   const updated = db.formatLFG(db.getLFGPost(req.params.id), req.user.userId);
   req.app.get('io')?.emit('lfg:update', updated);

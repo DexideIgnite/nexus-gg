@@ -174,7 +174,7 @@ io.on('connection', (socket) => {
     socket.emit('message:sent', { ...payload, mine: true });
 
     // Notification
-    db.addNotif({ user_id: +receiverId, type: 'message', icon: '💬', text: `<strong>${sender?.username}</strong> sent you a message.`, read: 0 });
+    db.addNotif({ user_id: +receiverId, actor_id: userId, type: 'message', icon: '💬', text: `<strong>${sender?.username}</strong> sent you a message.`, read: 0 });
   });
 
   // Typing indicator

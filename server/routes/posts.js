@@ -43,7 +43,7 @@ router.post('/:id/react', requireAuth, (req, res) => {
   if (action === 'added' && post.user_id !== req.user.userId) {
     const me = db.getUser(req.user.userId);
     const emojis = {gg:'🎮',fire:'🔥',rekt:'💀',king:'👑',epic:'⚡',lul:'🤣'};
-    db.addNotif({ user_id: post.user_id, type:'reaction', icon: emojis[type], text:`<strong>${me.username}</strong> reacted ${emojis[type]} to your post.`, read:0 });
+    db.addNotif({ user_id: post.user_id, actor_id: req.user.userId, type:'reaction', icon: emojis[type], text:`<strong>${me.username}</strong> reacted ${emojis[type]} to your post.`, read:0 });
   }
   res.json({ action, type });
 });
@@ -68,7 +68,7 @@ router.post('/:id/comments', requireAuth, (req, res) => {
   const comment = db.addComment({ post_id:+req.params.id, user_id: req.user.userId, body: body.trim() });
   if (post.user_id !== req.user.userId) {
     const me = db.getUser(req.user.userId);
-    db.addNotif({ user_id: post.user_id, type:'mention', icon:'💬', text:`<strong>${me.username}</strong> commented on your post.`, read:0 });
+    db.addNotif({ user_id: post.user_id, actor_id: req.user.userId, type:'mention', icon:'💬', text:`<strong>${me.username}</strong> commented on your post.`, read:0 });
   }
   req.app.get('io')?.emit('post:comment', { postId: req.params.id, comment });
   res.status(201).json(comment);

@@ -63,13 +63,27 @@ const api = {
   addComment:  (id, body)      => api.post(`/posts/${id}/comments`, { body }),
 
   // Users
-  getUsers:      (search)      => api.get(`/users${search?'?search='+encodeURIComponent(search):''}`),
-  getUser:       (id)          => api.get(`/users/${id}`),
-  getOnline:     ()            => api.get('/users/online'),
-  updateMe:      (data)        => api.patch('/users/me', data),
-  followUser:    (id)          => api.post(`/users/${id}/follow`),
-  followGame:    (game)        => api.post('/users/game/follow', { game }),
-  myGameFollows: ()            => api.get('/users/game-follows/mine'),
+  getUsers:          (search)  => api.get(`/users${search?'?search='+encodeURIComponent(search):''}`),
+  getUser:           (id)      => api.get(`/users/${id}`),
+  getOnline:         ()        => api.get('/users/online'),
+  updateMe:          (data)    => api.patch('/users/me', data),
+  changePassword:    (data)    => api.post('/users/me/password', data),
+  deleteAccount:     ()        => apiRequest('DELETE', '/users/me'),
+  followUser:        (id)      => api.post(`/users/${id}/follow`),
+  followGame:        (game)    => api.post('/users/game/follow', { game }),
+  myGameFollows:     ()        => api.get('/users/game-follows/mine'),
+  getFollowers:      (id)      => api.get(`/users/${id}/followers`),
+  getFollowing:      (id)      => api.get(`/users/${id}/following`),
+  getUserGameFollows:(id)      => api.get(`/users/${id}/game-follows`),
+  uploadAvatar:      (file)    => {
+    const form = new FormData();
+    form.append('avatar', file);
+    return fetch(API_BASE + '/users/me/avatar', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
+      body: form,
+    }).then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'Upload failed'); return d; }));
+  },
 
   // LFG
   getLFG:   (game, region)     => api.get(`/lfg${game?'?game='+encodeURIComponent(game):''}${region?'&region='+region:''}`),

@@ -115,6 +115,9 @@ function parseBody(text) {
 function avatarEl(user, cls='post-avatar') {
   const name = user.name || user.username || '?';
   const av = user.avatar || name[0].toUpperCase();
+  if (user.avatar_url) {
+    return `<div class="${cls}" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};background-image:url('${user.avatar_url}');background-size:cover;background-position:center" onclick="openUserProfile(${user.id})"></div>`;
+  }
   return `<div class="${cls}" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}" onclick="openUserProfile(${user.id})">${av}</div>`;
 }
 
@@ -168,6 +171,8 @@ function navigate(section) {
     notifications: loadNotifications,
     leaderboard: loadLeaderboard,
     profile: loadProfile,
+    people: loadPeople,
+    settings: loadSettings,
   };
   if (loaders[section]) loaders[section]();
 }
@@ -184,16 +189,29 @@ function loadHome() {
 
 function updateSidebarUser() {
   const u = window.CURRENT_USER;
-  document.getElementById('sidebar-avatar').textContent = u.avatar;
-  document.getElementById('sidebar-avatar').style.background = u.gradient || '';
-  document.getElementById('sidebar-username').textContent = u.name;
+  const sidebarAv = document.getElementById('sidebar-avatar');
+  if (sidebarAv) {
+    sidebarAv.style.background = u.gradient || '';
+    if (u.avatar_url) {
+      sidebarAv.style.backgroundImage = `url('${u.avatar_url}')`;
+      sidebarAv.style.backgroundSize = 'cover';
+      sidebarAv.style.backgroundPosition = 'center';
+      sidebarAv.textContent = '';
+    } else {
+      sidebarAv.style.backgroundImage = '';
+      sidebarAv.textContent = u.avatar || '?';
+    }
+  }
+  document.getElementById('sidebar-username').textContent = u.name || u.username || 'Player';
   // Show clean handle: strip #discriminator, keep @ prefix
   const cleanHandle = (u.handle || '@player').replace(/#\d+$/, '');
   document.getElementById('sidebar-tag').textContent = cleanHandle;
-  document.getElementById('compose-avatar').textContent = u.avatar;
+  document.getElementById('compose-avatar').textContent = u.avatar_url ? '' : u.avatar;
   document.getElementById('compose-avatar').style.background = u.gradient || '';
-  document.getElementById('modal-avatar').textContent = u.avatar;
+  if (u.avatar_url) document.getElementById('compose-avatar').style.backgroundImage = `url('${u.avatar_url}')`;
+  document.getElementById('modal-avatar').textContent = u.avatar_url ? '' : u.avatar;
   document.getElementById('modal-avatar').style.background = u.gradient || '';
+  if (u.avatar_url) document.getElementById('modal-avatar').style.backgroundImage = `url('${u.avatar_url}')`;
 }
 
 // ================================================================
@@ -216,32 +234,40 @@ async function loadStories() {
   const scroll = document.getElementById('stories-scroll');
   if (!scroll) return;
   const me = Auth.getUser();
-  const myHasStory = _storyGroups.some(g => g.user?.id === me?.id && g.stories?.length);
-  let html = `<div class="story-item add-story" onclick="openStoryCreator()">
-    <div class="story-ring own"><div class="story-avatar-inner add-avatar${myHasStory ? ' has-story' : ''}">+</div></div>
-    <span>Your Story</span>
-  </div>`;
   try {
     const groups = await api.getStories();
-    // Client-side expiry filter
     const now = Date.now();
     _storyGroups = groups.filter(g => g.stories.some(s => new Date(s.expires_at).getTime() > now));
-    const others = _storyGroups.filter(g => g.user?.id !== me?.id);
-    others.forEach((group, idx) => {
-      const u = group.user;
-      const allViewed = group.stories.every(s => s.viewed);
-      const shortName = (u.username || '?').slice(0, 8);
-      html += `<div class="story-item" onclick="openStoryViewer(${idx})">
-        <div class="story-ring${allViewed ? ' watched' : ''}">
-          <div class="story-avatar-inner" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${escapeHtml(u.avatar||'?')}</div>
-        </div>
-        <span>${escapeHtml(shortName)}</span>
-      </div>`;
-    });
-    // Update own ring if I have stories
-    const myGroup = _storyGroups.find(g => g.user?.id === me?.id);
-    if (myGroup) html = html.replace('add-avatar', 'add-avatar has-story');
   } catch {}
+
+  const myGroup = _storyGroups.find(g => g.user?.id === me?.id);
+  const myHasStory = !!(myGroup && myGroup.stories?.length);
+  const myAllViewed = myHasStory && myGroup.stories.every(s => s.viewed);
+
+  // Own story ring — click opens story creator; long-press / secondary click views own story
+  let html = `<div class="story-item add-story" onclick="${myHasStory ? 'openOwnStoryViewer()' : 'openStoryCreator()'}">
+    <div class="story-ring own${myHasStory ? (myAllViewed ? ' watched' : '') : ''}">
+      <div class="story-avatar-inner add-avatar${myHasStory ? ' has-story' : ''}">
+        ${myHasStory
+          ? `<div style="background:${me?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:100%;height:100%;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:18px">${me?.avatar||'?'}</div>`
+          : '+'}
+      </div>
+    </div>
+    <span>${myHasStory ? 'Your Story' : 'Add Story'}</span>
+  </div>`;
+
+  const others = _storyGroups.filter(g => g.user?.id !== me?.id);
+  others.forEach((group, idx) => {
+    const u = group.user;
+    const allViewed = group.stories.every(s => s.viewed);
+    const shortName = (u.username || '?').slice(0, 8);
+    html += `<div class="story-item" onclick="openStoryViewer(${idx})">
+      <div class="story-ring${allViewed ? ' watched' : ''}">
+        <div class="story-avatar-inner" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${escapeHtml(u.avatar||'?')}</div>
+      </div>
+      <span>${escapeHtml(shortName)}</span>
+    </div>`;
+  });
   scroll.innerHTML = html;
 }
 
@@ -502,6 +528,17 @@ function openStoryViewer(groupIdx) {
   _svRender();
 }
 
+function openOwnStoryViewer() {
+  const me = Auth.getUser();
+  const myGroup = _storyGroups.find(g => g.user?.id === me?.id);
+  if (!myGroup) { openStoryCreator(); return; }
+  SV.groups = [myGroup];
+  SV.gIdx = 0; SV.sIdx = 0; SV.progress = 0; SV.isPaused = false;
+  document.getElementById('story-viewer').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  _svRender();
+}
+
 function closeStoryViewer() {
   _svStopTicker();
   document.getElementById('story-viewer').classList.add('hidden');
@@ -726,21 +763,6 @@ function renderPost(post) {
     </div>`;
   }
 
-  const reactionEmojis = [
-    { key:'gg', emoji:'🎮', label:'GG' },
-    { key:'fire', emoji:'🔥', label:'Fire' },
-    { key:'rekt', emoji:'💀', label:'Rekt' },
-    { key:'king', emoji:'👑', label:'King' },
-    { key:'epic', emoji:'⚡', label:'Epic' },
-    { key:'lul', emoji:'🤣', label:'LUL' },
-  ];
-
-  const reactionsHtml = reactionEmojis.map(r =>
-    `<div class="reaction-pill" onclick="reactToPost(${post.id},'${r.key}',this)">
-      <span class="reaction-emoji">${r.emoji}</span>
-      <span>${formatNum(reactions[r.key])}</span>
-    </div>`
-  ).join('');
 
   // Quoted post X/Twitter-style embedded card
   if (post.quotedPost) {
@@ -776,7 +798,6 @@ function renderPost(post) {
     </div>
     <div class="post-body">${parseBody(post.body)}</div>
     ${extra}
-    <div class="reactions-bar">${reactionsHtml}</div>
     <div class="post-actions">
       <button class="post-action-btn ${liked ? 'liked' : ''}" onclick="toggleLike(${post.id},this)">
         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" ${liked?'fill="currentColor"':''}/></svg>
@@ -812,7 +833,6 @@ async function toggleLike(postId, btn) {
     if (result.action === 'added') {
       btn.classList.add('liked');
       if (post) post.reactions.gg++;
-      showToast('Reacted with 🎮 GG!', 'success', '🎮');
     } else {
       btn.classList.remove('liked');
       if (post) post.reactions.gg = Math.max(0, (post.reactions.gg||0) - 1);
@@ -820,7 +840,7 @@ async function toggleLike(postId, btn) {
     const span = document.getElementById(`like-count-${postId}`);
     if (span && post) span.textContent = formatNum(totalReactions(post.reactions));
   } catch {
-    showToast('Failed to react', 'error', '⚠️');
+    showToast('Failed to like', 'error', '⚠️');
   }
 }
 
@@ -1749,7 +1769,7 @@ function renderNotifications(filter) {
     return;
   }
   container.innerHTML = notifs.map(n => `
-    <div class="notif-item ${n.unread ? 'unread' : ''}" onclick="markNotifRead(${n.id},this)">
+    <div class="notif-item ${n.unread ? 'unread' : ''}" onclick="notifClick(${n.id},${n.actor_id||0},this)">
       <div class="notif-icon notif-${n.type}">${n.icon}</div>
       <div class="notif-content">
         <div class="notif-text">${n.text}</div>
@@ -1771,6 +1791,11 @@ function markNotifRead(id, el) {
   el.classList.remove('unread');
   el.querySelector('.unread-dot')?.remove();
   updateNotifBadge();
+}
+
+function notifClick(id, actorId, el) {
+  markNotifRead(id, el);
+  if (actorId) openUserProfile(actorId);
 }
 
 async function markAllRead() {
@@ -1847,6 +1872,325 @@ function switchLBTab(btn, tab) {
 }
 
 // ================================================================
+// PEOPLE SEARCH
+// ================================================================
+
+async function loadPeople() {
+  const container = document.getElementById('people-container');
+  if (!container) return;
+  const query = document.getElementById('people-search')?.value || '';
+  container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading...</div>`;
+  try {
+    const users = await api.getUsers(query);
+    const myId = Auth.getUser()?.id;
+    if (!users.length) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><p>No players found</p>${query?`<span>Try a different search</span>`:''}</div>`;
+      return;
+    }
+    container.innerHTML = `<div class="people-grid">${users.map(u => `
+      <div class="people-card" onclick="openUserProfile(${u.id})">
+        <div class="people-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
+        <div class="people-info">
+          <div class="people-name">${escapeHtml(u.username)} ${u.verified?'<span class="verified-badge">✓</span>':''}</div>
+          <div class="people-handle">@${escapeHtml((u.handle||u.username).replace(/^@/,''))}</div>
+          <div style="margin-top:4px"><span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
+          ${u.bio?`<div class="people-bio">${escapeHtml(u.bio.slice(0,60))}${u.bio.length>60?'...':''}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+          <div style="font-size:12px;color:var(--text-muted)">${formatNum(u.followers||0)} followers</div>
+          ${u.online?'<span style="color:var(--accent-green);font-size:12px">🟢 Online</span>':''}
+          ${u.id!==myId?`<button class="btn-primary" style="font-size:12px;padding:6px 14px;margin-top:4px" onclick="event.stopPropagation();toggleFollowPeople(${u.id},this)">${u.isFollowing?'Following':'+ Follow'}</button>`:''}
+        </div>
+      </div>`).join('')}</div>`;
+  } catch {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load players</p></div>`;
+  }
+}
+
+async function toggleFollowPeople(userId, btn) {
+  try {
+    const result = await api.followUser(userId);
+    btn.textContent = result.action === 'followed' ? 'Following' : '+ Follow';
+    btn.className = result.action === 'followed'
+      ? btn.className.replace('btn-primary','btn-secondary')
+      : btn.className.replace('btn-secondary','btn-primary');
+  } catch (err) { showToast(err.message||'Failed','error','⚠️'); }
+}
+
+// ================================================================
+// SETTINGS
+// ================================================================
+
+function loadSettings() {
+  const container = document.getElementById('settings-container');
+  if (!container) return;
+  const u = window.CURRENT_USER;
+  container.innerHTML = `
+    <div class="settings-layout">
+      <nav class="settings-nav">
+        <div class="settings-nav-item active" onclick="switchSettingsTab(this,'account')">👤 Account</div>
+        <div class="settings-nav-item" onclick="switchSettingsTab(this,'profile')">✏️ Profile</div>
+        <div class="settings-nav-item" onclick="switchSettingsTab(this,'appearance')">🎨 Appearance</div>
+        <div class="settings-nav-item" onclick="switchSettingsTab(this,'notifications')">🔔 Notifications</div>
+        <div class="settings-nav-item" onclick="switchSettingsTab(this,'privacy')">🔒 Privacy</div>
+        <div class="settings-nav-item danger" onclick="switchSettingsTab(this,'danger')">⚠️ Danger Zone</div>
+      </nav>
+      <div class="settings-content" id="settings-content"></div>
+    </div>`;
+  switchSettingsTab(container.querySelector('.settings-nav-item.active'), 'account');
+}
+
+function switchSettingsTab(btn, tab) {
+  document.querySelectorAll('.settings-nav-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const content = document.getElementById('settings-content');
+  if (!content) return;
+  const u = window.CURRENT_USER;
+
+  if (tab === 'account') {
+    content.innerHTML = `
+      <div class="settings-section">
+        <h3 class="settings-section-title">Account Settings</h3>
+        <form onsubmit="saveAccountSettings(event)">
+          <div class="settings-field">
+            <label>Username</label>
+            <input id="s-username" value="${escapeHtml(u.name||u.username||'')}" placeholder="Username">
+          </div>
+          <div class="settings-field">
+            <label>Handle</label>
+            <input id="s-handle" value="${escapeHtml((u.handle||'').replace(/^@/,''))}" placeholder="handle">
+          </div>
+          <div class="settings-field">
+            <label>Email</label>
+            <input id="s-email" type="email" value="${escapeHtml(u.email||'')}" placeholder="email@example.com">
+          </div>
+          <div id="s-account-error" class="auth-error" style="display:none"></div>
+          <button type="submit" class="btn-primary">Save Changes</button>
+        </form>
+      </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">Change Password</h3>
+        <form onsubmit="savePassword(event)">
+          <div class="settings-field">
+            <label>Current Password</label>
+            <input id="s-cur-pw" type="password" placeholder="Current password">
+          </div>
+          <div class="settings-field">
+            <label>New Password</label>
+            <input id="s-new-pw" type="password" placeholder="New password (min 6 chars)">
+          </div>
+          <div id="s-pw-error" class="auth-error" style="display:none"></div>
+          <button type="submit" class="btn-primary">Update Password</button>
+        </form>
+      </div>`;
+  } else if (tab === 'profile') {
+    content.innerHTML = `
+      <div class="settings-section">
+        <h3 class="settings-section-title">Profile Settings</h3>
+        <div class="settings-avatar-section">
+          <div class="settings-avatar-preview" id="s-avatar-preview" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">
+            ${u.avatar_url?'':u.avatar||'?'}
+          </div>
+          <div>
+            <div style="font-size:14px;margin-bottom:8px;color:var(--text-secondary)">Profile Picture</div>
+            <label class="btn-secondary" style="cursor:pointer">
+              Upload Photo
+              <input type="file" id="s-avatar-file" accept="image/*" style="display:none" onchange="previewAndUploadAvatar(this)">
+            </label>
+          </div>
+        </div>
+        <form onsubmit="saveProfileSettings(event)">
+          <div class="settings-field">
+            <label>Bio</label>
+            <textarea id="s-bio" rows="3" maxlength="160" placeholder="Tell the squad about yourself...">${escapeHtml(u.bio||'')}</textarea>
+          </div>
+          <div class="settings-field">
+            <label>Rank</label>
+            <select id="s-rank">
+              ${['Iron','Bronze','Silver','Gold','Platinum','Diamond','Master','Grandmaster','Challenger'].map(r=>`<option${u.rank===r?' selected':''}>${r}</option>`).join('')}
+            </select>
+          </div>
+          <div class="settings-field">
+            <label>Platform</label>
+            <select id="s-platform">
+              ${['PC','PlayStation','Xbox','Nintendo Switch','Mobile'].map(p=>`<option${u.platform===p?' selected':''}>${p}</option>`).join('')}
+            </select>
+          </div>
+          <div id="s-profile-error" class="auth-error" style="display:none"></div>
+          <button type="submit" class="btn-primary">Save Profile</button>
+        </form>
+      </div>`;
+  } else if (tab === 'appearance') {
+    const accent = localStorage.getItem('nx_accent') || '#8b5cf6';
+    const theme = localStorage.getItem('nx_theme') || 'dark';
+    content.innerHTML = `
+      <div class="settings-section">
+        <h3 class="settings-section-title">Appearance</h3>
+        <div class="settings-field">
+          <label>Theme</label>
+          <div class="settings-toggle-row">
+            <button class="btn-${theme==='dark'?'primary':'secondary'}" onclick="setTheme('dark',this)">🌙 Dark</button>
+            <button class="btn-${theme==='light'?'primary':'secondary'}" onclick="setTheme('light',this)">☀️ Light</button>
+          </div>
+        </div>
+        <div class="settings-field">
+          <label>Accent Color</label>
+          <div class="accent-color-grid">
+            ${[['#8b5cf6','Purple'],['#3b82f6','Blue'],['#06b6d4','Cyan'],['#22c55e','Green'],['#f97316','Orange'],['#ef4444','Red'],['#ec4899','Pink'],['#f59e0b','Gold']].map(([c,n])=>`
+              <div class="accent-swatch${accent===c?' active':''}" style="background:${c}" onclick="setAccentColor('${c}',this)" title="${n}"></div>`).join('')}
+          </div>
+        </div>
+      </div>`;
+  } else if (tab === 'notifications') {
+    const prefs = JSON.parse(localStorage.getItem('nx_notif_prefs') || '{"follows":true,"reactions":true,"mentions":true,"messages":true,"lfg":true}');
+    content.innerHTML = `
+      <div class="settings-section">
+        <h3 class="settings-section-title">Notification Preferences</h3>
+        ${[['follows','👤 New Followers'],['reactions','❤️ Post Reactions'],['mentions','💬 Mentions & Comments'],['messages','📩 Direct Messages'],['lfg','👥 LFG Activity']].map(([key,label])=>`
+          <div class="settings-toggle-row" style="justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)">
+            <span>${label}</span>
+            <label class="toggle-switch">
+              <input type="checkbox" ${prefs[key]?'checked':''} onchange="saveNotifPref('${key}',this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>`).join('')}
+      </div>`;
+  } else if (tab === 'privacy') {
+    content.innerHTML = `
+      <div class="settings-section">
+        <h3 class="settings-section-title">Privacy Settings</h3>
+        <div style="color:var(--text-muted);font-size:14px;line-height:1.6">
+          <p style="margin-bottom:12px">Privacy controls are coming soon! We're working on giving you full control over who can see your content, send you messages, and tag you in posts.</p>
+          <p>For now your profile is public and everyone can interact with you.</p>
+        </div>
+      </div>`;
+  } else if (tab === 'danger') {
+    content.innerHTML = `
+      <div class="settings-section">
+        <h3 class="settings-section-title" style="color:var(--accent-red)">Danger Zone</h3>
+        <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius);padding:20px">
+          <div style="font-weight:700;margin-bottom:8px">Delete Account</div>
+          <div style="color:var(--text-muted);font-size:14px;margin-bottom:16px">This will permanently delete your account, posts, and all data. This cannot be undone.</div>
+          <button class="btn-danger" onclick="confirmDeleteAccount()">Delete My Account</button>
+        </div>
+      </div>`;
+  }
+}
+
+async function saveAccountSettings(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('s-account-error');
+  errEl.style.display = 'none';
+  try {
+    const updated = await api.updateMe({
+      username: document.getElementById('s-username').value.trim(),
+      handle: document.getElementById('s-handle').value.trim(),
+      email: document.getElementById('s-email').value.trim(),
+    });
+    Object.assign(window.CURRENT_USER, { name: updated.username, username: updated.username, handle: '@'+updated.handle, email: updated.email });
+    updateSidebarUser();
+    showToast('Account updated!', 'success', '✅');
+  } catch (err) { errEl.textContent = err.message||'Failed'; errEl.style.display='block'; }
+}
+
+async function savePassword(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('s-pw-error');
+  errEl.style.display = 'none';
+  try {
+    await api.changePassword({
+      current_password: document.getElementById('s-cur-pw').value,
+      new_password: document.getElementById('s-new-pw').value,
+    });
+    document.getElementById('s-cur-pw').value = '';
+    document.getElementById('s-new-pw').value = '';
+    showToast('Password updated!', 'success', '✅');
+  } catch (err) { errEl.textContent = err.message||'Failed'; errEl.style.display='block'; }
+}
+
+async function saveProfileSettings(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('s-profile-error');
+  errEl.style.display = 'none';
+  try {
+    const updated = await api.updateMe({
+      bio: document.getElementById('s-bio').value.trim(),
+      rank: document.getElementById('s-rank').value,
+      platform: document.getElementById('s-platform').value,
+    });
+    Object.assign(window.CURRENT_USER, { bio: updated.bio, rank: updated.rank, platform: updated.platform });
+    showToast('Profile updated!', 'success', '✅');
+    if (state.currentSection === 'profile') loadProfile();
+  } catch (err) { errEl.textContent = err.message||'Failed'; errEl.style.display='block'; }
+}
+
+async function previewAndUploadAvatar(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = document.getElementById('s-avatar-preview');
+  if (preview) {
+    preview.style.backgroundImage = `url('${URL.createObjectURL(file)}')`;
+    preview.style.backgroundSize = 'cover';
+    preview.textContent = '';
+  }
+  try {
+    const result = await api.uploadAvatar(file);
+    window.CURRENT_USER.avatar_url = result.avatar_url;
+    // Update sidebar avatar
+    const sidebarAv = document.getElementById('sidebar-avatar');
+    if (sidebarAv) {
+      sidebarAv.style.backgroundImage = `url('${result.avatar_url}')`;
+      sidebarAv.style.backgroundSize = 'cover';
+      sidebarAv.textContent = '';
+    }
+    showToast('Profile picture updated!', 'success', '✅');
+    if (state.currentSection === 'profile') loadProfile();
+  } catch (err) { showToast(err.message || 'Upload failed', 'error', '⚠️'); }
+}
+
+function setTheme(theme) {
+  localStorage.setItem('nx_theme', theme);
+  if (theme === 'light') {
+    document.documentElement.style.setProperty('--bg-primary', '#f5f5f5');
+    document.documentElement.style.setProperty('--bg-secondary', '#ffffff');
+    document.documentElement.style.setProperty('--bg-card', '#ffffff');
+    document.documentElement.style.setProperty('--text-primary', '#111111');
+    document.documentElement.style.setProperty('--text-secondary', '#555555');
+    document.documentElement.style.setProperty('--border', '#e0e0e0');
+    document.documentElement.style.setProperty('--bg-input', '#f0f0f0');
+  } else {
+    document.documentElement.style.setProperty('--bg-primary', '#080811');
+    document.documentElement.style.setProperty('--bg-secondary', '#0d0d1a');
+    document.documentElement.style.setProperty('--bg-card', '#111125');
+    document.documentElement.style.setProperty('--text-primary', '#f0f0fa');
+    document.documentElement.style.setProperty('--text-secondary', '#8080a8');
+    document.documentElement.style.setProperty('--border', '#1c1c38');
+    document.documentElement.style.setProperty('--bg-input', '#0a0a18');
+  }
+  loadSettings();
+}
+
+function setAccentColor(color) {
+  localStorage.setItem('nx_accent', color);
+  document.documentElement.style.setProperty('--accent', color);
+  loadSettings();
+}
+
+function saveNotifPref(key, val) {
+  const prefs = JSON.parse(localStorage.getItem('nx_notif_prefs') || '{}');
+  prefs[key] = val;
+  localStorage.setItem('nx_notif_prefs', JSON.stringify(prefs));
+}
+
+async function confirmDeleteAccount() {
+  if (!confirm('Are you absolutely sure? This CANNOT be undone.')) return;
+  try {
+    await api.deleteAccount();
+    Auth.logout();
+  } catch (err) { showToast(err.message || 'Failed', 'error', '⚠️'); }
+}
+
+// ================================================================
 // PROFILE
 // ================================================================
 
@@ -1877,11 +2221,11 @@ async function renderProfile(userId, container) {
       </div>
       <div class="profile-header-info">
         <div class="profile-avatar-row">
-          <div class="profile-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${user.avatar||'?'}</div>
+          <div class="profile-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
           <div class="profile-actions-row">
             ${isMe
               ? `<button class="btn-secondary" onclick="openEditProfile()">✏️ Edit Profile</button>`
-              : `<button class="btn-primary" id="follow-btn-${user.id}" onclick="toggleFollow(${user.id},this)">+ Follow</button>
+              : `<button class="btn-primary" id="follow-btn-${user.id}" onclick="toggleFollow(${user.id},this)">${user.isFollowing?'Following':'+ Follow'}</button>
                  <button class="btn-secondary" onclick="navigate('messages')">💬 Message</button>`}
           </div>
         </div>
@@ -1889,21 +2233,15 @@ async function renderProfile(userId, container) {
         <div class="profile-handle">@${(user.handle||user.username||'player').replace(/^@/,'')} · <span style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'🟢 Online':'⚫ Offline'}</span></div>
         <div class="profile-bio">${user.bio||''}</div>
         <div class="profile-stats-row">
-          <div class="profile-stat"><span class="stat-val">${user.post_count||user.posts||0}</span> <span class="stat-label">Posts</span></div>
-          <div class="profile-stat"><span class="stat-val">${formatNum(user.followers||0)}</span> <span class="stat-label">Followers</span></div>
-          <div class="profile-stat"><span class="stat-val">${formatNum(user.following||0)}</span> <span class="stat-label">Following</span></div>
-          <div class="profile-stat"><span class="stat-val">${ACHIEVEMENTS.filter(a=>a.unlocked).length}</span> <span class="stat-label">Achievements</span></div>
-        </div>
-        <div class="profile-game-tags">
-          ${(user.games||[]).map(g => {
-            const gData = GAMES.find(gd => gd.name === g);
-            return `<span class="profile-game-tag" onclick="showToast('${g} feed!','info','${gData?.icon||'🎮'}')">${gData?.icon||'🎮'} ${g}</span>`;
-          }).join('')}
+          <div class="profile-stat"><span class="stat-val">${user.post_count||user.posts_count||user.posts||0}</span> <span class="stat-label">Posts</span></div>
+          <div class="profile-stat clickable-stat" onclick="openFollowModal('followers',${effectiveId})"><span class="stat-val">${formatNum(user.followers||0)}</span> <span class="stat-label">Followers</span></div>
+          <div class="profile-stat clickable-stat" onclick="openFollowModal('following',${effectiveId})"><span class="stat-val">${formatNum(user.following||0)}</span> <span class="stat-label">Following</span></div>
         </div>
       </div>
       <div class="profile-tabs">
         <div class="profile-tab active" onclick="switchProfileTab(this,'posts',${effectiveId})">Posts</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'clips',${effectiveId})">Clips</div>
+        <div class="profile-tab" onclick="switchProfileTab(this,'games',${effectiveId})">Games</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>
       </div>
       <div id="profile-tab-content"></div>`;
@@ -1930,6 +2268,28 @@ async function switchProfileTab(btn, tab, userId) {
           ${!a.unlocked && a.progress < 100 ? `<div class="ach-progress"><div class="ach-progress-bar" style="width:${a.progress}%"></div></div>` : ''}
         </div>`).join('')}
     </div>`;
+    return;
+  }
+
+  if (tab === 'games') {
+    content.innerHTML = `<div style="padding:20px;color:var(--text-muted);text-align:center">Loading...</div>`;
+    try {
+      const gameNames = await api.getUserGameFollows(userId);
+      if (!gameNames.length) {
+        content.innerHTML = `<div class="empty-state"><div class="empty-icon">🎮</div><p>No games followed yet</p></div>`;
+        return;
+      }
+      content.innerHTML = `<div class="profile-games-grid">${gameNames.map(name => {
+        const g = _liveGames.find(x => x.name === name) || GAMES.find(x => x.name === name) || {};
+        const cover = g.cover_url ? `<img src="${g.cover_url}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">` : `<div style="font-size:32px;text-align:center">${g.icon||g._icon||'🎮'}</div>`;
+        return `<div class="profile-game-item" onclick="navigate('games')">
+          <div class="profile-game-cover">${cover}</div>
+          <div class="profile-game-name">${name}</div>
+        </div>`;
+      }).join('')}</div>`;
+    } catch {
+      content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load games</p></div>`;
+    }
     return;
   }
 
@@ -1979,6 +2339,43 @@ async function toggleFollow(userId, btn) {
       showToast('Unfollowed', 'info', '👋');
     }
   } catch (err) { showToast(err.message || 'Failed', 'error', '⚠️'); }
+}
+
+// ================================================================
+// FOLLOWERS / FOLLOWING MODAL
+// ================================================================
+
+async function openFollowModal(type, userId) {
+  const modal = document.getElementById('follow-modal');
+  const title = document.getElementById('follow-modal-title');
+  const list = document.getElementById('follow-modal-list');
+  if (!modal) return;
+  title.textContent = type === 'followers' ? 'Followers' : 'Following';
+  list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted)">Loading...</div>`;
+  modal.classList.remove('hidden');
+  try {
+    const users = type === 'followers'
+      ? await api.getFollowers(userId)
+      : await api.getFollowing(userId);
+    if (!users.length) {
+      list.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><p>No ${type} yet</p></div>`;
+      return;
+    }
+    list.innerHTML = users.map(u => `
+      <div class="follow-modal-user" onclick="closeFollowModal();openUserProfile(${u.id})">
+        <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''};width:42px;height:42px;min-width:42px">${u.avatar_url?'':u.avatar||'?'}</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:14px">${u.username} ${u.verified?'<span class="verified-badge">✓</span>':''}</div>
+          <div style="color:var(--text-muted);font-size:12px">@${(u.handle||u.username).replace(/^@/,'')} · <span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
+        </div>
+      </div>`).join('');
+  } catch {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load</p></div>`;
+  }
+}
+
+function closeFollowModal() {
+  document.getElementById('follow-modal')?.classList.add('hidden');
 }
 
 // ================================================================
@@ -2093,11 +2490,43 @@ function openEditProfile() {
   document.getElementById('ep-platform').value = u.platform || 'PC';
   document.getElementById('ep-nowplaying').value = u.now_playing || '';
   document.getElementById('ep-error').style.display = 'none';
+  // Update avatar preview
+  const preview = document.getElementById('ep-avatar-preview');
+  if (preview) {
+    preview.style.background = u.gradient || 'linear-gradient(135deg,#8b5cf6,#3b82f6)';
+    if (u.avatar_url) {
+      preview.style.backgroundImage = `url('${u.avatar_url}')`;
+      preview.style.backgroundSize = 'cover';
+      preview.textContent = '';
+    } else {
+      preview.style.backgroundImage = '';
+      preview.textContent = u.avatar || '?';
+    }
+  }
   document.getElementById('edit-profile-modal').classList.remove('hidden');
 }
 
 function closeEditProfile() {
   document.getElementById('edit-profile-modal').classList.add('hidden');
+}
+
+async function handleEditProfileAvatar(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const preview = document.getElementById('ep-avatar-preview');
+  if (preview) {
+    preview.style.backgroundImage = `url('${URL.createObjectURL(file)}')`;
+    preview.style.backgroundSize = 'cover';
+    preview.style.backgroundPosition = 'center';
+    preview.textContent = '';
+  }
+  try {
+    const result = await api.uploadAvatar(file);
+    window.CURRENT_USER.avatar_url = result.avatar_url;
+    updateSidebarUser();
+    showToast('Profile picture updated!', 'success', '✅');
+    if (state.currentSection === 'profile') loadProfile();
+  } catch (err) { showToast(err.message || 'Upload failed', 'error', '⚠️'); }
 }
 
 async function submitEditProfile(e) {
@@ -2157,18 +2586,31 @@ async function init(user) {
     u.platform  = user.platform;
     u.region    = user.region;
     u.gradient  = user.gradient;
+    u.avatar_url = user.avatar_url || null;
+    u.email     = user.email;
     u.games     = user.games || [];
   }
   updateSidebarUser();
   await loadWidgets();
   navigate('home');
   await updateNotifBadge();
-  // Pre-load game list for dropdowns (non-blocking)
-  api.getTrendingGames(500).then(g => { if (g && g.length) { _liveGames = g; _populateGameDropdowns(); } }).catch(()=>{});
+  // Pre-load game list for dropdowns + refresh trending widget once data loads
+  api.getTrendingGames(500).then(g => {
+    if (g && g.length) {
+      _liveGames = g;
+      _populateGameDropdowns();
+      loadWidgets(); // refresh trending games widget with real data
+    }
+  }).catch(()=>{});
 }
 
 window.addEventListener('DOMContentLoaded', () => {
   initLFGModal();
+  // Apply saved theme/accent
+  const savedAccent = localStorage.getItem('nx_accent');
+  if (savedAccent) document.documentElement.style.setProperty('--accent', savedAccent);
+  const savedTheme = localStorage.getItem('nx_theme');
+  if (savedTheme === 'light') setTheme('light');
   if (window.bootWithAuth) bootWithAuth();
   else init(null);
 });
@@ -2178,6 +2620,6 @@ document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   const shortcuts = { h:'home', e:'explore', g:'games', l:'lfg', t:'tournaments', m:'messages', n:'notifications', b:'leaderboard', p:'profile' };
   if (shortcuts[e.key]) navigate(shortcuts[e.key]);
-  if (e.key === 'Escape') { closePostModal(); closeProfileModal(); closeLFGModal(); }
+  if (e.key === 'Escape') { closePostModal(); closeProfileModal(); closeLFGModal(); closeFollowModal(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openPostModal(); }
 });
