@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXUS GG — Level Up Your Social Game</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Toast Notifications -->
+  <div id="toast-container"></div>
+
+  <!-- AUTH MODAL (shown before login) -->
+  <div id="auth-modal" class="auth-overlay" style="display:none">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <svg viewBox="0 0 40 40" width="42" height="42"><defs><linearGradient id="alg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#8b5cf6"/><stop offset="100%" style="stop-color:#3b82f6"/></linearGradient></defs><polygon points="20,2 38,12 38,28 20,38 2,28 2,12" fill="url(#alg)"/><text x="50%" y="58%" text-anchor="middle" fill="white" font-size="16" font-weight="900" font-family="system-ui">N</text></svg>
+        <span class="auth-logo-text">NEXUS GG</span>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab-btn active" id="tab-login">Sign In</button>
+        <button class="auth-tab-btn" id="tab-register">Sign Up</button>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <form id="login-form" class="auth-form" autocomplete="on">
+        <div id="login-error" class="auth-error" style="display:none"></div>
+        <div class="auth-field">
+          <label for="login-email">Email or Username</label>
+          <input type="text" id="login-email" name="email" placeholder="you@nexus.gg" required autocomplete="email" />
+        </div>
+        <div class="auth-field">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" name="password" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn-primary auth-submit" id="login-btn">Sign In</button>
+        <div class="auth-demo-hint">
+          Demo: <code>pro@nexus.gg</code> / <code>nexus123</code>
+        </div>
+      </form>
+
+      <!-- REGISTER FORM -->
+      <form id="register-form" class="auth-form" style="display:none" autocomplete="on">
+        <div id="register-error" class="auth-error" style="display:none"></div>
+        <div class="auth-field">
+          <label for="reg-username">Username</label>
+          <input type="text" id="reg-username" name="username" placeholder="CoolGamer123" required minlength="3" autocomplete="username" />
+        </div>
+        <div class="auth-field">
+          <label for="reg-email">Email</label>
+          <input type="email" id="reg-email" name="email" placeholder="you@email.com" required autocomplete="email" />
+        </div>
+        <div class="auth-field">
+          <label for="reg-password">Password</label>
+          <input type="password" id="reg-password" name="password" placeholder="6+ characters" required minlength="6" autocomplete="new-password" />
+        </div>
+        <div class="auth-field">
+          <label for="reg-bio">Bio <span class="auth-optional">(optional)</span></label>
+          <input type="text" id="reg-bio" name="bio" placeholder="🎮 Tell us about yourself..." maxlength="160" />
+        </div>
+        <div class="auth-row">
+          <div class="auth-field">
+            <label for="reg-platform">Platform</label>
+            <select id="reg-platform" name="platform"><option>PC</option><option>PlayStation 5</option><option>Xbox Series X</option><option>Nintendo Switch</option><option>Mobile</option></select>
+          </div>
+          <div class="auth-field">
+            <label for="reg-region">Region</label>
+            <select id="reg-region" name="region"><option>NA</option><option>EU</option><option>APAC</option><option>SA</option></select>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary auth-submit" id="register-btn">Create Account</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Post Modal -->
+  <div id="post-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Create Post</h3>
+        <button class="icon-btn" onclick="closePostModal()"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="compose-area">
+        <div class="compose-avatar" id="modal-avatar">N</div>
+        <div class="compose-fields">
+          <textarea id="modal-post-text" placeholder="What's happening in the game?" maxlength="500"></textarea>
+          <div class="compose-meta-row">
+            <select id="modal-game-tag" class="game-select">
+              <option value="">🎮 Tag a Game</option>
+              <option>Valorant</option><option>League of Legends</option>
+              <option>CS2</option><option>Apex Legends</option>
+              <option>Fortnite</option><option>Warzone</option>
+              <option>Elden Ring</option><option>Dota 2</option>
+              <option>Overwatch 2</option><option>Minecraft</option>
+              <option>GTA V</option><option>Rocket League</option>
+              <option>Baldur's Gate 3</option><option>Palworld</option>
+              <option>Helldivers 2</option>
+            </select>
+            <select id="modal-platform" class="game-select">
+              <option value="">🖥️ Platform</option>
+              <option>PC</option><option>PlayStation 5</option>
+              <option>Xbox Series X</option><option>Nintendo Switch</option>
+              <option>Mobile</option>
+            </select>
+            <select id="modal-post-type" class="game-select">
+              <option value="post">💬 Post</option>
+              <option value="clip">🎬 Clip</option>
+              <option value="lfg">👥 LFG</option>
+              <option value="achievement">🏆 Achievement</option>
+            </select>
+          </div>
+          <div class="char-counter"><span id="modal-char-count">0</span>/500</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="compose-actions-row">
+          <button class="action-icon-btn" title="Attach Image">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          </button>
+          <button class="action-icon-btn" title="Add GIF">GIF</button>
+          <button class="action-icon-btn" title="Add Poll">
+            <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16v-3M11 16V8M15 16v-6M19 16V5"/></svg>
+          </button>
+        </div>
+        <button class="btn-primary" id="modal-submit-btn" onclick="submitModalPost()">
+          <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          Post
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Modal -->
+  <div id="profile-modal" class="modal-overlay hidden">
+    <div class="modal-box profile-modal-box">
+      <button class="icon-btn modal-close-btn" onclick="closeProfileModal()"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <div id="profile-modal-content"></div>
+    </div>
+  </div>
+
+  <!-- LFG Create Modal -->
+  <div id="lfg-modal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:500px">
+      <div class="modal-header">
+        <h3>👥 Post LFG</h3>
+        <button class="icon-btn" onclick="closeLFGModal()"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <form id="lfg-create-form" style="display:flex;flex-direction:column;gap:14px;padding:20px">
+        <div id="lfg-create-error" class="auth-error" style="display:none"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Game *</label>
+            <select id="lfg-game" class="game-select" style="width:100%" required>
+              <option value="">Select Game</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Mode</label>
+            <select id="lfg-mode" class="game-select" style="width:100%">
+              <option>Ranked</option><option>Casual</option><option>Competitive</option><option>Tournament</option><option>Story</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div>
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Min Rank</label>
+            <select id="lfg-rank-req" class="game-select" style="width:100%">
+              <option value="Any">Any</option><option>Iron</option><option>Bronze</option><option>Silver</option>
+              <option>Gold</option><option>Platinum</option><option>Diamond</option><option>Master</option><option>Grandmaster</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Region</label>
+            <select id="lfg-region" class="game-select" style="width:100%">
+              <option>NA</option><option>EU</option><option>APAC</option><option>SA</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Slots</label>
+            <select id="lfg-slots" class="game-select" style="width:100%">
+              <option>2</option><option>3</option><option>4</option><option selected>5</option><option>6</option><option>10</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Description</label>
+          <textarea id="lfg-description" class="modal-textarea" placeholder="What kind of players are you looking for? Skill level, playstyle, goals..." rows="3" maxlength="200" style="width:100%;box-sizing:border-box"></textarea>
+        </div>
+        <div class="modal-footer" style="padding:0">
+          <span style="font-size:13px;color:var(--text-muted)">Posts expire after 24h</span>
+          <button type="submit" class="btn-primary" id="lfg-submit-btn">
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg> Post LFG
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Quote Post Modal -->
+  <div id="quote-modal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:540px">
+      <div class="modal-header">
+        <h3>New Post</h3>
+        <button class="icon-btn" onclick="closeQuoteModal()"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="modal-compose-area">
+        <div class="modal-avatar-wrap">
+          <div class="compose-avatar" id="quote-modal-avatar">N</div>
+        </div>
+        <div class="modal-inputs">
+          <textarea id="quote-post-text" class="modal-textarea" placeholder="Add your thoughts..." maxlength="280" rows="3"></textarea>
+          <div id="quoted-post-preview" class="quoted-post-box"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="char-count"><span id="quote-char-count">0</span>/280</span>
+        <button class="btn-primary" id="quote-submit-btn" onclick="submitQuotePost()">
+          <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Quote Post
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story Creator Overlay -->
+  <div id="story-creator" class="story-overlay hidden">
+    <div class="story-creator-box">
+      <div class="story-creator-header">
+        <h3>Add Your Story</h3>
+        <button class="icon-btn" onclick="closeStoryCreator()"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <!-- Source Tabs -->
+      <div class="story-tabs">
+        <button class="story-tab active" id="tab-gallery" onclick="switchStoryTab('gallery')">🖼️ Gallery</button>
+        <button class="story-tab" id="tab-camera" onclick="switchStoryTab('camera')">📷 Camera</button>
+      </div>
+      <!-- Gallery tab -->
+      <div id="story-gallery-panel" class="story-panel">
+        <div class="story-upload-zone" id="story-upload-zone" onclick="document.getElementById('story-file-input').click()">
+          <input type="file" id="story-file-input" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" style="display:none" onchange="onStoryFileSelected(event)">
+          <div id="story-upload-placeholder">
+            <div class="story-upload-icon">📷</div>
+            <p>Tap to add photo or video</p>
+            <span>JPG, PNG, WEBP, GIF · MP4, MOV, WEBM · max 60s video</span>
+          </div>
+          <div id="story-preview-wrap" style="display:none;position:relative">
+            <img id="story-img-preview" style="display:none;max-width:100%;max-height:300px;border-radius:12px;object-fit:contain">
+            <video id="story-vid-preview" style="display:none;max-width:100%;max-height:300px;border-radius:12px" muted playsinline></video>
+            <!-- Text overlay input -->
+            <textarea id="story-text-overlay" class="story-text-overlay-input" placeholder="Add text..." maxlength="100" rows="2" onclick="event.stopPropagation()"></textarea>
+            <button class="story-remove-media" onclick="clearStoryMedia(event)">✕</button>
+          </div>
+        </div>
+        <input id="story-caption" class="story-caption-input" placeholder="Add a caption..." maxlength="200">
+      </div>
+      <!-- Camera tab -->
+      <div id="story-camera-panel" class="story-panel" style="display:none">
+        <div class="story-camera-wrap">
+          <video id="story-camera-feed" autoplay playsinline muted style="width:100%;border-radius:12px;background:#000;max-height:300px;object-fit:cover"></video>
+          <div id="story-camera-captured" style="display:none;position:relative">
+            <img id="story-camera-img" style="max-width:100%;border-radius:12px;max-height:300px;object-fit:contain">
+            <textarea id="story-camera-text-overlay" class="story-text-overlay-input" placeholder="Add text..." maxlength="100" rows="2" onclick="event.stopPropagation()"></textarea>
+          </div>
+          <div class="story-camera-controls">
+            <button class="btn-ghost btn-sm" id="story-snap-btn" onclick="snapPhoto()">📸 Capture</button>
+            <button class="btn-ghost btn-sm" id="story-retake-btn" style="display:none" onclick="retakePhoto()">↩️ Retake</button>
+          </div>
+        </div>
+      </div>
+      <!-- Upload progress -->
+      <div id="story-upload-progress-wrap" style="display:none;padding:0 20px 10px">
+        <div class="story-upload-progress-bar">
+          <div class="story-upload-progress-fill" id="story-upload-progress-fill"></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;text-align:center" id="story-upload-pct">0%</div>
+      </div>
+      <div class="story-creator-footer">
+        <button class="btn-ghost btn-sm" onclick="closeStoryCreator()">Cancel</button>
+        <button class="btn-primary" id="story-post-btn" onclick="submitStory()">Share Story 🔥</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story Viewer Overlay -->
+  <div id="story-viewer" class="story-viewer-overlay hidden">
+    <div class="story-viewer-inner" id="story-viewer-inner"
+         onmousedown="svPauseHold()" onmouseup="svResumeHold()" ontouchstart="svPauseHold()" ontouchend="svResumeHold()">
+      <!-- Progress bars -->
+      <div class="story-progress-bars" id="story-progress-bars"></div>
+      <!-- Header -->
+      <div class="story-viewer-header">
+        <div class="story-viewer-user">
+          <div class="story-viewer-avatar" id="sv-avatar"></div>
+          <div>
+            <div class="story-viewer-name" id="sv-name"></div>
+            <div class="story-viewer-time" id="sv-time"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="sv-unmute-btn" id="sv-unmute-btn" onclick="svToggleMute(event)" title="Unmute">🔇</button>
+          <div class="sv-view-count hidden" id="sv-view-count">👁 0</div>
+          <button class="icon-btn sv-close-btn" onclick="closeStoryViewer()"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        </div>
+      </div>
+      <!-- Media -->
+      <div class="story-viewer-media">
+        <img id="sv-img" style="display:none">
+        <video id="sv-vid" autoplay playsinline style="display:none"></video>
+        <div class="sv-text-overlay" id="sv-text-overlay"></div>
+      </div>
+      <!-- Caption -->
+      <div class="story-viewer-caption" id="sv-caption"></div>
+      <!-- Tap zones — 30% prev / 70% next -->
+      <div class="sv-tap-prev" onclick="svPrev(event)"></div>
+      <div class="sv-tap-next" onclick="svNext(event)"></div>
+    </div>
+  </div>
+
+  <!-- Edit Profile Modal -->
+  <div id="edit-profile-modal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:480px">
+      <div class="modal-header">
+        <h3>✏️ Edit Profile</h3>
+        <button class="icon-btn" onclick="closeEditProfile()"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <form id="edit-profile-form" onsubmit="submitEditProfile(event)" style="display:flex;flex-direction:column;gap:14px;padding:0 24px 24px">
+        <div class="auth-field">
+          <label style="font-size:12px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Bio</label>
+          <textarea id="ep-bio" maxlength="160" rows="3" placeholder="Tell the squad about yourself..." style="background:var(--bg-input);border:1.5px solid var(--border);color:var(--text-primary);border-radius:8px;padding:10px 13px;font-size:14px;resize:none;width:100%;box-sizing:border-box"></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="auth-field">
+            <label style="font-size:12px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Rank</label>
+            <select id="ep-rank" style="background:var(--bg-input);border:1.5px solid var(--border);color:var(--text-primary);border-radius:8px;padding:10px 13px;font-size:14px;width:100%">
+              <option>Iron</option><option>Bronze</option><option>Silver</option><option>Gold</option>
+              <option>Platinum</option><option>Diamond</option><option>Master</option><option>Grandmaster</option><option>Challenger</option>
+            </select>
+          </div>
+          <div class="auth-field">
+            <label style="font-size:12px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Platform</label>
+            <select id="ep-platform" style="background:var(--bg-input);border:1.5px solid var(--border);color:var(--text-primary);border-radius:8px;padding:10px 13px;font-size:14px;width:100%">
+              <option>PC</option><option>PlayStation</option><option>Xbox</option><option>Nintendo Switch</option><option>Mobile</option>
+            </select>
+          </div>
+        </div>
+        <div class="auth-field">
+          <label style="font-size:12px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Now Playing</label>
+          <input id="ep-nowplaying" type="text" placeholder="e.g. Valorant" style="background:var(--bg-input);border:1.5px solid var(--border);color:var(--text-primary);border-radius:8px;padding:10px 13px;font-size:14px;width:100%;box-sizing:border-box">
+        </div>
+        <div id="ep-error" class="auth-error" style="display:none"></div>
+        <button type="submit" class="btn-primary auth-submit" id="ep-submit-btn">Save Changes</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main App Layout -->
+  <div id="app">
+
+    <!-- LEFT SIDEBAR -->
+    <aside id="sidebar">
+      <div class="sidebar-logo" onclick="navigate('home')">
+        <div class="logo-icon">
+          <svg viewBox="0 0 40 40"><defs><linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#8b5cf6"/><stop offset="100%" style="stop-color:#3b82f6"/></linearGradient></defs><polygon points="20,2 38,12 38,28 20,38 2,28 2,12" fill="url(#lg)"/><text x="50%" y="58%" text-anchor="middle" fill="white" font-size="16" font-weight="900" font-family="system-ui">N</text></svg>
+        </div>
+        <span class="logo-text">NEXUS <span class="logo-gg">GG</span></span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a class="nav-item active" data-section="home" onclick="navigate('home')">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>Home</span>
+        </a>
+        <a class="nav-item" data-section="explore" onclick="navigate('explore')">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span>Explore</span>
+        </a>
+        <a class="nav-item" data-section="games" onclick="navigate('games')">
+          <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4M8 10v4"/><circle cx="15" cy="12" r="1"/><circle cx="18" cy="10" r="1"/></svg>
+          <span>Games</span>
+        </a>
+        <a class="nav-item" data-section="lfg" onclick="navigate('lfg')">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          <span>LFG</span>
+          <span class="nav-badge">3</span>
+        </a>
+        <a class="nav-item" data-section="tournaments" onclick="navigate('tournaments')">
+          <svg viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 000 5H6"/><path d="M18 9h1.5a2.5 2.5 0 000 5H18"/><path d="M4 2h16v5a8 8 0 01-16 0V2z"/><path d="M12 17v4"/><path d="M8 21h8"/></svg>
+          <span>Tournaments</span>
+        </a>
+        <a class="nav-item" data-section="messages" onclick="navigate('messages')">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <span>Messages</span>
+          <span class="nav-badge">5</span>
+        </a>
+        <a class="nav-item" data-section="notifications" onclick="navigate('notifications')">
+          <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <span>Notifications</span>
+          <span class="nav-badge notif-badge">7</span>
+        </a>
+        <a class="nav-item" data-section="leaderboard" onclick="navigate('leaderboard')">
+          <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16v-3M11 16V8M15 16v-6M19 16V5"/></svg>
+          <span>Leaderboard</span>
+        </a>
+        <a class="nav-item" data-section="profile" onclick="navigate('profile')">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Profile</span>
+        </a>
+      </nav>
+
+      <button class="btn-post" onclick="openPostModal()">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Post</span>
+      </button>
+
+      <div class="sidebar-user-card" id="sidebar-user-card" onclick="toggleSidebarMenu(event)">
+        <div class="user-avatar-sm" id="sidebar-avatar">N</div>
+        <div class="user-info-sm">
+          <span class="user-name-sm" id="sidebar-username">NexusPlayer</span>
+          <span class="user-tag-sm" id="sidebar-tag">@nexus#0001</span>
+        </div>
+        <div class="sidebar-more-icon">···</div>
+      </div>
+      <div id="sidebar-user-menu" class="sidebar-user-menu hidden">
+        <div class="sidebar-menu-item" onclick="navigate('profile');closeSidebarMenu()">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>View Profile</span>
+        </div>
+        <div class="sidebar-menu-item" onclick="openEditProfile();closeSidebarMenu()">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <span>Edit Profile</span>
+        </div>
+        <div class="sidebar-menu-divider"></div>
+        <div class="sidebar-menu-item danger" onclick="Auth.logout()">
+          <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span>Sign Out</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-content">
+
+      <!-- HOME SECTION -->
+      <section id="home-section" class="section active">
+        <div class="section-header">
+          <h2>Home</h2>
+          <div class="header-tabs">
+            <button class="tab-btn active" onclick="switchFeedTab(this,'for-you')">For You</button>
+            <button class="tab-btn" onclick="switchFeedTab(this,'following')">Following</button>
+            <button class="tab-btn" onclick="switchFeedTab(this,'gaming')">🔥 Hot</button>
+          </div>
+        </div>
+
+        <!-- Stories -->
+        <div class="stories-container" id="stories-container">
+          <div class="stories-scroll" id="stories-scroll">
+            <div class="story-item add-story" onclick="openStoryCreator()">
+              <div class="story-ring own"><div class="story-avatar-inner add-avatar">+</div></div>
+              <span>Your Story</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compose Box -->
+        <div class="compose-box" id="compose-box">
+          <div class="compose-avatar" id="compose-avatar">N</div>
+          <div class="compose-right">
+            <textarea id="compose-text" placeholder="What's happening in the game?" onfocus="expandComposeBox()"></textarea>
+            <div class="compose-footer" id="compose-footer" style="display:none">
+              <div class="compose-meta-row" style="padding:0 0 8px">
+                <select id="compose-game-tag" class="game-select">
+                  <option value="">🎮 Tag a Game</option>
+                  <option>Valorant</option><option>League of Legends</option>
+                  <option>CS2</option><option>Apex Legends</option><option>Fortnite</option>
+                  <option>Warzone</option><option>Elden Ring</option><option>Overwatch 2</option>
+                  <option>Minecraft</option><option>Marvel Rivals</option>
+                  <option>Path of Exile 2</option><option>Black Ops 6</option>
+                  <option>Rocket League</option><option>Palworld</option>
+                </select>
+              </div>
+              <div class="compose-actions-row">
+                <div class="compose-actions">
+                  <button class="action-icon-btn" title="Clip" onclick="setPostType('clip')">🎬</button>
+                  <button class="action-icon-btn" title="Achievement" onclick="setPostType('achievement')">🏆</button>
+                  <button class="action-icon-btn" title="LFG" onclick="navigate('lfg')">👥</button>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn-ghost btn-sm" onclick="collapseComposeBox()">Cancel</button>
+                  <button class="btn-primary btn-sm" id="compose-post-btn" onclick="submitInlinePost()">Post</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feed -->
+        <div id="feed-container" class="feed-container"></div>
+      </section>
+
+      <!-- EXPLORE SECTION -->
+      <section id="explore-section" class="section">
+        <div class="section-header">
+          <h2>Explore</h2>
+          <div class="search-bar-big">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="Search games, players, clips..." id="explore-search" oninput="searchExplore(this.value)" />
+          </div>
+        </div>
+        <div class="explore-tabs">
+          <button class="tab-btn active" onclick="switchExploreTab(this,'trending')">Trending</button>
+          <button class="tab-btn" onclick="switchExploreTab(this,'clips')">Clips</button>
+          <button class="tab-btn" onclick="switchExploreTab(this,'players')">Players</button>
+          <button class="tab-btn" onclick="switchExploreTab(this,'news')">News</button>
+        </div>
+        <div id="explore-content"></div>
+      </section>
+
+      <!-- GAMES SECTION -->
+      <section id="games-section" class="section">
+        <div id="games-list-view">
+          <div class="section-header">
+            <h2>Games</h2>
+            <div class="search-bar-big">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" placeholder="Search games..." id="games-search" oninput="searchGames(this.value)" />
+            </div>
+          </div>
+          <div class="games-filter-row">
+            <button class="filter-btn active" onclick="filterGames(this,'all')">All</button>
+            <button class="filter-btn" onclick="filterGames(this,'fps')">FPS</button>
+            <button class="filter-btn" onclick="filterGames(this,'moba')">MOBA</button>
+            <button class="filter-btn" onclick="filterGames(this,'battle-royale')">Battle Royale</button>
+            <button class="filter-btn" onclick="filterGames(this,'rpg')">RPG</button>
+            <button class="filter-btn" onclick="filterGames(this,'sandbox')">Sandbox</button>
+            <button class="filter-btn" onclick="filterGames(this,'strategy')">Strategy</button>
+          </div>
+          <div id="games-grid" class="games-grid"></div>
+        </div>
+        <div id="games-community-view" style="display:none"></div>
+      </section>
+
+      <!-- LFG SECTION -->
+      <section id="lfg-section" class="section">
+        <div class="section-header">
+          <h2>Looking for Group</h2>
+          <button class="btn-primary" onclick="openLFGModal()">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Post LFG
+          </button>
+        </div>
+        <div class="lfg-filter-row">
+          <select class="game-select" id="lfg-game-filter" onchange="filterLFG(this.value)">
+            <option value="">All Games</option>
+            <option>Valorant</option><option>League of Legends</option>
+            <option>CS2</option><option>Apex Legends</option>
+            <option>Fortnite</option><option>Warzone</option>
+            <option>Elden Ring</option><option>Dota 2</option>
+            <option>Overwatch 2</option><option>Rocket League</option>
+          </select>
+          <select class="game-select" id="lfg-rank-filter">
+            <option value="">Any Rank</option>
+            <option>Iron</option><option>Bronze</option><option>Silver</option>
+            <option>Gold</option><option>Platinum</option><option>Diamond</option>
+            <option>Master</option><option>Grandmaster</option><option>Challenger</option>
+          </select>
+          <select class="game-select" id="lfg-region-filter">
+            <option value="">Any Region</option>
+            <option>NA</option><option>EU</option><option>APAC</option><option>SA</option>
+          </select>
+        </div>
+        <div id="lfg-container" class="lfg-container"></div>
+      </section>
+
+      <!-- TOURNAMENTS SECTION -->
+      <section id="tournaments-section" class="section">
+        <div class="section-header">
+          <h2>Tournaments</h2>
+          <div class="header-tabs">
+            <button class="tab-btn active">Live</button>
+            <button class="tab-btn">Upcoming</button>
+            <button class="tab-btn">Past</button>
+          </div>
+        </div>
+        <div id="tournaments-container"></div>
+      </section>
+
+      <!-- MESSAGES SECTION -->
+      <section id="messages-section" class="section">
+        <div class="messages-layout">
+          <div class="messages-sidebar">
+            <div class="messages-sidebar-header">
+              <h3>Messages</h3>
+              <button class="icon-btn" title="New Message">
+                <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+            <div class="messages-search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" placeholder="Search messages..." />
+            </div>
+            <div id="conversations-list"></div>
+          </div>
+          <div class="messages-chat">
+            <div id="chat-header" class="chat-header"></div>
+            <div id="chat-messages" class="chat-messages"></div>
+            <div class="chat-input-row">
+              <input type="text" id="chat-input" placeholder="Send a message..." onkeydown="sendMessage(event)" />
+              <button class="btn-primary btn-sm" onclick="sendMessage({key:'Enter'})">
+                <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- NOTIFICATIONS SECTION -->
+      <section id="notifications-section" class="section">
+        <div class="section-header">
+          <h2>Notifications</h2>
+          <button class="btn-ghost" onclick="markAllRead()">Mark all read</button>
+        </div>
+        <div class="notif-filter-row">
+          <button class="tab-btn active" onclick="filterNotifs(this,'all')">All</button>
+          <button class="tab-btn" onclick="filterNotifs(this,'mentions')">Mentions</button>
+          <button class="tab-btn" onclick="filterNotifs(this,'reactions')">Reactions</button>
+          <button class="tab-btn" onclick="filterNotifs(this,'achievements')">Achievements</button>
+        </div>
+        <div id="notifications-container"></div>
+      </section>
+
+      <!-- LEADERBOARD SECTION -->
+      <section id="leaderboard-section" class="section">
+        <div class="section-header">
+          <h2>Leaderboard</h2>
+          <select class="game-select" id="lb-game-filter" onchange="loadLeaderboard(this.value)">
+            <option value="overall">Overall</option>
+            <option>Valorant</option><option>League of Legends</option>
+            <option>CS2</option><option>Apex Legends</option><option>Fortnite</option>
+          </select>
+        </div>
+        <div class="lb-time-filter">
+          <button class="tab-btn active" onclick="switchLBTab(this,'weekly')">Weekly</button>
+          <button class="tab-btn" onclick="switchLBTab(this,'monthly')">Monthly</button>
+          <button class="tab-btn" onclick="switchLBTab(this,'alltime')">All Time</button>
+        </div>
+        <div id="leaderboard-container"></div>
+      </section>
+
+      <!-- PROFILE SECTION -->
+      <section id="profile-section" class="section">
+        <div id="profile-container"></div>
+      </section>
+
+    </main>
+
+    <!-- RIGHT SIDEBAR -->
+    <aside id="right-sidebar">
+      <!-- Online Friends -->
+      <div class="widget">
+        <h4 class="widget-title">
+          <span class="online-dot"></span> Online Now
+          <span id="online-count" class="widget-count">0</span>
+        </h4>
+        <div id="online-friends" class="friends-list"></div>
+      </div>
+
+      <!-- Trending Games -->
+      <div class="widget">
+        <h4 class="widget-title">🔥 Trending Games</h4>
+        <div id="trending-games-widget" class="trending-list"></div>
+      </div>
+
+      <!-- Hot Hashtags -->
+      <div class="widget">
+        <h4 class="widget-title"># Hot Tags</h4>
+        <div id="hashtags-widget" class="hashtags-list"></div>
+      </div>
+
+      <!-- Quick LFG -->
+      <div class="widget lfg-widget">
+        <h4 class="widget-title">⚡ Quick Join</h4>
+        <div id="quick-lfg" class="quick-lfg-list"></div>
+      </div>
+    </aside>
+
+  </div><!-- end #app -->
+
+  <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,2183 @@
+/* ================================================================
+   NEXUS GG — Full Interactive Gaming Social Platform
+   ================================================================ */
+
+'use strict';
+
+// Will be populated from real API on boot
+window.CURRENT_USER = {
+  id: 0, name: 'Loading...', handle: '@...', avatar: '?',
+  rank: 'Bronze', bio: '', games: [], followers: 0, following: 0,
+  posts: 0, platform: 'PC', region: 'NA', achievements: 0,
+  gradient: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+};
+
+// ================================================================
+// STATIC CATALOG DATA (not user-generated)
+// ================================================================
+
+const GAMES = [
+  { id:1,  name:'Valorant',          genre:'fps',          icon:'🎯', players:'14.2M', rating:'4.7', color:'#ff4655', category:'Tactical FPS' },
+  { id:2,  name:'League of Legends', genre:'moba',         icon:'⚔️', players:'11.5M', rating:'4.5', color:'#c89b3c', category:'MOBA' },
+  { id:3,  name:'CS2',               genre:'fps',          icon:'💣', players:'10.1M', rating:'4.6', color:'#f0a500', category:'Tactical FPS' },
+  { id:4,  name:'Fortnite',          genre:'battle-royale',icon:'🏗️', players:'13.8M', rating:'4.3', color:'#00c2ff', category:'Battle Royale' },
+  { id:5,  name:'Marvel Rivals',     genre:'fps',          icon:'🦸', players:'9.3M',  rating:'4.5', color:'#e23636', category:'Hero Shooter' },
+  { id:6,  name:'Black Ops 6',       genre:'fps',          icon:'💥', players:'8.8M',  rating:'4.2', color:'#1a1a2e', category:'FPS' },
+  { id:7,  name:'Minecraft',         genre:'sandbox',      icon:'⛏️', players:'17.3M', rating:'4.8', color:'#5b8a32', category:'Sandbox' },
+  { id:8,  name:'Apex Legends',      genre:'battle-royale',icon:'🦅', players:'8.2M',  rating:'4.4', color:'#cd4118', category:'Battle Royale' },
+  { id:9,  name:'Elden Ring',        genre:'rpg',          icon:'⚱️', players:'4.1M',  rating:'4.9', color:'#ffd700', category:'Action RPG' },
+  { id:10, name:'Path of Exile 2',   genre:'rpg',          icon:'⚡', players:'3.8M',  rating:'4.6', color:'#7c3aed', category:'Action RPG' },
+  { id:11, name:'Dota 2',            genre:'moba',         icon:'🌀', players:'6.4M',  rating:'4.5', color:'#d52b1e', category:'MOBA' },
+  { id:12, name:'GTA V',             genre:'rpg',          icon:'🚗', players:'7.2M',  rating:'4.6', color:'#00b3ff', category:'Open World' },
+  { id:13, name:'Warzone',           genre:'battle-royale',icon:'🎖️', players:'6.5M',  rating:'4.1', color:'#5f8a00', category:'Battle Royale' },
+  { id:14, name:'Rocket League',     genre:'strategy',     icon:'🚀', players:'5.1M',  rating:'4.7', color:'#1d69d8', category:'Sports' },
+  { id:15, name:'Overwatch 2',       genre:'fps',          icon:'🛡️', players:'4.8M',  rating:'3.9', color:'#f57d26', category:'Hero Shooter' },
+  { id:16, name:'Palworld',          genre:'sandbox',      icon:'🐾', players:'4.2M',  rating:'4.3', color:'#4caf50', category:'Survival' },
+  { id:17, name:'Baldur\'s Gate 3',  genre:'rpg',          icon:'🐉', players:'3.2M',  rating:'4.9', color:'#9b4dca', category:'RPG' },
+  { id:18, name:'Roblox',            genre:'sandbox',      icon:'🧱', players:'22.4M', rating:'4.1', color:'#ff5252', category:'Sandbox' },
+  { id:19, name:'Helldivers 2',      genre:'strategy',     icon:'🪖', players:'3.5M',  rating:'4.6', color:'#ff6b35', category:'Shooter' },
+  { id:20, name:'Delta Force',       genre:'fps',          icon:'🔫', players:'2.9M',  rating:'4.3', color:'#2d6a4f', category:'Tactical FPS' },
+];
+
+const TOURNAMENTS = [
+  { id:1, name:'NEXUS GG Open — Valorant', game:'Valorant', icon:'🎯', prize:'$5,000', teams:'128 Teams', format:'Single Elimination', status:'live',     start:'Now', banner:'linear-gradient(135deg,#1a0520,#2d0b4e)' },
+  { id:2, name:'League of Legends Clash',  game:'League',   icon:'⚔️', prize:'$2,500', teams:'64 Teams',  format:'Double Elimination', status:'live',     start:'Now', banner:'linear-gradient(135deg,#1a1200,#3d2e00)' },
+  { id:3, name:'CS2 Pro Series Season 12', game:'CS2',      icon:'💣', prize:'$10,000',teams:'32 Teams',  format:'GSL Groups',         status:'upcoming', start:'In 2h',banner:'linear-gradient(135deg,#001a10,#003320)' },
+  { id:4, name:'Rocket League Grand Prix', game:'RL',       icon:'🚀', prize:'$3,000', teams:'16 Teams',  format:'Round Robin',        status:'upcoming', start:'Tomorrow', banner:'linear-gradient(135deg,#001020,#001a40)' },
+  { id:5, name:'Apex Legends Ranked Cup',  game:'Apex',     icon:'🦅', prize:'$1,500', teams:'60 Teams',  format:'Point System',       status:'upcoming', start:'Sat',   banner:'linear-gradient(135deg,#1a0800,#3d1500)' },
+];
+
+const ACHIEVEMENTS = [
+  { icon:'🏆', name:'First Blood',    desc:'Win your first ranked match',         unlocked:true,  progress:100 },
+  { icon:'💎', name:'Diamond Grind',  desc:'Reach Diamond rank in any game',      unlocked:true,  progress:100 },
+  { icon:'🔥', name:'On Fire',        desc:'Post 10 clips in one week',           unlocked:true,  progress:100 },
+  { icon:'👑', name:'King of the Lobby', desc:'Top player 50 consecutive games',  unlocked:true,  progress:100 },
+  { icon:'🎬', name:'Clip Artist',    desc:'Get 1000 views on a clip',            unlocked:true,  progress:100 },
+  { icon:'🤝', name:'Squad Goals',    desc:'Join 10 LFG parties',                 unlocked:false, progress:60 },
+  { icon:'📢', name:'Influencer',     desc:'Reach 1,000 followers',               unlocked:true,  progress:100 },
+  { icon:'⚡', name:'Speed Demon',    desc:'Complete a game in record time',      unlocked:false, progress:35 },
+  { icon:'🌍', name:'World Traveler', desc:'Play with people from 5 regions',     unlocked:false, progress:80 },
+  { icon:'🕹️', name:'Multiverse',    desc:'Play 10 different games',             unlocked:false, progress:70 },
+  { icon:'💀', name:'Rekt',           desc:'Win 100 competitive matches',         unlocked:true,  progress:100 },
+  { icon:'🌟', name:'Legendary',      desc:'Reach Challenger/GM in any game',     unlocked:false, progress:20 },
+];
+
+const TRENDING_GAMES = [
+  { name:'Minecraft',    icon:'⛏️', players:'17.3M', rank:1 },
+  { name:'Roblox',       icon:'🧱', players:'22.4M', rank:2 },
+  { name:'Valorant',     icon:'🎯', players:'14.2M', rank:3 },
+  { name:'Fortnite',     icon:'🏗️', players:'13.8M', rank:4 },
+  { name:'Marvel Rivals',icon:'🦸', players:'9.3M',  rank:5 },
+];
+
+const HOT_TAGS = ['#Valorant','#GG','#ClipOfTheDay','#Ranked','#LFG','#Minecraft','#EldenRing','#Warzone','#Speedrun','#LeagueOfLegends','#Gaming','#ProPlay'];
+
+// ================================================================
+// STATE
+// ================================================================
+
+const state = {
+  posts: [],
+  currentSection: 'home',
+  currentConversation: null,
+  followedGames: JSON.parse(localStorage.getItem('nx_followed_games') || '[]'),
+  feedTab: 'for-you',
+  exploreTab: 'trending',
+  gamesFilter: 'all',
+  notifs: [],
+};
+
+function saveState() {
+  localStorage.setItem('nx_followed_games', JSON.stringify(state.followedGames));
+}
+
+// ================================================================
+// HELPERS
+// ================================================================
+
+function rankBadgeClass(rank) {
+  const map = { Iron:'iron', Bronze:'bronze', Silver:'silver', Gold:'gold', Platinum:'platinum', Diamond:'diamond', Master:'master', Grandmaster:'master', Challenger:'challenger' };
+  return 'rank-badge rank-' + (map[rank] || 'gold');
+}
+
+function formatNum(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+  return (n || 0).toString();
+}
+
+function parseBody(text) {
+  return text
+    .replace(/(#\w+)/g, '<span class="hashtag">$1</span>')
+    .replace(/(@\w+#?\d*)/g, '<span class="mention">$1</span>');
+}
+
+function avatarEl(user, cls='post-avatar') {
+  const name = user.name || user.username || '?';
+  const av = user.avatar || name[0].toUpperCase();
+  return `<div class="${cls}" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}" onclick="openUserProfile(${user.id})">${av}</div>`;
+}
+
+function userName(user) { return user.name || user.username || 'Unknown'; }
+function userHandle(user) {
+  const raw = user.handle || user.username || 'unknown';
+  const clean = raw.replace(/^@/, '').replace(/#\d+$/, '');
+  return '@' + clean;
+}
+
+function totalReactions(r) { return Object.values(r || {}).reduce((a,b)=>a+(b||0),0); }
+
+function showToast(msg, type='info', emoji='🎮') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${emoji}</span><span>${msg}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'slideOut 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 3200);
+}
+
+// ================================================================
+// NAVIGATION
+// ================================================================
+
+function navigate(section) {
+  // Close any open game community page when leaving games section
+  if (section !== 'games') closeCommunity();
+
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+  const el = document.getElementById(section + '-section');
+  if (el) el.classList.add('active');
+
+  const navEl = document.querySelector(`.nav-item[data-section="${section}"]`);
+  if (navEl) navEl.classList.add('active');
+
+  state.currentSection = section;
+
+  const loaders = {
+    home: loadHome,
+    explore: loadExplore,
+    games: loadGames,
+    lfg: loadLFG,
+    tournaments: loadTournaments,
+    messages: loadMessages,
+    notifications: loadNotifications,
+    leaderboard: loadLeaderboard,
+    profile: loadProfile,
+  };
+  if (loaders[section]) loaders[section]();
+}
+
+// ================================================================
+// HOME FEED
+// ================================================================
+
+function loadHome() {
+  initStoryObserver();
+  renderFeed();
+  updateSidebarUser();
+}
+
+function updateSidebarUser() {
+  const u = window.CURRENT_USER;
+  document.getElementById('sidebar-avatar').textContent = u.avatar;
+  document.getElementById('sidebar-avatar').style.background = u.gradient || '';
+  document.getElementById('sidebar-username').textContent = u.name;
+  // Show clean handle: strip #discriminator, keep @ prefix
+  const cleanHandle = (u.handle || '@player').replace(/#\d+$/, '');
+  document.getElementById('sidebar-tag').textContent = cleanHandle;
+  document.getElementById('compose-avatar').textContent = u.avatar;
+  document.getElementById('compose-avatar').style.background = u.gradient || '';
+  document.getElementById('modal-avatar').textContent = u.avatar;
+  document.getElementById('modal-avatar').style.background = u.gradient || '';
+}
+
+// ================================================================
+// STORY BUBBLES
+// ================================================================
+let _storyGroups = [];
+let _storyObserver = null;
+
+function initStoryObserver() {
+  if (_storyObserver) return;
+  const container = document.getElementById('stories-container');
+  if (!container || !window.IntersectionObserver) { loadStories(); return; }
+  _storyObserver = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting) loadStories();
+  }, { threshold: 0.1 });
+  _storyObserver.observe(container);
+}
+
+async function loadStories() {
+  const scroll = document.getElementById('stories-scroll');
+  if (!scroll) return;
+  const me = Auth.getUser();
+  const myHasStory = _storyGroups.some(g => g.user?.id === me?.id && g.stories?.length);
+  let html = `<div class="story-item add-story" onclick="openStoryCreator()">
+    <div class="story-ring own"><div class="story-avatar-inner add-avatar${myHasStory ? ' has-story' : ''}">+</div></div>
+    <span>Your Story</span>
+  </div>`;
+  try {
+    const groups = await api.getStories();
+    // Client-side expiry filter
+    const now = Date.now();
+    _storyGroups = groups.filter(g => g.stories.some(s => new Date(s.expires_at).getTime() > now));
+    const others = _storyGroups.filter(g => g.user?.id !== me?.id);
+    others.forEach((group, idx) => {
+      const u = group.user;
+      const allViewed = group.stories.every(s => s.viewed);
+      const shortName = (u.username || '?').slice(0, 8);
+      html += `<div class="story-item" onclick="openStoryViewer(${idx})">
+        <div class="story-ring${allViewed ? ' watched' : ''}">
+          <div class="story-avatar-inner" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${escapeHtml(u.avatar||'?')}</div>
+        </div>
+        <span>${escapeHtml(shortName)}</span>
+      </div>`;
+    });
+    // Update own ring if I have stories
+    const myGroup = _storyGroups.find(g => g.user?.id === me?.id);
+    if (myGroup) html = html.replace('add-avatar', 'add-avatar has-story');
+  } catch {}
+  scroll.innerHTML = html;
+}
+
+// ================================================================
+// STORY CREATOR
+// ================================================================
+let _storyFile = null;
+let _storyThumbBlob = null;
+let _storyDuration = null;
+let _storyCameraStream = null;
+let _storyCameraCapture = null;
+let _storyCreatorTab = 'gallery';
+
+function openStoryCreator() {
+  if (!Auth.isLoggedIn()) { showAuthModal('login'); return; }
+  document.getElementById('story-creator').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeStoryCreator() {
+  document.getElementById('story-creator').classList.add('hidden');
+  document.body.style.overflow = '';
+  _stopCamera();
+  clearStoryMedia();
+  _storyFile = null; _storyThumbBlob = null; _storyDuration = null;
+  _storyCameraCapture = null;
+  document.getElementById('story-caption').value = '';
+  document.getElementById('story-text-overlay').value = '';
+  document.getElementById('story-upload-progress-wrap').style.display = 'none';
+  document.getElementById('story-upload-progress-fill').style.width = '0%';
+}
+
+function switchStoryTab(tab) {
+  _storyCreatorTab = tab;
+  document.getElementById('tab-gallery').classList.toggle('active', tab === 'gallery');
+  document.getElementById('tab-camera').classList.toggle('active', tab === 'camera');
+  document.getElementById('story-gallery-panel').style.display = tab === 'gallery' ? 'block' : 'none';
+  document.getElementById('story-camera-panel').style.display = tab === 'camera' ? 'block' : 'none';
+  if (tab === 'camera') _startCamera();
+  else _stopCamera();
+}
+
+// ── Gallery tab ──────────────────────────────────────────────────
+async function onStoryFileSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const isVideo = file.type.startsWith('video/');
+
+  if (isVideo) {
+    // Validate 60s limit
+    const dur = await _getVideoDuration(file);
+    if (dur > 60) {
+      showToast('Video must be 60 seconds or less', 'error', '⏱️');
+      e.target.value = '';
+      return;
+    }
+    _storyDuration = Math.round(dur);
+    _storyThumbBlob = await _grabVideoThumbnail(file);
+    _storyFile = file;
+    _showPreview(null, file);
+  } else {
+    // Compress image
+    let compressed = file;
+    if (window.imageCompression) {
+      try {
+        compressed = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1080, useWebWorker: true });
+      } catch {}
+    }
+    _storyFile = compressed;
+    _storyDuration = null;
+    _storyThumbBlob = null;
+    _showPreview(compressed, null);
+  }
+}
+
+function _showPreview(imgFile, vidFile) {
+  document.getElementById('story-upload-placeholder').style.display = 'none';
+  document.getElementById('story-preview-wrap').style.display = 'flex';
+  const img = document.getElementById('story-img-preview');
+  const vid = document.getElementById('story-vid-preview');
+  if (vidFile) {
+    img.style.display = 'none';
+    vid.style.display = 'block';
+    vid.src = URL.createObjectURL(vidFile);
+  } else {
+    vid.style.display = 'none';
+    img.style.display = 'block';
+    img.src = URL.createObjectURL(imgFile);
+  }
+}
+
+function clearStoryMedia(e) {
+  if (e) e.stopPropagation();
+  _storyFile = null; _storyThumbBlob = null;
+  document.getElementById('story-upload-placeholder').style.display = 'flex';
+  document.getElementById('story-preview-wrap').style.display = 'none';
+  const img = document.getElementById('story-img-preview');
+  const vid = document.getElementById('story-vid-preview');
+  if (img.src) { URL.revokeObjectURL(img.src); img.src = ''; }
+  if (vid.src) { URL.revokeObjectURL(vid.src); vid.src = ''; vid.style.display = 'none'; }
+  document.getElementById('story-file-input').value = '';
+}
+
+// ── Camera tab ───────────────────────────────────────────────────
+async function _startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    _storyCameraStream = stream;
+    const feed = document.getElementById('story-camera-feed');
+    feed.srcObject = stream;
+    feed.style.display = 'block';
+    document.getElementById('story-camera-captured').style.display = 'none';
+    document.getElementById('story-snap-btn').style.display = '';
+    document.getElementById('story-retake-btn').style.display = 'none';
+  } catch {
+    showToast('Camera not available', 'error', '📷');
+  }
+}
+
+function _stopCamera() {
+  if (_storyCameraStream) {
+    _storyCameraStream.getTracks().forEach(t => t.stop());
+    _storyCameraStream = null;
+  }
+  const feed = document.getElementById('story-camera-feed');
+  if (feed) { feed.srcObject = null; }
+}
+
+async function snapPhoto() {
+  const feed = document.getElementById('story-camera-feed');
+  const canvas = document.createElement('canvas');
+  canvas.width = feed.videoWidth || 640;
+  canvas.height = feed.videoHeight || 480;
+  canvas.getContext('2d').drawImage(feed, 0, 0);
+  canvas.toBlob(async blob => {
+    _storyCameraCapture = blob;
+    _storyFile = blob;
+    _storyDuration = null;
+    _storyThumbBlob = null;
+    const url = URL.createObjectURL(blob);
+    feed.style.display = 'none';
+    const captured = document.getElementById('story-camera-captured');
+    captured.style.display = 'block';
+    document.getElementById('story-camera-img').src = url;
+    document.getElementById('story-snap-btn').style.display = 'none';
+    document.getElementById('story-retake-btn').style.display = '';
+    _stopCamera();
+  }, 'image/jpeg', 0.85);
+}
+
+function retakePhoto() {
+  _storyCameraCapture = null; _storyFile = null;
+  document.getElementById('story-camera-captured').style.display = 'none';
+  _startCamera();
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+function _getVideoDuration(file) {
+  return new Promise(resolve => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => { resolve(v.duration); URL.revokeObjectURL(v.src); };
+    v.src = URL.createObjectURL(file);
+  });
+}
+
+function _grabVideoThumbnail(file) {
+  return new Promise(resolve => {
+    const v = document.createElement('video');
+    v.preload = 'metadata'; v.muted = true;
+    v.onloadeddata = () => { v.currentTime = Math.min(0.5, v.duration * 0.1); };
+    v.onseeked = () => {
+      const c = document.createElement('canvas');
+      c.width = v.videoWidth; c.height = v.videoHeight;
+      c.getContext('2d').drawImage(v, 0, 0);
+      c.toBlob(blob => { URL.revokeObjectURL(v.src); resolve(blob); }, 'image/jpeg', 0.7);
+    };
+    v.onerror = () => resolve(null);
+    v.src = URL.createObjectURL(file);
+  });
+}
+
+// ── Submit via XHR (tracks upload progress) ──────────────────────
+async function submitStory() {
+  const file = _storyCreatorTab === 'camera' ? _storyCameraCapture : _storyFile;
+  if (!file) { showToast('Pick a photo or video first!', 'error', '⚠️'); return; }
+
+  const btn = document.getElementById('story-post-btn');
+  btn.disabled = true; btn.textContent = 'Uploading...';
+  document.getElementById('story-upload-progress-wrap').style.display = 'block';
+
+  try {
+    const caption = document.getElementById('story-caption').value.trim();
+    const textOverlay = _storyCreatorTab === 'camera'
+      ? (document.getElementById('story-camera-text-overlay')?.value?.trim() || '')
+      : (document.getElementById('story-text-overlay')?.value?.trim() || '');
+
+    const form = new FormData();
+    const ext = file.type.includes('video') ? '.mp4' : '.jpg';
+    form.append('media', file, `story${ext}`);
+    if (_storyThumbBlob) form.append('thumbnail', _storyThumbBlob, 'thumb.jpg');
+    if (caption) form.append('caption', caption);
+    if (textOverlay) form.append('text_overlay', textOverlay);
+    if (_storyDuration) form.append('duration', String(_storyDuration));
+
+    await _xhrUploadStory(form);
+    closeStoryCreator();
+    showToast('Story posted! 🔥', 'success', '✅');
+    loadStories();
+  } catch (err) {
+    showToast(err.message || 'Upload failed', 'error', '⚠️');
+    document.getElementById('story-upload-progress-wrap').style.display = 'none';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Share Story 🔥';
+  }
+}
+
+function _xhrUploadStory(formData) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        document.getElementById('story-upload-progress-fill').style.width = pct + '%';
+        document.getElementById('story-upload-pct').textContent = pct + '%';
+      }
+    };
+    xhr.onload = () => {
+      try {
+        const d = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) resolve(d);
+        else reject(new Error(d.error || 'Upload failed'));
+      } catch { reject(new Error('Upload failed')); }
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.open('POST', '/api/stories');
+    xhr.setRequestHeader('Authorization', 'Bearer ' + Auth.getToken());
+    xhr.send(formData);
+  });
+}
+
+// ================================================================
+// STORY VIEWER — setInterval-driven progress (pauseable)
+// ================================================================
+const SV = {
+  groups: [], gIdx: 0, sIdx: 0,
+  progress: 0, isPaused: false,
+  ticker: null, muted: true,
+};
+
+function openStoryViewer(groupIdx) {
+  const me = Auth.getUser();
+  SV.groups = _storyGroups.filter(g => g.user?.id !== me?.id);
+  SV.gIdx = Math.max(0, Math.min(groupIdx, SV.groups.length - 1));
+  SV.sIdx = 0; SV.progress = 0; SV.isPaused = false;
+  document.getElementById('story-viewer').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  _svRender();
+}
+
+function closeStoryViewer() {
+  _svStopTicker();
+  document.getElementById('story-viewer').classList.add('hidden');
+  document.body.style.overflow = '';
+  const vid = document.getElementById('sv-vid');
+  vid.pause(); vid.src = ''; vid.style.display = 'none';
+  document.getElementById('sv-img').src = '';
+  loadStories(); // refresh viewed rings
+}
+
+function _svRender() {
+  _svStopTicker();
+  SV.progress = 0;
+
+  const group = SV.groups[SV.gIdx];
+  if (!group) { closeStoryViewer(); return; }
+  const story = group.stories[SV.sIdx];
+  if (!story) { closeStoryViewer(); return; }
+  const u = group.user;
+  const me = Auth.getUser();
+
+  // Header
+  const avatarEl = document.getElementById('sv-avatar');
+  avatarEl.textContent = u.avatar || '?';
+  avatarEl.style.background = u.gradient || 'linear-gradient(135deg,#8b5cf6,#3b82f6)';
+  document.getElementById('sv-name').textContent = u.username;
+  document.getElementById('sv-time').textContent = story.created_at ? timeAgoClient(story.created_at) : 'now';
+  document.getElementById('sv-caption').textContent = story.caption || '';
+  // Text overlay
+  const overlayEl = document.getElementById('sv-text-overlay');
+  overlayEl.textContent = story.text_overlay || '';
+  overlayEl.style.display = story.text_overlay ? 'block' : 'none';
+
+  // View count (own stories only)
+  const vcEl = document.getElementById('sv-view-count');
+  if (story.user_id === me?.id || u.id === me?.id) {
+    vcEl.classList.remove('hidden');
+    api.getStoryViewCount(story.id).then(({ count }) => { vcEl.textContent = '👁 ' + count; }).catch(() => {});
+  } else {
+    vcEl.classList.add('hidden');
+  }
+
+  // Progress bars
+  const barsEl = document.getElementById('story-progress-bars');
+  barsEl.innerHTML = group.stories.map((_, i) =>
+    `<div class="story-prog-bar"><div class="story-prog-fill" id="spf-${i}" style="width:${i < SV.sIdx ? '100%' : '0%'}"></div></div>`
+  ).join('');
+
+  // Media
+  const img = document.getElementById('sv-img');
+  const vid = document.getElementById('sv-vid');
+  vid.onended = null;
+
+  if (story.media_type === 'video') {
+    img.style.display = 'none';
+    vid.style.display = 'block';
+    vid.muted = SV.muted;
+    vid.src = story.media_url;
+    vid.play().catch(() => {});
+    // Duration from DB or wait for metadata
+    const useDur = story.duration || null;
+    if (useDur) {
+      _svStartTicker(useDur * 1000);
+    } else {
+      vid.onloadedmetadata = () => _svStartTicker((vid.duration || 5) * 1000);
+    }
+    vid.onended = svNext;
+  } else {
+    vid.pause(); vid.src = ''; vid.style.display = 'none';
+    img.src = story.media_url;
+    img.style.display = 'block';
+    _svStartTicker(5000);
+  }
+
+  // Unmute button
+  document.getElementById('sv-unmute-btn').textContent = SV.muted ? '🔇' : '🔊';
+
+  // Mark viewed
+  api.viewStory(story.id).catch(() => {});
+
+  // Preload next
+  _svPreloadNext();
+}
+
+function _svStartTicker(durationMs) {
+  _svStopTicker();
+  const tickInterval = 100;
+  SV.ticker = setInterval(() => {
+    if (SV.isPaused) return;
+    SV.progress += (tickInterval / durationMs) * 100;
+    if (SV.progress >= 100) { SV.progress = 100; _svStopTicker(); svNext(); return; }
+    const fill = document.getElementById('spf-' + SV.sIdx);
+    if (fill) fill.style.width = SV.progress + '%';
+  }, tickInterval);
+}
+
+function _svStopTicker() {
+  if (SV.ticker) { clearInterval(SV.ticker); SV.ticker = null; }
+}
+
+function svPauseHold() {
+  SV.isPaused = true;
+  const vid = document.getElementById('sv-vid');
+  if (vid.src) vid.pause();
+}
+
+function svResumeHold() {
+  SV.isPaused = false;
+  const vid = document.getElementById('sv-vid');
+  if (vid.src) vid.play().catch(() => {});
+}
+
+function svToggleMute(e) {
+  e.stopPropagation();
+  SV.muted = !SV.muted;
+  const vid = document.getElementById('sv-vid');
+  vid.muted = SV.muted;
+  document.getElementById('sv-unmute-btn').textContent = SV.muted ? '🔇' : '🔊';
+}
+
+function svNext(e) {
+  if (e) e.stopPropagation();
+  const group = SV.groups[SV.gIdx];
+  if (group && SV.sIdx < group.stories.length - 1) {
+    SV.sIdx++;
+    _svRender();
+  } else if (SV.gIdx < SV.groups.length - 1) {
+    SV.gIdx++; SV.sIdx = 0;
+    _svRender();
+  } else {
+    closeStoryViewer();
+  }
+}
+
+function svPrev(e) {
+  if (e) e.stopPropagation();
+  if (SV.sIdx > 0) { SV.sIdx--; _svRender(); }
+  else if (SV.gIdx > 0) { SV.gIdx--; SV.sIdx = 0; _svRender(); }
+}
+
+function _svPreloadNext() {
+  const group = SV.groups[SV.gIdx];
+  if (!group) return;
+  const next = group.stories[SV.sIdx + 1] || SV.groups[SV.gIdx + 1]?.stories[0];
+  if (!next?.media_url) return;
+  const link = document.createElement('link');
+  link.rel = 'preload';
+  link.as = next.media_type === 'video' ? 'video' : 'image';
+  link.href = next.media_url;
+  document.head.appendChild(link);
+}
+
+function timeAgoClient(d) {
+  const diff = Date.now() - new Date(d).getTime();
+  const m = Math.floor(diff / 60000), h = Math.floor(m / 60);
+  if (h > 0) return h + 'h ago';
+  if (m > 0) return m + 'm ago';
+  return 'just now';
+}
+
+async function renderFeed() {
+  const container = document.getElementById('feed-container');
+  container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading feed...</div>`;
+  try {
+    const tabMap = { 'for-you': 'for-you', 'following': 'following', 'gaming': 'hot' };
+    const posts = await api.getFeed(tabMap[state.feedTab] || 'for-you');
+    const normalized = posts.map(normalizePost);
+    state.posts = normalized;
+    if (!normalized.length) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>No posts yet</p><span>Be the first to post!</span></div>`;
+      return;
+    }
+    container.innerHTML = normalized.map(renderPost).join('');
+  } catch (err) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load feed</p><span>Make sure the server is running</span></div>`;
+  }
+}
+
+function normalizePost(p) {
+  return {
+    ...p,
+    userId: p.user_id || p.userId,
+    user: p.user,
+    reactions: p.reactions || {
+      gg: p.reactions_gg||0, fire: p.reactions_fire||0,
+      rekt: p.reactions_rekt||0, king: p.reactions_king||0,
+      epic: p.reactions_epic||0, lul: p.reactions_lul||0
+    },
+    comments: p.comments_count || p.comments || 0,
+    reposts: p.reposts_count || p.reposts || 0,
+    views: p.views ? formatNum(p.views) : '0',
+  };
+}
+
+// Make renderPost accessible globally for socket updates
+window.renderPost = renderPost;
+
+function renderPost(post) {
+  const user = post.user || { id: post.user_id || post.userId, username: 'Player', avatar: '?', gradient: 'linear-gradient(135deg,#8b5cf6,#3b82f6)', rank: 'Bronze' };
+  const liked = !!post.myReaction;
+  const reposted = !!post.reposted;
+  const reactions = post.reactions || {};
+  const total = totalReactions(reactions);
+
+  let extra = '';
+  if (post.type === 'clip' && post.clip) {
+    extra = `<div class="post-clip-preview">
+      <div class="clip-icon">🎬</div>
+      <div class="clip-info">
+        <div class="clip-title">${post.clip.title}</div>
+        <div class="clip-desc">${post.clip.desc}</div>
+      </div>
+      <button class="clip-play-btn" onclick="showToast('Playing clip!','success','🎬')">▶ Watch</button>
+    </div>`;
+  } else if (post.type === 'achievement' && post.achievement) {
+    extra = `<div class="post-achievement">
+      <div class="achievement-icon">${post.achievement.icon}</div>
+      <div class="achievement-info">
+        <div class="ach-title">${post.achievement.title}</div>
+        <div class="ach-game">${post.achievement.game}</div>
+      </div>
+    </div>`;
+  }
+
+  const reactionEmojis = [
+    { key:'gg', emoji:'🎮', label:'GG' },
+    { key:'fire', emoji:'🔥', label:'Fire' },
+    { key:'rekt', emoji:'💀', label:'Rekt' },
+    { key:'king', emoji:'👑', label:'King' },
+    { key:'epic', emoji:'⚡', label:'Epic' },
+    { key:'lul', emoji:'🤣', label:'LUL' },
+  ];
+
+  const reactionsHtml = reactionEmojis.map(r =>
+    `<div class="reaction-pill" onclick="reactToPost(${post.id},'${r.key}',this)">
+      <span class="reaction-emoji">${r.emoji}</span>
+      <span>${formatNum(reactions[r.key])}</span>
+    </div>`
+  ).join('');
+
+  // Quoted post X/Twitter-style embedded card
+  if (post.quotedPost) {
+    const qp = post.quotedPost;
+    const qu = qp.user || {};
+    extra += `<div class="quoted-post-card" onclick="event.stopPropagation()">
+      <div class="quoted-post-header">
+        <div class="quoted-avatar-sm" style="background:${qu.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${qu.avatar||'?'}</div>
+        <span class="quoted-username-sm">${qu.username||'Player'}</span>
+        ${qu.verified ? '<span class="verified-badge">✓</span>' : ''}
+        <span class="quoted-handle-sm">@${(qu.handle||qu.username||'player').replace(/^@/,'')}</span>
+        <span class="quoted-time-sm">${qp.time}</span>
+      </div>
+      <div class="quoted-body-sm">${qp.body||''}</div>
+    </div>`;
+  }
+
+  return `<div class="post-card" id="post-${post.id}">
+    <div class="post-header">
+      ${avatarEl(user)}
+      <div class="post-user-info">
+        <div class="post-user-row">
+          <span class="post-username" onclick="openUserProfile(${user.id})">${userName(user)}</span>
+          ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
+          <span class="${rankBadgeClass(user.rank)}">${user.rank||'Bronze'}</span>
+          ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? '🎬 Clip' : post.type === 'achievement' ? '🏆 Achievement' : '👥 LFG'}</span>` : ''}
+          ${post.game ? `<span class="post-game-tag" onclick="navigate('games')">🎮 ${post.game}</span>` : ''}
+          ${post.platform ? `<span class="post-platform-badge">${post.platform}</span>` : ''}
+        </div>
+        <span class="post-tag">${userHandle(user)}</span>
+      </div>
+      <span class="post-time">${post.time}</span>
+    </div>
+    <div class="post-body">${parseBody(post.body)}</div>
+    ${extra}
+    <div class="reactions-bar">${reactionsHtml}</div>
+    <div class="post-actions">
+      <button class="post-action-btn ${liked ? 'liked' : ''}" onclick="toggleLike(${post.id},this)">
+        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" ${liked?'fill="currentColor"':''}/></svg>
+        <span id="like-count-${post.id}">${formatNum(total)}</span>
+      </button>
+      <button class="post-action-btn" onclick="toggleComment(${post.id},this)">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span>${post.comments}</span>
+      </button>
+      <div class="post-share-wrap">
+        <button class="post-action-btn" onclick="toggleShareMenu(${post.id},this)">
+          <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          <span>${post.reposts || 0}</span>
+        </button>
+        <div class="share-dropdown hidden" id="share-menu-${post.id}">
+          <div class="share-option" onclick="openQuoteModal(${post.id});closeAllShareMenus()">💬 Quote Post</div>
+          <div class="share-option" onclick="boostPost(${post.id},this);closeAllShareMenus()">📢 Boost</div>
+          <div class="share-option" onclick="copyPostLink(${post.id});closeAllShareMenus()">🔗 Copy Link</div>
+        </div>
+      </div>
+      <button class="post-action-btn views-btn">
+        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>${post.views}</span>
+      </button>
+    </div>
+  </div>`;
+}
+
+async function toggleLike(postId, btn) {
+  try {
+    const result = await api.reactToPost(postId, 'gg');
+    const post = state.posts.find(p => p.id === postId);
+    if (result.action === 'added') {
+      btn.classList.add('liked');
+      if (post) post.reactions.gg++;
+      showToast('Reacted with 🎮 GG!', 'success', '🎮');
+    } else {
+      btn.classList.remove('liked');
+      if (post) post.reactions.gg = Math.max(0, (post.reactions.gg||0) - 1);
+    }
+    const span = document.getElementById(`like-count-${postId}`);
+    if (span && post) span.textContent = formatNum(totalReactions(post.reactions));
+  } catch {
+    showToast('Failed to react', 'error', '⚠️');
+  }
+}
+
+function toggleComment(postId, btn) {
+  showToast('Comments coming soon!', 'info', '💬');
+}
+
+// ================================================================
+// SHARE / BOOST / QUOTE
+// ================================================================
+
+function toggleShareMenu(postId, btn) {
+  closeAllShareMenus();
+  const menu = document.getElementById(`share-menu-${postId}`);
+  if (menu) {
+    menu.classList.toggle('hidden');
+    // Position relative to button
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = (btn.offsetTop - menu.offsetHeight - 4) + 'px';
+  }
+}
+
+function closeAllShareMenus() {
+  document.querySelectorAll('.share-dropdown').forEach(m => m.classList.add('hidden'));
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.post-share-wrap')) closeAllShareMenus();
+  if (!e.target.closest('#sidebar-user-card') && !e.target.closest('#sidebar-user-menu')) closeSidebarMenu();
+});
+
+async function boostPost(postId) {
+  try {
+    const result = await api.repostPost(postId);
+    showToast(result.action === 'added' ? '📢 Boosted!' : 'Boost removed', result.action === 'added' ? 'success' : 'info', '📢');
+    // Update count in DOM
+    const card = document.getElementById(`post-${postId}`);
+    if (card) {
+      const span = card.querySelector('.post-share-wrap .post-action-btn span');
+      if (span) span.textContent = result.reposts || 0;
+    }
+  } catch { showToast('Failed to boost', 'error', '⚠️'); }
+}
+
+function copyPostLink(postId) {
+  navigator.clipboard?.writeText(`${location.origin}/?post=${postId}`).catch(()=>{});
+  showToast('Link copied!', 'success', '🔗');
+}
+
+// Quote Post
+let _quotePostId = null;
+
+function openQuoteModal(postId) {
+  _quotePostId = postId;
+  const post = state.posts.find(p => p.id === postId);
+  const modal = document.getElementById('quote-modal');
+  modal.classList.remove('hidden');
+  const u = window.CURRENT_USER;
+  document.getElementById('quote-modal-avatar').textContent = u.avatar;
+  document.getElementById('quote-modal-avatar').style.background = u.gradient || '';
+  document.getElementById('quote-post-text').value = '';
+  document.getElementById('quote-char-count').textContent = '0';
+
+  if (post) {
+    const author = post.user || {};
+    document.getElementById('quoted-post-preview').innerHTML = `
+      <div class="quoted-inner">
+        <div class="quoted-user">
+          <div class="quoted-avatar" style="background:${author.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${author.avatar||'?'}</div>
+          <strong>${author.username||'Player'}</strong>
+          <span style="color:var(--text-muted);font-size:12px">${post.time||''}</span>
+        </div>
+        <div class="quoted-body">${post.body||''}</div>
+      </div>`;
+  }
+}
+
+function closeQuoteModal() {
+  document.getElementById('quote-modal').classList.add('hidden');
+  _quotePostId = null;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const qta = document.getElementById('quote-post-text');
+  if (qta) qta.addEventListener('input', () => {
+    document.getElementById('quote-char-count').textContent = qta.value.length;
+  });
+  document.getElementById('quote-modal')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('quote-modal')) closeQuoteModal();
+  });
+  document.getElementById('edit-profile-modal')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('edit-profile-modal')) closeEditProfile();
+  });
+});
+
+async function submitQuotePost() {
+  const text = document.getElementById('quote-post-text').value.trim();
+  if (!text) { showToast('Add your thoughts first!', 'error', '⚠️'); return; }
+  const btn = document.getElementById('quote-submit-btn');
+  btn.disabled = true; btn.textContent = 'Posting...';
+  try {
+    const quotedPost = state.posts.find(p => p.id === _quotePostId);
+    await api.createPost({ body: text, type: 'post', game: quotedPost?.game || null, quoted_post_id: _quotePostId });
+    closeQuoteModal();
+    showToast('Post published! 🎮', 'success', '✅');
+    if (state.currentSection === 'home') await renderFeed();
+    else navigate('home');
+  } catch (err) {
+    showToast(err.message || 'Failed', 'error', '⚠️');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Quote Post';
+  }
+}
+
+async function reactToPost(postId, reactionKey, el) {
+  try {
+    const result = await api.reactToPost(postId, reactionKey);
+    const post = state.posts.find(p => p.id === postId);
+    const span = el.querySelector('span:last-child');
+    if (result.action === 'added') {
+      el.classList.add('active');
+      if (post) post.reactions[reactionKey]++;
+      if (span && post) span.textContent = formatNum(post.reactions[reactionKey]);
+      const labels = { gg:'🎮 GG!', fire:'🔥 Fire!', rekt:'💀 Rekt!', king:'👑 King!', epic:'⚡ Epic!', lul:'🤣 LUL!' };
+      showToast(`Reacted: ${labels[reactionKey]}`, 'success', '🎮');
+    } else {
+      el.classList.remove('active');
+      if (post) post.reactions[reactionKey] = Math.max(0, (post.reactions[reactionKey]||0)-1);
+      if (span && post) span.textContent = formatNum(post.reactions[reactionKey]);
+    }
+  } catch { showToast('Failed to react', 'error', '⚠️'); }
+}
+
+function switchFeedTab(btn, tab) {
+  document.querySelectorAll('#home-section .header-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.feedTab = tab;
+  renderFeed();
+}
+
+// ================================================================
+// POST MODAL
+// ================================================================
+
+// ================================================================
+// INLINE COMPOSE BOX
+// ================================================================
+
+let _inlinePostType = 'post';
+
+function expandComposeBox() {
+  const footer = document.getElementById('compose-footer');
+  const textarea = document.getElementById('compose-text');
+  if (footer) footer.style.display = '';
+  if (textarea) textarea.rows = 4;
+}
+
+function collapseComposeBox() {
+  const footer = document.getElementById('compose-footer');
+  const textarea = document.getElementById('compose-text');
+  if (footer) footer.style.display = 'none';
+  if (textarea) { textarea.rows = 1; textarea.value = ''; textarea.blur(); }
+  const sel = document.getElementById('compose-game-tag');
+  if (sel) sel.value = '';
+  _inlinePostType = 'post';
+}
+
+function setPostType(type) {
+  _inlinePostType = type;
+  showToast(`Post type: ${type}`, 'info', type === 'clip' ? '🎬' : '🏆');
+}
+
+async function submitInlinePost() {
+  const textarea = document.getElementById('compose-text');
+  const text = textarea?.value.trim();
+  if (!text) { showToast('Write something first!', 'error', '⚠️'); return; }
+  const btn = document.getElementById('compose-post-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Posting...'; }
+  try {
+    await api.createPost({
+      body: text,
+      type: _inlinePostType,
+      game: document.getElementById('compose-game-tag')?.value || null,
+    });
+    collapseComposeBox();
+    showToast('Post published! 🎮', 'success', '✅');
+    await renderFeed();
+  } catch (err) {
+    showToast(err.message || 'Failed to post', 'error', '⚠️');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
+  }
+}
+
+function openPostModal() {
+  document.getElementById('post-modal').classList.remove('hidden');
+  document.getElementById('modal-post-text').focus();
+}
+
+function closePostModal() {
+  document.getElementById('post-modal').classList.add('hidden');
+  document.getElementById('modal-post-text').value = '';
+  document.getElementById('modal-char-count').textContent = '0';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const textarea = document.getElementById('modal-post-text');
+  if (textarea) {
+    textarea.addEventListener('input', () => {
+      document.getElementById('modal-char-count').textContent = textarea.value.length;
+    });
+  }
+  document.getElementById('post-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('post-modal')) closePostModal();
+  });
+  document.getElementById('profile-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('profile-modal')) closeProfileModal();
+  });
+});
+
+async function submitModalPost() {
+  const text = document.getElementById('modal-post-text').value.trim();
+  if (!text) { showToast('Write something first!', 'error', '⚠️'); return; }
+  const btn = document.getElementById('modal-submit-btn');
+  btn.disabled = true; btn.textContent = 'Posting...';
+
+  try {
+    await api.createPost({
+      body: text,
+      type: document.getElementById('modal-post-type').value,
+      game: document.getElementById('modal-game-tag').value || null,
+      platform: document.getElementById('modal-platform').value || null,
+    });
+    closePostModal();
+    showToast('Post published! 🎮', 'success', '✅');
+    // Stay on current section and refresh it
+    if (state.currentSection === 'profile') {
+      loadProfile();
+    } else if (state.currentSection === 'home') {
+      await renderFeed();
+    } else {
+      navigate('home');
+    }
+  } catch (err) {
+    showToast(err.message || 'Failed to post', 'error', '⚠️');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Post';
+  }
+}
+
+function openLFGModal() {
+  if (!Auth.isLoggedIn()) { showAuthModal('login'); return; }
+  const modal = document.getElementById('lfg-modal');
+  if (!modal) return;
+  // Populate game dropdown with live games
+  _populateGameDropdowns();
+  // Pre-fill region from user profile
+  const region = document.getElementById('lfg-region');
+  if (region && window.CURRENT_USER?.region) region.value = window.CURRENT_USER.region;
+  document.getElementById('lfg-create-error').style.display = 'none';
+  document.getElementById('lfg-submit-btn').textContent = 'Post LFG';
+  document.getElementById('lfg-submit-btn').disabled = false;
+  modal.classList.remove('hidden');
+}
+
+function closeLFGModal() {
+  const modal = document.getElementById('lfg-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function initLFGModal() {
+  const form = document.getElementById('lfg-create-form');
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('lfg-submit-btn');
+    const errEl = document.getElementById('lfg-create-error');
+    errEl.style.display = 'none';
+    btn.textContent = 'Posting…'; btn.disabled = true;
+    try {
+      await api.createLFG({
+        game:        document.getElementById('lfg-game').value,
+        mode:        document.getElementById('lfg-mode').value,
+        rank_req:    document.getElementById('lfg-rank-req').value,
+        region:      document.getElementById('lfg-region').value,
+        slots:       parseInt(document.getElementById('lfg-slots').value),
+        description: document.getElementById('lfg-description').value.trim(),
+      });
+      closeLFGModal();
+      form.reset();
+      showToast('LFG posted! 🎮', 'success', '👥');
+      if (state.currentSection === 'lfg') loadLFG();
+    } catch (err) {
+      errEl.textContent = err.message || 'Failed to post LFG';
+      errEl.style.display = 'block';
+      btn.textContent = 'Post LFG'; btn.disabled = false;
+    }
+  });
+}
+
+// ================================================================
+// EXPLORE
+// ================================================================
+
+function loadExplore() {
+  renderExploreContent('trending');
+}
+
+function switchExploreTab(btn, tab) {
+  document.querySelectorAll('#explore-section .explore-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.exploreTab = tab;
+  renderExploreContent(tab);
+}
+
+async function renderExploreContent(tab) {
+  const container = document.getElementById('explore-content');
+  if (tab === 'trending') {
+    container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading trending games...</div>`;
+    let games = _liveGames.length ? _liveGames : [];
+    if (!games.length) {
+      try { games = await api.getTrendingGames(20); _liveGames = games; _populateGameDropdowns(); }
+      catch { games = []; }
+    }
+    if (!games.length) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">📈</div><p>No trending data yet</p><span>Games load on first sync — check back soon!</span></div>`;
+      return;
+    }
+    const top20 = games.slice(0, 20);
+    container.innerHTML = `<div class="trending-section">
+      ${top20.map((g, i) => {
+        const viewers = g.twitch_viewers || 0;
+        const viewersLabel = viewers > 0 ? `🔴 ${formatNum(viewers)} viewers live` : `${g.rating_count ? formatNum(g.rating_count) + ' ratings' : 'Trending'}`;
+        const safeIdx = _liveGames.indexOf(g);
+        return `
+        <div class="trending-item" style="cursor:pointer" onclick="${safeIdx >= 0 ? `navigate('games');openGameCommunity(${safeIdx})` : `showToast('Exploring ${g.name.replace(/'/g,"\\'")}!','info','🎮')`}">
+          <div class="trending-rank">${i+1}</div>
+          ${g.cover_url
+            ? `<img src="${g.cover_url.replace('t_cover_big','t_thumb')}" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0" alt="${g.name}">`
+            : `<div class="trending-game-icon">🎮</div>`}
+          <div class="trending-info">
+            <div class="trending-name">${g.name}</div>
+            <div class="trending-posts">${viewersLabel}</div>
+          </div>
+          <div class="trending-change up">↑</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } else if (tab === 'clips') {
+    container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading clips...</div>`;
+    try {
+      const posts = await api.getFeed('for-you');
+      const clips = posts.filter(p => p.type === 'clip').map(normalizePost);
+      container.innerHTML = clips.length
+        ? clips.map(renderPost).join('')
+        : `<div class="empty-state"><div class="empty-icon">🎬</div><p>No clips yet</p><span>Be the first to post a clip!</span></div>`;
+    } catch {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load clips</p></div>`;
+    }
+  } else if (tab === 'players') {
+    container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading players...</div>`;
+    try {
+      const users = await api.getUsers();
+      container.innerHTML = `<div style="padding:16px 20px;display:flex;flex-direction:column;gap:10px;">
+        ${users.map(u => `
+          <div style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .2s" onclick="openUserProfile(${u.id})" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
+            <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:50px;height:50px;font-size:18px">${u.avatar||'?'}</div>
+            <div style="flex:1">
+              <div style="font-weight:800;font-size:15px">${u.username||'Player'}</div>
+              <div style="font-size:13px;color:var(--text-muted)">@${u.handle||u.username} · ${formatNum(u.followers||0)} followers</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${u.online ? '🟢 Online' : '⚫ Offline'}</div>
+            </div>
+            <span class="${rankBadgeClass(u.rank)}">${u.rank||'Bronze'}</span>
+            <button class="btn-primary btn-sm" onclick="event.stopPropagation();toggleFollow(${u.id},this)">Follow</button>
+          </div>`).join('')}
+      </div>`;
+    } catch {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load players</p></div>`;
+    }
+  } else {
+    const news = [
+      { title:'Valorant Episode 9 Act 2 launches with new Agent Thorn', desc:'Riot drops massive patch including map rework and new tactical ability system.', icon:'🎯', time:'1h ago' },
+      { title:'Minecraft 1.21.5 drops with new cave biomes and mobs', desc:'The "Deep Darkness" update is finally here with 4 new biomes and 12 new mobs.', icon:'⛏️', time:'3h ago' },
+      { title:'CS2 Major results: Team Vitality claim back-to-back trophies', desc:'Historic run ends in 2-0 sweep of NaVi in Copenhagen finals.', icon:'💣', time:'5h ago' },
+      { title:'Elden Ring DLC "Shattered Realms" announced for Q3', desc:'FromSoftware teases a 30+ hour expansion with 8 new Legacy Dungeons.', icon:'⚱️', time:'8h ago' },
+    ];
+    container.innerHTML = `<div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+      ${news.map(n => `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;display:flex;gap:14px;transition:all .2s" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
+          <div style="font-size:36px;flex-shrink:0">${n.icon}</div>
+          <div>
+            <div style="font-weight:800;font-size:14px;margin-bottom:6px">${n.title}</div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${n.desc}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:8px">📰 ${n.time}</div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }
+}
+
+async function searchExplore(val) {
+  if (!val) { renderExploreContent(state.exploreTab); return; }
+  const container = document.getElementById('explore-content');
+  container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Searching...</div>`;
+  try {
+    const posts = await api.getFeed('for-you');
+    const v = val.toLowerCase();
+    const results = posts.filter(p => p.body.toLowerCase().includes(v) || (p.game||'').toLowerCase().includes(v)).map(normalizePost);
+    container.innerHTML = results.length
+      ? results.map(renderPost).join('')
+      : `<div class="empty-state"><div class="empty-icon">🔍</div><p>No results for "${val}"</p><span>Try a different search term</span></div>`;
+  } catch {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Search failed</p></div>`;
+  }
+}
+
+// ================================================================
+// GAMES
+// ================================================================
+
+// Live games cache (updated on loadGames)
+let _liveGames = [];
+
+async function loadGames() {
+  const grid = document.getElementById('games-grid');
+  if (grid) grid.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading games...</div>`;
+  try {
+    _liveGames = await api.getTrendingGames(500);
+  } catch {
+    // Fallback to static list if API fails or no data yet
+    _liveGames = GAMES.map(g => ({
+      igdb_id: g.id, name: g.name, genres: g.category,
+      cover_url: null, igdb_rating: Math.round(parseFloat(g.rating)*10),
+      twitch_viewers: 0, trending_score: 0, _icon: g.icon, _color: g.color,
+    }));
+  }
+  renderGamesGrid(state.gamesFilter);
+  _populateGameDropdowns();
+}
+
+function _gameCard(g) {
+  const name = g.name || '';
+  const cover = g.cover_url;
+  const icon = g._icon || '🎮';
+  const genre = g.genres || g.category || '';
+  const rating = g.igdb_rating ? (g.igdb_rating / 10).toFixed(1) : '—';
+  const viewers = g.twitch_viewers > 0
+    ? (g.twitch_viewers >= 1000 ? (g.twitch_viewers/1000).toFixed(1)+'K' : g.twitch_viewers) + ' watching'
+    : '';
+  const igdbId = g.igdb_id || g.id;
+  const isFollowing = state.followedGames.includes(igdbId);
+  const coverStyle = cover
+    ? `background:url('${cover}') center/cover`
+    : `background:linear-gradient(135deg,${g._color||'#8b5cf6'}22,${g._color||'#3b82f6'}44)`;
+
+  const safeIdx = _liveGames.indexOf(g);
+
+  return `
+    <div class="game-card" onclick="openGameCommunity(${safeIdx})">
+      <div class="game-cover" style="${coverStyle}">
+        ${cover ? '' : `<span style="font-size:2.5rem">${icon}</span>`}
+        <button class="game-follow-btn ${isFollowing?'following':''}"
+          onclick="event.stopPropagation();toggleFollowGame(${igdbId},'${name.replace(/'/g,'&#39;')}',this)">
+          ${isFollowing ? '✓ Following' : '+ Follow'}
+        </button>
+      </div>
+      <div class="game-info">
+        <div class="game-title">${name}</div>
+        <div class="game-genre">${genre}</div>
+        <div class="game-stats">
+          ${viewers ? `<span class="game-players">🔴 ${viewers}</span>` : ''}
+          ${rating !== '—' ? `<span class="game-rating">⭐ ${rating}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderGamesGrid(filter) {
+  const search = (document.getElementById('games-search')?.value || '').toLowerCase();
+  let games = _liveGames.length ? _liveGames : GAMES.map(g => ({
+    igdb_id: g.id, name: g.name, genres: g.category, _icon: g.icon, _color: g.color,
+    igdb_rating: Math.round(parseFloat(g.rating)*10), twitch_viewers: 0,
+  }));
+
+  if (filter && filter !== 'all') {
+    // Map filter button values → IGDB genre keywords
+    const GENRE_MAP = {
+      'fps':          ['shooter'],
+      'moba':         ['real time strategy', 'moba'],
+      'battle-royale':['shooter', 'battle'],
+      'rpg':          ['role-playing', 'rpg'],
+      'sandbox':      ['simulator', 'adventure', 'platform', 'sandbox'],
+      'strategy':     ['strategy', 'turn-based', 'tactical'],
+    };
+    const keywords = GENRE_MAP[filter] || [filter.toLowerCase()];
+    games = games.filter(g => {
+      const genres = (g.genres || '').toLowerCase();
+      return keywords.some(k => genres.includes(k));
+    });
+  }
+  if (search) games = games.filter(g => g.name.toLowerCase().includes(search));
+
+  const grid = document.getElementById('games-grid');
+  if (grid) grid.innerHTML = games.length ? games.map(_gameCard).join('') :
+    `<div style="padding:40px;text-align:center;color:var(--text-muted)">No games found</div>`;
+}
+
+function filterGames(btn, filter) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.gamesFilter = filter;
+  renderGamesGrid(filter);
+}
+
+function searchGames(val) { renderGamesGrid(state.gamesFilter); }
+
+function toggleFollowGame(id, name, btn) {
+  const idx = state.followedGames.indexOf(id);
+  if (idx === -1) {
+    state.followedGames.push(id);
+    if (btn) { btn.textContent = '✓ Following'; btn.classList.add('following'); }
+    showToast(`Following ${name}!`, 'success', '🎮');
+  } else {
+    state.followedGames.splice(idx, 1);
+    if (btn) { btn.textContent = '+ Follow'; btn.classList.remove('following'); }
+  }
+  saveState();
+}
+
+// ================================================================
+// GAME COMMUNITY PAGES
+// ================================================================
+
+function openGameCommunity(idx) {
+  const game = _liveGames[idx];
+  if (!game) return;
+
+  const listView = document.getElementById('games-list-view');
+  const commView = document.getElementById('games-community-view');
+  if (!listView || !commView) return;
+
+  listView.style.display = 'none';
+  commView.style.display = 'block';
+
+  const igdbId = game.igdb_id || game.id;
+  const isFollowing = state.followedGames.includes(igdbId);
+  const viewers = game.twitch_viewers > 0
+    ? (game.twitch_viewers >= 1000 ? (game.twitch_viewers / 1000).toFixed(1) + 'K' : game.twitch_viewers) + ' watching live'
+    : null;
+  const rating = game.igdb_rating ? (game.igdb_rating / 10).toFixed(1) : null;
+  const safeName = game.name.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+
+  commView.innerHTML = `
+    <div class="gc-hero" style="${game.cover_url ? `background-image:url('${game.cover_url}')` : `background:linear-gradient(135deg,#0f0c29,#302b63,#24243e)`}">
+      <div class="gc-hero-overlay"></div>
+      <button class="gc-back-btn" onclick="closeCommunity()">← All Games</button>
+      <div class="gc-hero-content">
+        <div class="gc-hero-left">
+          ${game.cover_url ? `<img class="gc-cover-thumb" src="${game.cover_url}" alt="${safeName}">` : `<div class="gc-cover-thumb gc-cover-placeholder">${game._icon||'🎮'}</div>`}
+          <div class="gc-hero-info">
+            <h1 class="gc-title">${game.name}</h1>
+            <div class="gc-genres">${(game.genres||'').split(', ').map(g=>`<span class="gc-genre-chip">${g}</span>`).join('')}</div>
+            ${viewers ? `<div class="gc-live-badge">🔴 ${viewers} on Twitch</div>` : ''}
+            ${game.release_date ? `<div class="gc-release">📅 Released ${new Date(game.release_date).getFullYear()}</div>` : ''}
+          </div>
+        </div>
+        <div class="gc-hero-right">
+          ${rating ? `<div class="gc-rating-big">⭐ ${rating}<span>/10</span></div>` : ''}
+          <button class="gc-follow-btn ${isFollowing ? 'following' : ''}"
+            onclick="toggleFollowGame(${igdbId},'${safeName}',this)">
+            ${isFollowing ? '✓ Following' : '+ Follow Community'}
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="gc-tabs-bar">
+      <button class="gc-tab active" onclick="switchGameTab(this,'feed')">📝 Community Feed</button>
+      <button class="gc-tab" onclick="switchGameTab(this,'lfg')">🎮 Find Players</button>
+      <button class="gc-tab" onclick="switchGameTab(this,'about')">ℹ️ About</button>
+    </div>
+    <div id="gc-content" class="gc-content"></div>
+  `;
+
+  // Store for tab switching
+  commView._game = game;
+  _loadGameTab('feed', game);
+}
+
+function closeCommunity() {
+  const listView = document.getElementById('games-list-view');
+  const commView = document.getElementById('games-community-view');
+  if (listView) listView.style.display = '';
+  if (commView) { commView.style.display = 'none'; commView.innerHTML = ''; }
+}
+
+function switchGameTab(btn, tab) {
+  document.querySelectorAll('.gc-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const commView = document.getElementById('games-community-view');
+  _loadGameTab(tab, commView?._game);
+}
+
+async function _loadGameTab(tab, game) {
+  const content = document.getElementById('gc-content');
+  if (!content || !game) return;
+
+  if (tab === 'feed') {
+    content.innerHTML = `<div class="gc-loading">Loading posts...</div>`;
+    try {
+      const posts = await api.getFeed('for-you', game.name);
+      const normalized = (posts || []).map(normalizePost);
+      content.innerHTML = normalized.length
+        ? normalized.map(renderPost).join('')
+        : `<div class="empty-state"><div class="empty-icon">📝</div><p>No posts for ${game.name} yet</p><span>Tag this game when you post to be the first!</span></div>`;
+    } catch {
+      content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load posts</p></div>`;
+    }
+
+  } else if (tab === 'lfg') {
+    content.innerHTML = `<div class="gc-loading">Loading parties...</div>`;
+    try {
+      const posts = await api.getLFG(game.name);
+      if (!posts || !posts.length) {
+        content.innerHTML = `<div class="empty-state"><div class="empty-icon">🎮</div><p>No LFG parties for ${game.name}</p><span>Head to the LFG section to create one!</span></div>`;
+        return;
+      }
+      content.innerHTML = `<div class="lfg-grid">${posts.map(p => {
+        const user = p.user || { username: 'Player', avatar: '?', gradient: 'linear-gradient(135deg,#8b5cf6,#3b82f6)', rank: 'Bronze' };
+        const filled = p.filled || 1;
+        const slots = p.slots || 5;
+        const slotsHtml = Array.from({length: slots}, (_,i) => `<div class="slot-dot ${i < filled ? 'filled' : ''}"></div>`).join('');
+        return `<div class="lfg-card">
+          <div class="lfg-header">
+            <div class="lfg-user-info">
+              <div class="lfg-avatar" style="background:${user.gradient}">${user.avatar}</div>
+              <div><div class="lfg-username">${user.username}</div><div class="lfg-rank-region">${user.rank} · ${p.region||'NA'}</div></div>
+            </div>
+            <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'🔴 Full':p.status==='filling'?'🟡 Filling':'🟢 Open'}</div>
+          </div>
+          <div class="lfg-game-row"><span class="lfg-game-name">🎮 ${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
+          <div class="lfg-description">${p.description||''}</div>
+          <div class="lfg-footer">
+            <div class="lfg-slots"><div class="slot-dots">${slotsHtml}</div><span style="font-size:12px;color:var(--text-muted)">${filled}/${slots} filled</span></div>
+            <button class="lfg-join-btn" ${p.status==='full'?'disabled':''} onclick="joinLFGReal(${p.id},this)">
+              ${p.isMember?'✓ Joined':p.status==='full'?'Full':'⚡ Join Party'}
+            </button>
+          </div>
+        </div>`;
+      }).join('')}</div>`;
+    } catch {
+      content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load parties</p></div>`;
+    }
+
+  } else if (tab === 'about') {
+    const year = game.release_date ? new Date(game.release_date).getFullYear() : null;
+    content.innerHTML = `
+      <div class="gc-about">
+        <div class="gc-about-card">
+          ${game.cover_url ? `<img class="gc-about-cover" src="${game.cover_url}" alt="${game.name}">` : ''}
+          <div class="gc-about-details">
+            <div class="gc-about-row"><span>Genre</span><strong>${game.genres || 'Unknown'}</strong></div>
+            ${year ? `<div class="gc-about-row"><span>Released</span><strong>${year}</strong></div>` : ''}
+            ${game.igdb_rating ? `<div class="gc-about-row"><span>IGDB Rating</span><strong>⭐ ${(game.igdb_rating/10).toFixed(1)} / 10</strong></div>` : ''}
+            ${game.rating_count ? `<div class="gc-about-row"><span>Ratings</span><strong>${game.rating_count.toLocaleString()} reviews</strong></div>` : ''}
+            ${game.twitch_viewers ? `<div class="gc-about-row"><span>Live Now</span><strong>🔴 ${game.twitch_viewers.toLocaleString()} viewers on Twitch</strong></div>` : ''}
+          </div>
+        </div>
+        ${game.summary ? `<p class="gc-summary">${game.summary}</p>` : ''}
+        ${game.steam_url ? `<a class="gc-steam-btn" href="${game.steam_url}" target="_blank" rel="noopener">🛒 Buy on Steam</a>` : ''}
+      </div>`;
+  }
+}
+
+function _populateGameDropdowns() {
+  const names = _liveGames.length
+    ? _liveGames.map(g => g.name)
+    : GAMES.map(g => g.name);
+
+  // Post composer dropdowns
+  ['compose-game-tag', 'modal-game-tag'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">🎮 Tag a game...</option>` +
+      names.map(n => `<option value="${n}">${n}</option>`).join('');
+    if (cur) sel.value = cur;
+  });
+
+  // LFG game filter (main section)
+  const lfgFilter = document.getElementById('lfg-game-filter');
+  if (lfgFilter) {
+    const cur = lfgFilter.value;
+    lfgFilter.innerHTML = `<option value="">All Games</option>` +
+      names.map(n => `<option value="${n}">${n}</option>`).join('');
+    if (cur) lfgFilter.value = cur;
+  }
+
+  // LFG create modal game select
+  const lfgGame = document.getElementById('lfg-game');
+  if (lfgGame) {
+    const cur = lfgGame.value;
+    lfgGame.innerHTML = `<option value="">Select Game</option>` +
+      names.map(n => `<option value="${n}">${n}</option>`).join('');
+    if (cur) lfgGame.value = cur;
+  }
+}
+
+// ================================================================
+// LFG
+// ================================================================
+
+async function loadLFG() {
+  const container = document.getElementById('lfg-container');
+  container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading LFG posts...</div>`;
+  try {
+    const game = document.getElementById('lfg-game-filter')?.value || '';
+    const posts = await api.getLFG(game);
+    renderLFGCards(posts);
+  } catch {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load LFG posts</p><span>Make sure the server is running</span></div>`;
+  }
+}
+
+function renderLFG(gameFilter) { loadLFG(); }
+function filterLFG(val) { loadLFG(); }
+
+function renderLFGCards(posts) {
+  const container = document.getElementById('lfg-container');
+  if (!posts.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><p>No LFG posts yet</p><span>Be the first to create one!</span></div>`;
+    return;
+  }
+  container.innerHTML = posts.map(p => {
+    const user = p.user || { username: 'Player', avatar: '?', gradient: 'linear-gradient(135deg,#8b5cf6,#3b82f6)', rank: 'Bronze' };
+    const filled = p.filled || 1;
+    const slots = p.slots || 5;
+    const slotsHtml = Array.from({length:slots}, (_,i) =>
+      `<div class="slot-dot ${i < filled ? 'filled' : ''}"></div>`
+    ).join('');
+    return `<div class="lfg-card">
+      <div class="lfg-header">
+        <div class="lfg-user-info">
+          <div class="lfg-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${user.avatar||'?'}</div>
+          <div>
+            <div class="lfg-username">${user.username||user.name||'Player'}</div>
+            <div class="lfg-rank-region">${user.rank||'?'} · ${p.region||'NA'}</div>
+          </div>
+        </div>
+        <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'🔴 Full':p.status==='filling'?'🟡 Filling':'🟢 Open'}</div>
+      </div>
+      <div class="lfg-game-row"><span class="lfg-game-name">🎮 ${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
+      <div class="lfg-description">${p.description||p.desc||''}</div>
+      <div class="lfg-footer">
+        <div class="lfg-slots"><div class="slot-dots">${slotsHtml}</div><span style="font-size:12px;color:var(--text-muted)">${filled}/${slots} filled</span></div>
+        <button class="lfg-join-btn" ${p.status==='full'?'disabled':''} onclick="joinLFGReal(${p.id},this)">
+          ${p.isMember?'✓ Joined':p.status==='full'?'Full':'⚡ Join Party'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function joinLFGReal(id, btn) {
+  try {
+    const result = await api.joinLFG(id);
+    showToast(result.action==='joined'?`Joined the party! 🎮 ${result.game||''}`:'Left the party', result.action==='joined'?'success':'info', '👥');
+    loadLFG();
+  } catch (err) { showToast(err.message||'Failed to join', 'error', '⚠️'); }
+}
+
+// ================================================================
+// TOURNAMENTS
+// ================================================================
+
+function loadTournaments() {
+  const container = document.getElementById('tournaments-container');
+  container.innerHTML = `
+    <div class="maintenance-screen">
+      <div class="maintenance-icon">🔧</div>
+      <h2 class="maintenance-title">Tournaments Under Maintenance</h2>
+      <p class="maintenance-desc">We're building something epic. Tournament brackets, live brackets, prize pools, and team management are coming soon.</p>
+      <div class="maintenance-features">
+        <div class="maintenance-feature">🏆 Prize Pool Tournaments</div>
+        <div class="maintenance-feature">📊 Live Bracket Tracking</div>
+        <div class="maintenance-feature">👥 Team Registration</div>
+        <div class="maintenance-feature">📺 Match Streaming</div>
+      </div>
+      <p class="maintenance-eta">Expected launch: Q2 2026</p>
+    </div>`;
+}
+
+// ================================================================
+// MESSAGES
+// ================================================================
+
+async function loadMessages() {
+  const list = document.getElementById('conversations-list');
+  const header = document.getElementById('chat-header');
+  list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted)">Loading...</div>`;
+  try {
+    const conversations = await api.getConversations();
+    renderConversationsFromAPI(conversations);
+    if (conversations.length) {
+      const firstId = conversations[0].other_id;
+      state.currentConversation = firstId;
+      await selectConversationAPI(firstId, conversations[0].user);
+    } else {
+      header.innerHTML = `<div style="color:var(--text-muted);padding:12px">No conversations yet. Follow someone and message them!</div>`;
+    }
+  } catch {
+    list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted)">Could not load messages</div>`;
+    header.innerHTML = `<div style="color:var(--text-muted);padding:12px">Server offline</div>`;
+  }
+}
+
+function renderConversationsFromAPI(conversations) {
+  const list = document.getElementById('conversations-list');
+  if (!conversations.length) {
+    list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted)">No conversations yet</div>`;
+    return;
+  }
+  list.innerHTML = conversations.map(c => {
+    const user = c.user;
+    return `<div class="conv-item ${c.other_id === state.currentConversation ? 'active' : ''}" data-uid="${c.other_id}" onclick="selectConversationAPI(${c.other_id})">
+      <div class="conv-avatar" style="background:${user?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}" data-uid="${c.other_id}">
+        ${user?.avatar||'?'}
+        ${user?.online ? '<div class="conv-online-dot"></div>' : ''}
+      </div>
+      <div class="conv-info">
+        <div class="conv-name">${user?.username||'Unknown'}</div>
+        <div class="conv-last-msg">${c.last_msg||''}</div>
+      </div>
+      <div class="conv-meta">
+        <div class="conv-time">${c.time||''}</div>
+        ${c.unread ? `<div class="conv-unread">${c.unread}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function selectConversationAPI(userId, userObj) {
+  state.currentConversation = userId;
+  let user = userObj;
+  if (!user) {
+    try { user = await api.getUser(userId); } catch { user = { username:'User', avatar:'?', gradient:'linear-gradient(135deg,#8b5cf6,#3b82f6)', online:false }; }
+  }
+  document.getElementById('chat-header').innerHTML = `
+    <div class="conv-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:40px;height:40px">${user.avatar||'?'}</div>
+    <div>
+      <div style="font-weight:800;font-size:14px">${user.username||'User'}</div>
+      <div style="font-size:12px;color:${user.online?'var(--accent-green)':'var(--text-muted)'}">
+        ${user.online ? '🟢 Online' : '⚫ Offline'}
+      </div>
+    </div>`;
+  // Update active conversation in list
+  document.querySelectorAll('.conv-item').forEach(el => {
+    el.classList.toggle('active', +el.dataset.uid === userId);
+  });
+  try {
+    const msgs = await api.getMessages(userId);
+    const chatEl = document.getElementById('chat-messages');
+    chatEl.innerHTML = msgs.length ? msgs.map(m => `
+      <div class="chat-msg ${m.mine ? 'mine' : ''}">
+        <div class="chat-msg-avatar" style="background:${m.gradient||user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${m.avatar||'?'}</div>
+        <div>
+          <div class="chat-msg-bubble">${m.text}</div>
+          <div class="chat-msg-time">${m.time}</div>
+        </div>
+      </div>`).join('') : `<div style="padding:40px;text-align:center;color:var(--text-muted)">No messages yet. Say hi!</div>`;
+    chatEl.scrollTop = chatEl.scrollHeight;
+  } catch {}
+}
+
+function appendChatMessage(msg, mine) {
+  const chatEl = document.getElementById('chat-messages');
+  const u = window.CURRENT_USER;
+  const div = document.createElement('div');
+  div.className = `chat-msg ${mine ? 'mine' : ''}`;
+  div.innerHTML = `
+    <div class="chat-msg-avatar" style="background:${mine ? u.gradient : msg.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${mine ? u.avatar : msg.avatar||'?'}</div>
+    <div>
+      <div class="chat-msg-bubble">${msg.text}</div>
+      <div class="chat-msg-time">${msg.time||'just now'}</div>
+    </div>`;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+async function sendMessage(e) {
+  if (e.key !== 'Enter') return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  if (window.SOCKET?.connected) {
+    window.SOCKET.emit('message:send', { receiverId: state.currentConversation, text });
+  } else {
+    try {
+      const msg = await api.sendMessage(state.currentConversation, text);
+      appendChatMessage(msg, true);
+    } catch { showToast('Failed to send message', 'error', '⚠️'); }
+  }
+}
+
+// ================================================================
+// NOTIFICATIONS
+// ================================================================
+
+async function loadNotifications() {
+  try {
+    state.notifs = await api.getNotifications();
+  } catch {
+    state.notifs = [];
+  }
+  renderNotifications('all');
+}
+
+function renderNotifications(filter) {
+  const notifs = filter === 'all' ? state.notifs : state.notifs.filter(n => n.type === filter || (filter === 'reactions' && n.type === 'reaction'));
+  const container = document.getElementById('notifications-container');
+  if (!notifs.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔔</div><p>No notifications yet</p><span>Interact with posts to get notified!</span></div>`;
+    return;
+  }
+  container.innerHTML = notifs.map(n => `
+    <div class="notif-item ${n.unread ? 'unread' : ''}" onclick="markNotifRead(${n.id},this)">
+      <div class="notif-icon notif-${n.type}">${n.icon}</div>
+      <div class="notif-content">
+        <div class="notif-text">${n.text}</div>
+        <div class="notif-time">${n.time}</div>
+      </div>
+      ${n.unread ? '<div class="unread-dot"></div>' : ''}
+    </div>`).join('');
+}
+
+function filterNotifs(btn, filter) {
+  document.querySelectorAll('.notif-filter-row .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderNotifications(filter);
+}
+
+function markNotifRead(id, el) {
+  const notif = state.notifs.find(n => n.id === id);
+  if (notif) notif.unread = false;
+  el.classList.remove('unread');
+  el.querySelector('.unread-dot')?.remove();
+  updateNotifBadge();
+}
+
+async function markAllRead() {
+  try { await api.readAll(); } catch {}
+  state.notifs.forEach(n => { n.unread = false; n.read = 1; });
+  renderNotifications('all');
+  updateNotifBadge();
+  showToast('All notifications marked as read', 'success', '✅');
+}
+
+async function updateNotifBadge() {
+  try {
+    const counts = await api.unreadCounts();
+    const badge = document.querySelector('.notif-badge');
+    if (badge) { badge.textContent = counts.notifications; badge.style.display = counts.notifications ? '' : 'none'; }
+    const msgBadges = document.querySelectorAll('.nav-badge');
+    if (msgBadges[1]) { msgBadges[1].textContent = counts.messages; msgBadges[1].style.display = counts.messages ? '' : 'none'; }
+  } catch {
+    const count = state.notifs.filter(n => n.unread).length;
+    const badge = document.querySelector('.notif-badge');
+    if (badge) { badge.textContent = count; badge.style.display = count ? '' : 'none'; }
+  }
+}
+
+// ================================================================
+// LEADERBOARD
+// ================================================================
+
+async function loadLeaderboard(game) {
+  const container = document.getElementById('leaderboard-container');
+  container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading...</div>`;
+  try {
+    const rows = await api.getLeaderboard(game);
+    const rankIcons = { 1:'🥇', 2:'🥈', 3:'🥉' };
+    const myId = window.Auth?.getUser()?.id;
+    if (!rows.length) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">🏆</div><p>No leaderboard data yet</p><span>Start posting to appear here!</span></div>`;
+      return;
+    }
+    container.innerHTML = `<div class="lb-table">
+      ${rows.map((row, i) => {
+        const pos = row.rank_position || (i+1);
+        const isMe = row.id === myId;
+        return `<div class="lb-row ${pos<=3?'top'+pos:''} ${isMe?'glow-purple':''}" style="${isMe?'border-color:var(--accent)':''}" onclick="openUserProfile(${row.id})">
+          <div class="lb-rank r${pos}">${rankIcons[pos] || pos}</div>
+          <div class="lb-avatar" style="background:${row.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${row.avatar||'?'}</div>
+          <div class="lb-info">
+            <div class="lb-name">${row.username||row.name||'Player'} ${isMe ? '(You)' : ''}</div>
+            <div class="lb-game">${row.rank||'Unranked'}</div>
+          </div>
+          <div class="lb-stats">
+            <div class="lb-stat">
+              <div class="lb-stat-val">${formatNum(row.score||0)}</div>
+              <div class="lb-stat-lbl">Score</div>
+            </div>
+            <div class="lb-stat">
+              <div class="lb-stat-val">${row.post_count||0}</div>
+              <div class="lb-stat-lbl">Posts</div>
+            </div>
+            <div class="lb-change up">↑</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } catch {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load leaderboard</p></div>`;
+  }
+}
+
+function switchLBTab(btn, tab) {
+  document.querySelectorAll('.lb-time-filter .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  showToast(`Showing ${tab} leaderboard`, 'info', '🏆');
+}
+
+// ================================================================
+// PROFILE
+// ================================================================
+
+function loadProfile() { renderProfile(window.CURRENT_USER.id, document.getElementById('profile-container')); }
+
+async function renderProfile(userId, container) {
+  container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading profile...</div>`;
+  try {
+    const myId = window.Auth?.getUser()?.id || window.CURRENT_USER.id;
+    const isMe = userId === myId || userId === 0;
+    const effectiveId = isMe ? myId : userId;
+
+    let user;
+    if (isMe) {
+      user = { ...window.Auth?.getUser(), ...window.CURRENT_USER };
+      user.username = user.username || user.name;
+    } else {
+      user = await api.getUser(effectiveId);
+    }
+
+    const isFollowing = false; // Will be from API in future
+    const gameIcon = GAMES.find(g => (user.games||[])[0] === g.name)?.icon || '🎮';
+
+    container.innerHTML = `
+      <div class="profile-banner" style="background:${user.gradient||'linear-gradient(135deg,#1a0a3a,#0a1a40)'};font-size:80px">
+        ${gameIcon}
+        <div class="profile-banner-overlay"></div>
+      </div>
+      <div class="profile-header-info">
+        <div class="profile-avatar-row">
+          <div class="profile-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${user.avatar||'?'}</div>
+          <div class="profile-actions-row">
+            ${isMe
+              ? `<button class="btn-secondary" onclick="openEditProfile()">✏️ Edit Profile</button>`
+              : `<button class="btn-primary" id="follow-btn-${user.id}" onclick="toggleFollow(${user.id},this)">+ Follow</button>
+                 <button class="btn-secondary" onclick="navigate('messages')">💬 Message</button>`}
+          </div>
+        </div>
+        <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg">✓</span>' : ''} <span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span></div>
+        <div class="profile-handle">@${(user.handle||user.username||'player').replace(/^@/,'')} · <span style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'🟢 Online':'⚫ Offline'}</span></div>
+        <div class="profile-bio">${user.bio||''}</div>
+        <div class="profile-stats-row">
+          <div class="profile-stat"><span class="stat-val">${user.post_count||user.posts||0}</span> <span class="stat-label">Posts</span></div>
+          <div class="profile-stat"><span class="stat-val">${formatNum(user.followers||0)}</span> <span class="stat-label">Followers</span></div>
+          <div class="profile-stat"><span class="stat-val">${formatNum(user.following||0)}</span> <span class="stat-label">Following</span></div>
+          <div class="profile-stat"><span class="stat-val">${ACHIEVEMENTS.filter(a=>a.unlocked).length}</span> <span class="stat-label">Achievements</span></div>
+        </div>
+        <div class="profile-game-tags">
+          ${(user.games||[]).map(g => {
+            const gData = GAMES.find(gd => gd.name === g);
+            return `<span class="profile-game-tag" onclick="showToast('${g} feed!','info','${gData?.icon||'🎮'}')">${gData?.icon||'🎮'} ${g}</span>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="profile-tabs">
+        <div class="profile-tab active" onclick="switchProfileTab(this,'posts',${effectiveId})">Posts</div>
+        <div class="profile-tab" onclick="switchProfileTab(this,'clips',${effectiveId})">Clips</div>
+        <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>
+      </div>
+      <div id="profile-tab-content"></div>`;
+
+    switchProfileTab(container.querySelector('.profile-tab.active'), 'posts', effectiveId);
+  } catch (err) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load profile</p></div>`;
+  }
+}
+
+async function switchProfileTab(btn, tab, userId) {
+  document.querySelectorAll('.profile-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const content = document.getElementById('profile-tab-content');
+  if (!content) return;
+
+  if (tab === 'achievements') {
+    content.innerHTML = `<div class="achievements-grid">
+      ${ACHIEVEMENTS.map(a => `
+        <div class="achievement-card ${a.unlocked?'':'locked'}" onclick="showToast('${a.name}: ${a.desc}','${a.unlocked?'success':'info'}','${a.icon}')">
+          <div class="ach-icon">${a.icon}</div>
+          <div class="ach-name">${a.name}</div>
+          <div class="ach-desc">${a.desc}</div>
+          ${!a.unlocked && a.progress < 100 ? `<div class="ach-progress"><div class="ach-progress-bar" style="width:${a.progress}%"></div></div>` : ''}
+        </div>`).join('')}
+    </div>`;
+    return;
+  }
+
+  content.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading...</div>`;
+  try {
+    const posts = await api.getUserPosts(userId);
+    const normalized = posts.map(normalizePost);
+    const filtered = tab === 'clips' ? normalized.filter(p => p.type === 'clip') : normalized;
+    const emptyIcon = tab === 'clips' ? '🎬' : '📝';
+    content.innerHTML = filtered.length
+      ? filtered.map(renderPost).join('')
+      : `<div class="empty-state"><div class="empty-icon">${emptyIcon}</div><p>No ${tab} yet</p></div>`;
+  } catch {
+    content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load ${tab}</p></div>`;
+  }
+}
+
+// ================================================================
+// USER PROFILE MODAL
+// ================================================================
+
+function openUserProfile(userId) {
+  const myId = window.Auth?.getUser()?.id || window.CURRENT_USER.id;
+  if (!userId || userId === myId) { navigate('profile'); return; }
+  const modal = document.getElementById('profile-modal');
+  const content = document.getElementById('profile-modal-content');
+  modal.classList.remove('hidden');
+  renderProfile(userId, content);
+}
+
+function closeProfileModal() { document.getElementById('profile-modal').classList.add('hidden'); }
+
+// ================================================================
+// FOLLOW SYSTEM
+// ================================================================
+
+async function toggleFollow(userId, btn) {
+  try {
+    const result = await api.followUser(userId);
+    if (result.action === 'followed') {
+      btn.textContent = 'Following';
+      btn.className = btn.className.replace('btn-primary', 'btn-secondary');
+      showToast('Now following!', 'success', '👥');
+    } else {
+      btn.textContent = '+ Follow';
+      btn.className = btn.className.replace('btn-secondary', 'btn-primary');
+      showToast('Unfollowed', 'info', '👋');
+    }
+  } catch (err) { showToast(err.message || 'Failed', 'error', '⚠️'); }
+}
+
+// ================================================================
+// RIGHT SIDEBAR WIDGETS
+// ================================================================
+
+async function loadWidgets() {
+  // Online Friends from real API
+  try {
+    const onlineUsers = (await api.getOnline()).slice(0, 5);
+    document.getElementById('online-count').textContent = onlineUsers.length;
+    document.getElementById('online-friends').innerHTML = onlineUsers.length
+      ? onlineUsers.map(u => `
+        <div class="friend-item" onclick="openUserProfile(${u.id})">
+          <div class="friend-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">
+            ${u.avatar||'?'}
+            <div class="friend-status-dot" style="background:var(--accent-green)"></div>
+          </div>
+          <div class="friend-info">
+            <div class="friend-name">${u.username||'Player'}</div>
+            <div class="friend-game" data-uid="${u.id}">${u.now_playing ? '🎮 '+u.now_playing : 'In lobby'}</div>
+          </div>
+        </div>`).join('')
+      : `<div style="padding:12px;color:var(--text-muted);font-size:13px">No one online yet</div>`;
+  } catch {
+    document.getElementById('online-count').textContent = '0';
+    document.getElementById('online-friends').innerHTML = `<div style="padding:12px;color:var(--text-muted);font-size:13px">Server offline</div>`;
+  }
+
+  // Trending Games (live from API, fallback to static)
+  try {
+    const tgGames = _liveGames.length ? _liveGames.slice(0,5) : TRENDING_GAMES;
+    document.getElementById('trending-games-widget').innerHTML = tgGames.map((g, i) => {
+      const name = g.name;
+      const viewers = g.twitch_viewers > 0
+        ? (g.twitch_viewers >= 1000 ? (g.twitch_viewers/1000).toFixed(1)+'K' : g.twitch_viewers) + ' live'
+        : (g.players || '');
+      const icon = g._icon || g.icon || '🎮';
+      return `<div class="trend-item" onclick="navigate('games')">
+        <div class="trend-icon">${icon}</div>
+        <div class="trend-info">
+          <div class="trend-name">${name}</div>
+          <div class="trend-players">🟢 ${viewers}</div>
+        </div>
+        <div class="trend-rank">#${i+1}</div>
+      </div>`;
+    }).join('');
+  } catch {
+    document.getElementById('trending-games-widget').innerHTML = TRENDING_GAMES.map((g, i) => `
+      <div class="trend-item" onclick="navigate('games')">
+        <div class="trend-icon">${g.icon}</div>
+        <div class="trend-info">
+          <div class="trend-name">${g.name}</div>
+          <div class="trend-players">🟢 ${g.players}</div>
+        </div>
+        <div class="trend-rank">#${i+1}</div>
+      </div>`).join('');
+  }
+
+  // Hot Tags
+  document.getElementById('hashtags-widget').innerHTML = HOT_TAGS.map(tag =>
+    `<div class="hashtag-pill" onclick="searchExploreTag('${tag}')">${tag}</div>`
+  ).join('');
+
+  // Quick LFG from API
+  try {
+    const lfgPosts = await api.getLFG('');
+    const quickLFG = lfgPosts.filter(p => p.status !== 'full').slice(0, 3);
+    document.getElementById('quick-lfg').innerHTML = quickLFG.length
+      ? quickLFG.map(p => `
+        <div class="quick-lfg-item">
+          <div>
+            <div class="quick-lfg-game">🎮 ${p.game}</div>
+            <div class="quick-lfg-slots">${(p.slots||5) - (p.filled||1)} slots open</div>
+          </div>
+          <button class="quick-join-btn" onclick="joinLFGReal(${p.id},this);navigate('lfg')">Join</button>
+        </div>`).join('')
+      : `<div style="padding:12px;color:var(--text-muted);font-size:13px">No open LFG posts</div>`;
+  } catch {
+    document.getElementById('quick-lfg').innerHTML = `<div style="padding:12px;color:var(--text-muted);font-size:13px">No LFG data</div>`;
+  }
+}
+
+// ================================================================
+// SIDEBAR USER MENU
+// ================================================================
+
+function toggleSidebarMenu(e) {
+  e.stopPropagation(); // prevent doc listener from immediately closing it
+  const menu = document.getElementById('sidebar-user-menu');
+  const isHidden = menu.classList.contains('hidden');
+  closeAllShareMenus();
+  if (isHidden) {
+    menu.classList.remove('hidden');
+  } else {
+    menu.classList.add('hidden');
+  }
+}
+
+function closeSidebarMenu() {
+  document.getElementById('sidebar-user-menu')?.classList.add('hidden');
+}
+
+// ================================================================
+// EDIT PROFILE
+// ================================================================
+
+function openEditProfile() {
+  const u = window.CURRENT_USER;
+  document.getElementById('ep-bio').value = u.bio || '';
+  document.getElementById('ep-rank').value = u.rank || 'Bronze';
+  document.getElementById('ep-platform').value = u.platform || 'PC';
+  document.getElementById('ep-nowplaying').value = u.now_playing || '';
+  document.getElementById('ep-error').style.display = 'none';
+  document.getElementById('edit-profile-modal').classList.remove('hidden');
+}
+
+function closeEditProfile() {
+  document.getElementById('edit-profile-modal').classList.add('hidden');
+}
+
+async function submitEditProfile(e) {
+  e.preventDefault();
+  const btn = document.getElementById('ep-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const errEl = document.getElementById('ep-error');
+  errEl.style.display = 'none';
+  try {
+    const updated = await api.updateMe({
+      bio: document.getElementById('ep-bio').value.trim(),
+      rank: document.getElementById('ep-rank').value,
+      platform: document.getElementById('ep-platform').value,
+      now_playing: document.getElementById('ep-nowplaying').value.trim() || null,
+    });
+    // Update CURRENT_USER
+    const u = window.CURRENT_USER;
+    u.bio = updated.bio;
+    u.rank = updated.rank;
+    u.platform = updated.platform;
+    u.now_playing = updated.now_playing;
+    closeEditProfile();
+    showToast('Profile updated! ✨', 'success', '✅');
+    if (state.currentSection === 'profile') loadProfile();
+  } catch (err) {
+    errEl.textContent = err.message || 'Failed to save';
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Changes';
+  }
+}
+
+function searchExploreTag(tag) {
+  navigate('explore');
+  setTimeout(() => {
+    const input = document.getElementById('explore-search');
+    if (input) { input.value = tag.replace('#',''); searchExplore(input.value); }
+  }, 100);
+}
+
+// ================================================================
+// BOOT — Real API version
+// ================================================================
+
+async function init(user) {
+  if (user) {
+    const u = window.CURRENT_USER;
+    u.id        = user.id;
+    u.name      = user.username;
+    u.handle    = '@' + user.handle;
+    u.avatar    = user.avatar;
+    u.rank      = user.rank;
+    u.bio       = user.bio;
+    u.followers = user.followers;
+    u.following = user.following;
+    u.posts     = user.posts_count;
+    u.platform  = user.platform;
+    u.region    = user.region;
+    u.gradient  = user.gradient;
+    u.games     = user.games || [];
+  }
+  updateSidebarUser();
+  await loadWidgets();
+  navigate('home');
+  await updateNotifBadge();
+  // Pre-load game list for dropdowns (non-blocking)
+  api.getTrendingGames(500).then(g => { if (g && g.length) { _liveGames = g; _populateGameDropdowns(); } }).catch(()=>{});
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initLFGModal();
+  if (window.bootWithAuth) bootWithAuth();
+  else init(null);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const shortcuts = { h:'home', e:'explore', g:'games', l:'lfg', t:'tournaments', m:'messages', n:'notifications', b:'leaderboard', p:'profile' };
+  if (shortcuts[e.key]) navigate(shortcuts[e.key]);
+  if (e.key === 'Escape') { closePostModal(); closeProfileModal(); closeLFGModal(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openPostModal(); }
+});
