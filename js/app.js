@@ -899,6 +899,7 @@ function renderComment(c) {
   const avatarContent = isBot
     ? `<img src="/claude-avatar.svg" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
     : (c.avatar||'?');
+  const replyHandle = isBot ? 'Claude' : (c.handle||c.username||'Player');
   return `
     <div class="comment-item${isBot?' comment-claude':''}">
       <div class="comment-avatar${isBot?' claude-comment-avatar':''}" style="${isBot?'background:transparent':avatarBg};padding:0;overflow:hidden" onclick="openUserProfile(${c.user_id})">${avatarContent}</div>
@@ -907,10 +908,20 @@ function renderComment(c) {
           <span class="comment-author" onclick="openUserProfile(${c.user_id})">${c.username||'Player'}</span>
           ${isBot ? `<span class="claude-ai-badge">AI</span>` : (c.verified ? '<span class="verified-badge">✓</span>' : '')}
           <span class="comment-time">${c.time||'just now'}</span>
+          <button class="comment-reply-btn" onclick="replyToComment(${c.post_id||0},'${replyHandle}')">Reply</button>
         </div>
         <div class="comment-text">${parseBody(c.body||'')}</div>
       </div>
     </div>`;
+}
+
+function replyToComment(postId, handle) {
+  const input = document.getElementById(`comment-input-${postId}`);
+  if (!input) return;
+  const prefix = `@${handle} `;
+  if (!input.value.startsWith(prefix)) input.value = prefix + input.value.replace(/^@\S+\s*/,'');
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
 }
 
 async function submitComment(postId) {
@@ -2333,6 +2344,7 @@ async function renderProfile(userId, container) {
         ${user.is_bot
           ? `<div class="profile-tab active" onclick="switchProfileTab(this,'replies',${effectiveId})">Replies</div>`
           : `<div class="profile-tab active" onclick="switchProfileTab(this,'posts',${effectiveId})">Posts</div>
+        <div class="profile-tab" onclick="switchProfileTab(this,'replies',${effectiveId})">Replies</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'clips',${effectiveId})">Clips</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'games',${effectiveId})">Games</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>`}
@@ -2390,15 +2402,18 @@ async function switchProfileTab(btn, tab, userId) {
     content.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading...</div>`;
     try {
       const replies = await api.getUserComments(userId);
+      const emptyMsg = userId === 999
+        ? `<div class="empty-state"><div class="empty-icon">🤖</div><p>No replies yet — mention @Claude in a post!</p></div>`
+        : `<div class="empty-state"><div class="empty-icon">💬</div><p>No replies yet</p></div>`;
       content.innerHTML = replies.length
         ? replies.map(c => `
-          <div class="claude-reply-card" onclick="openUserProfile(${c.user_id})">
-            <div class="claude-reply-context">Replying to a post by <strong>${c.post_author}</strong></div>
-            <div class="claude-reply-quote">${parseBody(c.post_body.slice(0, 100))}${c.post_body.length > 100 ? '…' : ''}</div>
+          <div class="claude-reply-card" onclick="scrollToPost(${c.post_id})">
+            <div class="claude-reply-context">Replied to <strong>${c.post_author}</strong>'s post</div>
+            <div class="claude-reply-quote">${parseBody((c.post_body||'').slice(0, 100))}${(c.post_body||'').length > 100 ? '…' : ''}</div>
             <div class="claude-reply-body">${parseBody(c.body)}</div>
             <div class="claude-reply-time">${c.time}</div>
           </div>`).join('')
-        : `<div class="empty-state"><div class="empty-icon">🤖</div><p>No replies yet — mention @Claude in a post!</p></div>`;
+        : emptyMsg;
     } catch {
       content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load replies</p></div>`;
     }
@@ -2422,6 +2437,14 @@ async function switchProfileTab(btn, tab, userId) {
 // ================================================================
 // USER PROFILE MODAL
 // ================================================================
+
+function scrollToPost(postId) {
+  navigate('home');
+  setTimeout(() => {
+    const el = document.getElementById(`post-${postId}`);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('post-highlight'); setTimeout(() => el.classList.remove('post-highlight'), 1500); }
+  }, 300);
+}
 
 function openUserProfile(userId) {
   if (!userId) return;
