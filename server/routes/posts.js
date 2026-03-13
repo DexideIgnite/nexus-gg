@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { askClaude, CLAUDE_BOT_ID } = require('../services/askClaude');
 const EVENTS = require('../../shared/events');
+const { hasFeature, getPlanLimits } = require('../../shared/features');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -75,6 +76,25 @@ router.post('/', requireAuth, (req, res) => {
   const { body, type, game, platform, clip_title, clip_desc, achievement_title, achievement_game, achievement_icon, has_poll, poll_options, quoted_post_id } = req.body;
   if (!body?.trim()) return res.status(400).json({ error: 'Post body required' });
   if (body.length > 500) return res.status(400).json({ error: 'Max 500 characters' });
+
+  // Enforce post history cap per plan
+  const postUser = db.getUser(req.user.userId);
+  const limits = getPlanLimits((postUser?.plan) || 'free');
+  if (limits.max_posts !== Infinity) {
+    const userPostCount = db.T.posts.count(p => p.user_id === req.user.userId);
+    if (userPostCount >= limits.max_posts) {
+      // Auto-delete oldest posts to make room
+      const oldest = db.T.posts.findAll(p => p.user_id === req.user.userId)
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        .slice(0, userPostCount - limits.max_posts + 1);
+      oldest.forEach(p => {
+        if (p.image_url) unlinkUpload(p.image_url);
+        if (p.clip_url) unlinkUpload(p.clip_url);
+        db.deletePost(p.id);
+      });
+    }
+  }
+
   const { image_url, clip_url } = req.body;
   const hasPoll = !!has_poll && Array.isArray(poll_options) && poll_options.length >= 2;
 
@@ -95,8 +115,7 @@ router.post('/', requireAuth, (req, res) => {
   io?.emit(EVENTS.POST_NEW, post);
   // If post mentions @Claude, check subscription before replying
   const wantsClaude = /@Claude\b/i.test(body.trim());
-  const postUser = db.getUser(req.user.userId);
-  const hasAI = postUser?.plan === 'plus' || postUser?.plan === 'pro';
+  const hasAI = hasFeature(postUser, 'claude_bot');
   if (wantsClaude && hasAI) maybeAskClaude(post.id, body.trim(), null, io, image_url||null, req.user.userId);
   res.status(201).json({ ...post, _claudeGated: wantsClaude && !hasAI });
 });
@@ -164,7 +183,7 @@ router.post('/:id/comments', requireAuth, (req, res) => {
   // If comment mentions @Claude, check subscription before replying
   const wantsClaude = /@Claude\b/i.test(body.trim());
   const commentUser = db.getUser(req.user.userId);
-  const hasAI = commentUser?.plan === 'plus' || commentUser?.plan === 'pro';
+  const hasAI = hasFeature(commentUser, 'claude_bot');
   if (wantsClaude && hasAI) maybeAskClaude(req.params.id, body.trim(), post.body, io, null, req.user.userId);
   res.status(201).json({ ...comment, _claudeGated: wantsClaude && !hasAI });
 });
@@ -217,7 +236,11 @@ router.post('/upload-image', requireAuth, postImgUpload.single('image'), (req, r
 // POST /api/posts/upload-clip
 router.post('/upload-clip', requireAuth, clipUpload.single('clip'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No video provided' });
-  res.json({ url: `/uploads/clips/${req.file.filename}` });
+  const user = db.getUser(req.user.userId);
+  const limits = getPlanLimits((user?.plan) || 'free');
+  const maxSec = limits.max_clip_seconds || 60;
+  // Return the URL + max duration so client can enforce; server trusts the upload but tags the limit
+  res.json({ url: `/uploads/clips/${req.file.filename}`, max_clip_seconds: maxSec });
 });
 
 module.exports = router;

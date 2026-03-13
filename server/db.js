@@ -145,7 +145,7 @@ const db = {
   markRead:(sid,rid)=>T.messages.update(m=>m.sender_id===+sid&&m.receiver_id===+rid,{read:1}),
   unreadMsgCount:(uid)=>T.messages.count(m=>m.receiver_id===+uid&&!m.read),
   // LFG
-  getLFG:(game,region)=>{let p=T.lfg_posts.findAll().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));if(game)p=p.filter(x=>x.game===game);if(region)p=p.filter(x=>x.region===region);return p;},
+  getLFG:(game,region)=>{const planRank={pro:2,plus:1,free:0};let p=T.lfg_posts.findAll();if(game)p=p.filter(x=>x.game===game);if(region)p=p.filter(x=>x.region===region);p.sort((a,b)=>{const ua=T.users.findOne(u=>u.id===a.user_id);const ub=T.users.findOne(u=>u.id===b.user_id);const ra=planRank[(ua?.plan)||'free']||0;const rb=planRank[(ub?.plan)||'free']||0;if(rb!==ra)return rb-ra;return new Date(b.created_at)-new Date(a.created_at);});return p;},
   createLFG:(data)=>T.lfg_posts.insert(data),
   getLFGPost:(id)=>T.lfg_posts.findOne(p=>p.id===+id),
   joinLFG:(lfgId,userId)=>{if(T.lfg_members.findOne(m=>m.lfg_id===+lfgId&&m.user_id===+userId)){T.lfg_members.delete(m=>m.lfg_id===+lfgId&&m.user_id===+userId);return'left';}T.lfg_members.insert({lfg_id:+lfgId,user_id:+userId});return'joined';},

@@ -3109,3 +3109,137 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
 }
+
+/* ================================================================
+   ANIMATED AVATAR FRAME — plus/pro subscribers
+   ================================================================ */
+@keyframes avatar-frame-spin {
+  from { --angle: 0deg; }
+  to { --angle: 360deg; }
+}
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.avatar-frame-animated {
+  position: relative;
+  display: inline-block;
+  border-radius: 50%;
+  padding: 3px;
+  background: conic-gradient(from var(--angle), #8b5cf6, #3b82f6, #06b6d4, #22c55e, #f59e0b, #ef4444, #ec4899, #8b5cf6);
+  animation: avatar-frame-spin 3s linear infinite;
+}
+.avatar-frame-animated.frame-pro {
+  padding: 3px;
+  background: conic-gradient(from var(--angle), #f59e0b, #ef4444, #ec4899, #8b5cf6, #3b82f6, #f59e0b);
+  animation: avatar-frame-spin 2.5s linear infinite;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+.avatar-frame-animated > .post-avatar,
+.avatar-frame-animated > .comment-avatar,
+.avatar-frame-animated > .lfg-avatar,
+.avatar-frame-animated > .profile-avatar-lg,
+.avatar-frame-animated > .conv-avatar,
+.avatar-frame-animated > .story-avatar,
+.avatar-frame-animated > .search-player-avatar {
+  border: 2px solid var(--bg-primary);
+}
+
+/* Plan badge styles */
+.plan-badge-plus {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+.plan-badge-pro-glow {
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+
+/* Accent color lock overlay for free users */
+.accent-swatch-locked {
+  position: relative;
+  filter: grayscale(0.7);
+  opacity: 0.5;
+  cursor: not-allowed !important;
+}
+.accent-swatch-locked::after {
+  content: '🔒';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+}
+
+/* Priority LFG star icon */
+.lfg-priority-star {
+  color: #f59e0b;
+  font-size: 14px;
+  margin-left: 4px;
+  animation: star-glow 2s ease-in-out infinite;
+}
+@keyframes star-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Profile analytics tab */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+.analytics-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+}
+.analytics-card-value {
+  font-size: 28px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent-primary), #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.analytics-card-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.analytics-top-posts {
+  padding: 16px;
+}
+.analytics-top-post-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.analytics-top-post-body {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 12px;
+  font-size: 13px;
+}
+.analytics-top-post-stat {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  white-space: nowrap;
+}

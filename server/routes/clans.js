@@ -1,10 +1,16 @@
 const router = require('express').Router();
 const db = require('../db');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
+const { hasFeature } = require('../../shared/features');
 
 router.get('/', optionalAuth, (req, res) => res.json(db.searchClans(req.query.q)));
 router.get('/mine', requireAuth, (req, res) => res.json(db.getUserClans(req.user.userId)));
 router.post('/', requireAuth, (req, res) => {
+  // Pro-only gate: clan creation
+  const user = db.getUser(req.user.userId);
+  if (!hasFeature(user, 'clan_create')) {
+    return res.status(403).json({ error: 'Clan creation requires NEXUS Pro', upgrade: true });
+  }
   const { name, tag, description, game, banner_color } = req.body;
   if (!name?.trim() || !tag?.trim()) return res.status(400).json({ error: 'Name and tag required' });
   if (tag.length > 4) return res.status(400).json({ error: 'Tag max 4 chars' });

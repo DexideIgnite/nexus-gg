@@ -116,10 +116,20 @@ function parseBody(text) {
 function avatarEl(user, cls='post-avatar') {
   const name = user.name || user.username || '?';
   const av = user.avatar || name[0].toUpperCase();
+  let inner;
   if (user.avatar_url) {
-    return `<div class="${cls}" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};background-image:url('${user.avatar_url}');background-size:cover;background-position:center" onclick="openUserProfile(${user.id})"></div>`;
+    inner = `<div class="${cls}" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};background-image:url('${user.avatar_url}');background-size:cover;background-position:center" onclick="openUserProfile(${user.id})"></div>`;
+  } else {
+    inner = `<div class="${cls}" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}" onclick="openUserProfile(${user.id})">${av}</div>`;
   }
-  return `<div class="${cls}" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}" onclick="openUserProfile(${user.id})">${av}</div>`;
+  // Animated frame for plus/pro users
+  const plan = user.plan || 'free';
+  if (plan === 'pro') {
+    return `<div class="avatar-frame-animated frame-pro">${inner}</div>`;
+  } else if (plan === 'plus') {
+    return `<div class="avatar-frame-animated">${inner}</div>`;
+  }
+  return inner;
 }
 
 function userName(user) { return user.name || user.username || 'Unknown'; }
@@ -148,7 +158,7 @@ function showToast(msg, type='info', emoji='🎮') {
 
 function planBadge(plan) {
   if (plan === 'plus') return `<span class="plan-badge plan-badge-plus">NEXUS+</span>`;
-  if (plan === 'pro') return `<span class="verified-badge verified-gold" title="NEXUS Pro">✓</span>`;
+  if (plan === 'pro') return `<span class="verified-badge verified-gold plan-badge-pro-glow" title="NEXUS Pro">✓</span>`;
   return '';
 }
 
@@ -193,6 +203,13 @@ function updatePlanUI() {
 }
 
 async function upgradePlan(plan) {
+  const currentPlan = window.CURRENT_USER?.plan || 'free';
+  const planOrder = { free: 0, plus: 1, pro: 2 };
+  const isDowngrade = (planOrder[plan] || 0) < (planOrder[currentPlan] || 0);
+  if (isDowngrade) {
+    const names = { free: 'Free', plus: 'NEXUS+', pro: 'NEXUS Pro' };
+    if (!confirm(`Downgrade from ${names[currentPlan]} to ${names[plan]}? You'll lose access to premium features immediately.`)) return;
+  }
   const btn = document.getElementById(`plan-btn-${plan}`);
   if (btn) { btn.disabled = true; btn.textContent = 'Processing...'; }
   try {
@@ -201,6 +218,8 @@ async function upgradePlan(plan) {
     Auth.setUser({ ...Auth.getUser(), plan: user.plan });
     updatePlanUI();
     loadPlans();
+    // Re-fetch user data to refresh all gated UI
+    try { const me = await api.me(); Object.assign(window.CURRENT_USER, me); Auth.setUser(me); } catch {}
     const names = { free: 'Free', plus: 'NEXUS+', pro: 'NEXUS Pro' };
     showToast(`Switched to ${names[plan] || plan}!`, 'success', plan === 'free' ? '🔄' : '⚡');
   } catch (err) {
@@ -224,15 +243,15 @@ function loadPlans() {
       color: 'var(--text-muted)',
       gradient: 'linear-gradient(135deg,#1a1a2e,#16213e)',
       features: [
-        { ok: true,  text: 'Unlimited posts & clips' },
+        { ok: true,  text: 'Up to 100 posts stored' },
+        { ok: true,  text: '60s clip uploads' },
         { ok: true,  text: 'Join LFG parties' },
         { ok: true,  text: 'Follow gamers & games' },
         { ok: true,  text: 'Direct messages' },
-        { ok: true,  text: 'Basic leaderboard' },
         { ok: false, text: '@Claude AI assistant' },
-        { ok: false, text: 'AI game insights' },
-        { ok: false, text: 'NEXUS+ profile badge' },
-        { ok: false, text: 'Verified Pro badge' },
+        { ok: false, text: 'Animated avatar frame' },
+        { ok: false, text: 'Premium accent colors' },
+        { ok: false, text: 'Clan creation & analytics' },
       ],
       cta: currentPlan === 'free' ? 'Current Plan' : 'Downgrade',
       disabled: currentPlan === 'free',
@@ -248,12 +267,12 @@ function loadPlans() {
       features: [
         { ok: true,  text: 'Everything in Free' },
         { ok: true,  text: '@Claude AI assistant' },
-        { ok: true,  text: 'AI game insights on posts' },
+        { ok: true,  text: 'Up to 500 posts stored' },
+        { ok: true,  text: 'Animated avatar frame' },
+        { ok: true,  text: 'Premium accent colors (12)' },
+        { ok: true,  text: 'Priority LFG matchmaking' },
         { ok: true,  text: 'NEXUS+ profile badge' },
-        { ok: true,  text: 'Priority support' },
-        { ok: false, text: 'Verified Pro badge ✓' },
-        { ok: false, text: 'Exclusive Pro cosmetics' },
-        { ok: false, text: 'Double XP on events' },
+        { ok: false, text: 'Clan creation & analytics' },
       ],
       cta: currentPlan === 'plus' ? 'Current Plan' : currentPlan === 'pro' ? 'Downgrade' : 'Upgrade to NEXUS+',
       disabled: currentPlan === 'plus',
@@ -268,13 +287,13 @@ function loadPlans() {
       gradient: 'linear-gradient(135deg,#1a0a00,#3d2000)',
       features: [
         { ok: true,  text: 'Everything in NEXUS+' },
-        { ok: true,  text: 'Verified Pro badge ✓' },
-        { ok: true,  text: 'Exclusive Pro cosmetics' },
-        { ok: true,  text: 'Double XP on events' },
-        { ok: true,  text: 'Early access to features' },
-        { ok: true,  text: 'Custom profile banner' },
-        { ok: true,  text: 'Priority matchmaking in LFG' },
-        { ok: true,  text: '24/7 dedicated support' },
+        { ok: true,  text: 'Unlimited post storage' },
+        { ok: true,  text: '10 min clip uploads' },
+        { ok: true,  text: 'Verified Pro badge ✓ with glow' },
+        { ok: true,  text: 'Create & lead clans' },
+        { ok: true,  text: 'Host tournaments (coming soon)' },
+        { ok: true,  text: 'Profile analytics dashboard' },
+        { ok: true,  text: 'Gold animated avatar frame' },
       ],
       cta: currentPlan === 'pro' ? 'Current Plan' : 'Upgrade to Pro',
       disabled: currentPlan === 'pro',
@@ -2098,12 +2117,14 @@ function renderLFGCards(posts) {
     const slotsHtml = Array.from({length:slots}, (_,i) =>
       `<div class="slot-dot ${i < filled ? 'filled' : ''}"></div>`
     ).join('');
+    const userPlan = user.plan || 'free';
+    const priorityStar = (userPlan === 'pro' || userPlan === 'plus') ? '<span class="lfg-priority-star" title="Priority listing">⭐</span>' : '';
     return `<div class="lfg-card">
       <div class="lfg-header">
         <div class="lfg-user-info">
           <div class="lfg-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${user.avatar||'?'}</div>
           <div>
-            <div class="lfg-username">${user.username||user.name||'Player'}</div>
+            <div class="lfg-username">${user.username||user.name||'Player'}${priorityStar} ${planBadge(userPlan)}</div>
             <div class="lfg-rank-region">${user.rank||'?'} · ${p.region||'NA'}</div>
           </div>
         </div>
@@ -2135,6 +2156,8 @@ async function joinLFGReal(id, btn) {
 
 function loadTournaments() {
   const container = document.getElementById('tournaments-container');
+  const plan = window.CURRENT_USER?.plan || 'free';
+  const canHost = plan === 'pro';
   container.innerHTML = `
     <div class="maintenance-screen">
       <div class="maintenance-icon">🔧</div>
@@ -2147,6 +2170,10 @@ function loadTournaments() {
         <div class="maintenance-feature">📺 Match Streaming</div>
       </div>
       <p class="maintenance-eta">Expected launch: Q2 2026</p>
+      ${!canHost ? `<div style="margin-top:16px;padding:12px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius);font-size:13px;text-align:center">
+        🏆 Tournament hosting will be a <strong>NEXUS Pro</strong> exclusive feature.
+        <button class="btn-primary" style="margin-left:8px;font-size:12px;padding:4px 12px" onclick="navigate('plans')">Upgrade</button>
+      </div>` : ''}
     </div>`;
 }
 
@@ -2553,8 +2580,19 @@ function switchSettingsTab(btn, tab) {
         <div class="settings-field">
           <label>Accent Color</label>
           <div class="accent-color-grid">
-            ${[['#8b5cf6','Purple'],['#3b82f6','Blue'],['#06b6d4','Cyan'],['#22c55e','Green'],['#f97316','Orange'],['#ef4444','Red'],['#ec4899','Pink'],['#f59e0b','Gold']].map(([c,n])=>`
-              <div class="accent-swatch${accent===c?' active':''}" style="background:${c}" onclick="setAccentColor('${c}',this)" title="${n}"></div>`).join('')}
+            ${(()=>{
+              const plan = window.CURRENT_USER?.plan || 'free';
+              const canAccent = typeof hasFeature==='function' ? hasFeature({plan},'accent_colors') : (plan==='plus'||plan==='pro');
+              const baseColors = [['#8b5cf6','Purple'],['#3b82f6','Blue'],['#06b6d4','Cyan'],['#22c55e','Green'],['#f97316','Orange'],['#ef4444','Red'],['#ec4899','Pink'],['#f59e0b','Gold']];
+              const premiumColors = [['#10b981','Emerald'],['#6366f1','Indigo'],['#d946ef','Fuchsia'],['#0ea5e9','Sky']];
+              const allColors = [...baseColors, ...premiumColors];
+              return allColors.map(([c,n],i)=>{
+                const isPremium = i >= baseColors.length;
+                const locked = isPremium && !canAccent;
+                if (locked) return `<div class="accent-swatch accent-swatch-locked" style="background:${c}" title="${n} (NEXUS+ required)" onclick="showUpgradePrompt('Premium accent colors')"></div>`;
+                return `<div class="accent-swatch${accent===c?' active':''}" style="background:${c}" onclick="setAccentColor('${c}',this)" title="${n}"></div>`;
+              }).join('');
+            })()}
           </div>
         </div>
       </div>`;
@@ -2871,7 +2909,13 @@ async function renderProfile(userId, container) {
       </div>
       <div class="profile-header-info">
         <div class="profile-avatar-row">
-          <div class="profile-avatar-lg" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
+          ${(()=>{
+            const avatarInner = `<div class="profile-avatar-lg" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>`;
+            const p = user.plan || 'free';
+            if (p === 'pro') return `<div class="avatar-frame-animated frame-pro">${avatarInner}</div>`;
+            if (p === 'plus') return `<div class="avatar-frame-animated">${avatarInner}</div>`;
+            return avatarInner;
+          })()}
           <div class="profile-actions-row">
             ${isMe
               ? `<button class="btn-secondary profile-edit-btn" onclick="openEditProfile()"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Profile</button>`
@@ -2895,7 +2939,8 @@ async function renderProfile(userId, container) {
         <div class="profile-tab" onclick="switchProfileTab(this,'replies',${effectiveId})">Replies</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'clips',${effectiveId})">Clips</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'games',${effectiveId})">Games</div>
-        <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>`}
+        <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>
+        ${(user.plan === 'pro' && isMe) ? `<div class="profile-tab" onclick="switchProfileTab(this,'analytics',${effectiveId})">📊 Analytics</div>` : ''}`}
       </div>
       <div id="profile-tab-content"></div>`;
 
@@ -2910,6 +2955,36 @@ async function switchProfileTab(btn, tab, userId) {
   if (btn) btn.classList.add('active');
   const content = document.getElementById('profile-tab-content');
   if (!content) return;
+
+  if (tab === 'analytics') {
+    content.innerHTML = `<div style="padding:20px;color:var(--text-muted);text-align:center">Loading analytics...</div>`;
+    try {
+      const posts = await api.getUserPosts(userId);
+      const totalViews = posts.reduce((s, p) => s + (parseInt(p.views) || 0), 0);
+      const totalReacts = posts.reduce((s, p) => s + totalReactions(p.reactions || {}), 0);
+      const totalComments = posts.reduce((s, p) => s + (p.comments || p.comments_count || 0), 0);
+      const topPosts = [...posts].sort((a, b) => totalReactions(b.reactions || {}) - totalReactions(a.reactions || {})).slice(0, 5);
+      content.innerHTML = `
+        <div class="analytics-grid">
+          <div class="analytics-card"><div class="analytics-card-value">${formatNum(totalViews)}</div><div class="analytics-card-label">Total Views</div></div>
+          <div class="analytics-card"><div class="analytics-card-value">${formatNum(totalReacts)}</div><div class="analytics-card-label">Total Reactions</div></div>
+          <div class="analytics-card"><div class="analytics-card-value">${formatNum(totalComments)}</div><div class="analytics-card-label">Total Comments</div></div>
+          <div class="analytics-card"><div class="analytics-card-value">${posts.length}</div><div class="analytics-card-label">Total Posts</div></div>
+        </div>
+        ${topPosts.length ? `
+          <div class="analytics-top-posts">
+            <h4 style="padding:0 0 12px;font-size:14px;opacity:.7">Top Reacted Posts</h4>
+            ${topPosts.map(p => `
+              <div class="analytics-top-post-item" onclick="scrollToPost(${p.id})">
+                <div class="analytics-top-post-body">${escapeHtml((p.body||'').slice(0,80))}</div>
+                <div class="analytics-top-post-stat">${totalReactions(p.reactions||{})} reactions · ${p.views||0} views</div>
+              </div>`).join('')}
+          </div>` : ''}`;
+    } catch {
+      content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load analytics</p></div>`;
+    }
+    return;
+  }
 
   if (tab === 'achievements') {
     content.innerHTML = `<div class="achievements-grid">
@@ -3648,6 +3723,11 @@ async function leaveClanAction(clanId, btn) {
 
 function openCreateClan() {
   if (!Auth.isLoggedIn()) { showToast('Log in to create a clan'); return; }
+  const plan = window.CURRENT_USER?.plan || 'free';
+  if (plan !== 'pro') {
+    showUpgradePrompt('Clan creation requires NEXUS Pro');
+    return;
+  }
   const m = document.getElementById('create-clan-modal');
   if (m) m.style.display = 'flex';
 }
