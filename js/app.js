@@ -1438,12 +1438,26 @@ async function submitInlinePost() {
   const btn = document.getElementById('compose-post-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Posting...'; }
   try {
+    let image_url = null;
+    if (window._pendingInlineFile) {
+      const form = new FormData();
+      form.append('image', window._pendingInlineFile);
+      const r = await fetch('/api/posts/upload-image', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
+        body: form,
+      });
+      const data = await r.json();
+      if (data.url) image_url = data.url;
+    }
     const newPost = await api.createPost({
       body: text,
       type: _inlinePostType,
       game: document.getElementById('compose-game-tag')?.value || null,
+      image_url,
     });
     collapseComposeBox();
+    removeInlineImage();
     showToast('Post published! 🎮', 'success', '✅');
     if (newPost._claudeGated) setTimeout(() => showUpgradePrompt('Use @Claude AI in your posts'), 800);
     await renderFeed();
@@ -1487,6 +1501,26 @@ function removePostImage() {
   const preview = document.getElementById('post-image-preview');
   preview.innerHTML = ''; preview.classList.add('hidden');
   window._pendingPostFile = null;
+}
+
+function handleInlineImageSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('inline-image-preview');
+    preview.classList.remove('hidden');
+    preview.innerHTML = `<div class="post-img-wrap"><img src="${e.target.result}" class="post-img-thumb"><button class="post-img-remove" onclick="removeInlineImage()">✕</button></div>`;
+    window._pendingInlineFile = file;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeInlineImage() {
+  document.getElementById('inline-image-input').value = '';
+  const preview = document.getElementById('inline-image-preview');
+  preview.innerHTML = ''; preview.classList.add('hidden');
+  window._pendingInlineFile = null;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -2774,7 +2808,7 @@ async function switchProfileTab(btn, tab, userId) {
               ? `<img src="/claude-avatar.svg" class="reply-feed-avatar reply-feed-avatar-bot">`
               : `<div class="reply-feed-avatar" style="background:${c.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${c.avatar||'?'}</div>`;
             return `
-            <div class="reply-feed-item" onclick="scrollToPost(${c.post_id})">
+            <div class="reply-feed-item${isBot ? ' reply-feed-item--claude' : ''}" onclick="scrollToPost(${c.post_id})">
               <div class="reply-feed-quote-block">
                 <div class="reply-feed-quote-label">Replying to <strong>@${c.post_author}</strong></div>
                 <div class="reply-feed-quote-text">${(c.post_body||'').slice(0,120)}${(c.post_body||'').length>120?'…':''}</div>

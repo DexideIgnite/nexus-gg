@@ -78,7 +78,7 @@
     <div class="compose-modal">
       <div class="compose-modal-header">
         <span class="compose-modal-title">Create Post</span>
-        <button class="icon-btn" onclick="closePostModal()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        <button class="icon-btn" onclick="closePostModal()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
       </div>
       <div class="compose-modal-body">
         <div class="compose-avatar-col">
@@ -89,7 +89,7 @@
           <div id="post-image-preview" class="post-image-preview hidden"></div>
           <div class="compose-tags-row">
             <select id="modal-game-tag" class="compose-tag-select">
-              <option value="">🎮 Game</option>
+              <option value="">🎮 Tag a game...</option>
               <option>Valorant</option><option>League of Legends</option>
               <option>CS2</option><option>Apex Legends</option><option>Fortnite</option>
               <option>Warzone</option><option>Elden Ring</option><option>Dota 2</option>
@@ -113,10 +113,15 @@
       </div>
       <div class="compose-modal-footer">
         <div class="compose-attach-btns">
-          <label class="compose-attach-btn" for="post-image-input" title="Add Photo">
+          <label class="compose-attach-btn compose-attach-btn-labeled" for="post-image-input" title="Add Photo">
             <svg viewBox="0 0 24 24" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            <span>Photo</span>
             <input type="file" id="post-image-input" accept="image/*" style="display:none" onchange="handlePostImageSelect(this)">
           </label>
+          <button class="compose-attach-btn compose-attach-btn-labeled" title="GIF" onclick="showToast('GIF support coming soon!','info','🎞️')">
+            <svg viewBox="0 0 24 24" width="18" height="18"><rect x="2" y="4" width="20" height="16" rx="2"/><text x="12" y="15" font-size="8" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none">GIF</text></svg>
+            <span>GIF</span>
+          </button>
         </div>
         <div class="compose-footer-right">
           <span class="compose-char-count"><span id="modal-char-count">0</span>/500</span>
@@ -511,6 +516,7 @@
           <div class="compose-avatar" id="compose-avatar">N</div>
           <div class="compose-right">
             <textarea id="compose-text" placeholder="What's happening in the game?" onfocus="expandComposeBox()"></textarea>
+            <div id="inline-image-preview" class="post-image-preview hidden"></div>
             <div id="poll-compose-area" style="display:none;padding:0 0 12px">
               <div style="font-size:13px;font-weight:600;margin-bottom:8px;opacity:.8">Poll Options</div>
               <div id="poll-options-container">
@@ -533,6 +539,10 @@
               </div>
               <div class="compose-actions-row">
                 <div class="compose-actions">
+                  <label class="action-icon-btn" title="Add Photo" for="inline-image-input" style="cursor:pointer">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                    <input type="file" id="inline-image-input" accept="image/*" style="display:none" onchange="handleInlineImageSelect(this)">
+                  </label>
                   <button class="action-icon-btn" title="Clip" onclick="setPostType('clip')">🎬</button>
                   <button class="action-icon-btn" title="Achievement" onclick="setPostType('achievement')">🏆</button>
                   <button class="action-icon-btn" title="LFG" onclick="navigate('lfg')">👥</button>
