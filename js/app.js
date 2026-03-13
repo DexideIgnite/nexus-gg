@@ -824,11 +824,7 @@ function renderPost(post) {
         <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>${post.views}</span>
       </button>
-      <button class="post-action-btn ai-action-btn" onclick="toggleAIBubble(${post.id},this)" title="Ask Claude about this post">
-        <img src="/claude-avatar.svg" style="width:16px;height:16px;border-radius:50%;vertical-align:middle"> <span>AI</span>
-      </button>
     </div>
-    <div class="ai-bubble hidden" id="ai-bubble-${post.id}"></div>
   </div>`;
 }
 
@@ -918,16 +914,9 @@ function renderCommentSection(postId, comments, me) {
   const section = document.getElementById(`comments-${postId}`);
   if (!section) return;
   const isLoggedIn = !!window.Auth?.getToken();
-  const sort = _commentSort[postId] || 'recent';
   section.innerHTML = `
-    <div class="comment-sort-tabs">
-      <button class="csort-tab ${sort==='recent'?'active':''}" onclick="setCommentSort(${postId},'recent')">Recent</button>
-      <button class="csort-tab ${sort==='top'?'active':''}" onclick="setCommentSort(${postId},'top')">Top</button>
-      <button class="csort-tab ${sort==='verified'?'active':''}" onclick="setCommentSort(${postId},'verified')">Verified</button>
-      <button class="csort-tab ${sort==='ai'?'active':''}" onclick="setCommentSort(${postId},'ai')">✨ AI Picks</button>
-    </div>
     <div class="comments-list" id="comments-list-${postId}">
-      ${renderSortedComments(postId, comments, sort)}
+      ${renderSortedComments(postId, comments)}
     </div>
     ${isLoggedIn ? `<div class="comment-input-row">
       <div class="comment-avatar" style="background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${me.avatar_url?`background-image:url('${me.avatar_url}');background-size:cover;background-position:center`:''}">${me.avatar_url?'':me.avatar||'?'}</div>
@@ -939,12 +928,8 @@ function renderCommentSection(postId, comments, me) {
   section.dataset.comments = JSON.stringify(comments);
 }
 
-function renderSortedComments(postId, comments, sort) {
-  let sorted = [...comments];
-  if (sort === 'top') sorted.sort((a,b) => (b.likes||0)-(a.likes||0));
-  else if (sort === 'verified') sorted = sorted.filter(c => c.verified || c.user_id === 999);
-  else if (sort === 'ai') sorted = sorted.filter(c => c.aiHighlighted || c.user_id === 999);
-  else sorted.sort((a,b) => new Date(a.created_at)-new Date(b.created_at)); // recent
+function renderSortedComments(postId, comments) {
+  let sorted = [...comments].sort((a,b) => new Date(a.created_at)-new Date(b.created_at));
   const roots = sorted.filter(c => !c.parent_id);
   const replies = sorted.filter(c => !!c.parent_id);
   if (!roots.length && !sorted.length) return '<div class="empty-comments">No comments yet — be first!</div>';
