@@ -1139,7 +1139,7 @@ function renderCommentSectionInEl(postId, comments, me, section) {
   if (!section) return;
   const isLoggedIn = !!window.Auth?.getToken();
   section.innerHTML = `
-    <div class="comments-list">
+    <div class="comments-list" id="comments-list-${postId}">
       ${renderSortedComments(postId, comments)}
     </div>
     ${isLoggedIn ? `<div class="comment-input-row">
@@ -3231,10 +3231,12 @@ async function switchProfileTab(btn, tab, userId) {
       const authorName = isBot ? 'Claude' : null;
       content.innerHTML = replies.length
         ? `<div class="replies-feed">${replies.map(c => {
-            const displayName = authorName || c.username || 'Player';
+            const displayName = authorName || c.username || c.handle || 'Player';
             const avatarEl = isBot
               ? `<img src="/claude-avatar.svg" class="reply-feed-avatar reply-feed-avatar-bot">`
-              : `<div class="reply-feed-avatar" style="background:${c.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${c.avatar||'?'}</div>`;
+              : c.avatar_url
+                ? `<div class="reply-feed-avatar" style="background-image:url('${c.avatar_url}');background-size:cover;background-position:center"></div>`
+                : `<div class="reply-feed-avatar" style="background:${c.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${c.avatar||'?'}</div>`;
             return `
             <div class="reply-feed-item${isBot ? ' reply-feed-item--claude' : ''}" onclick="scrollToPost(${c.post_id})">
               <div class="reply-feed-quote-block">

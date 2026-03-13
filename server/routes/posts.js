@@ -46,6 +46,10 @@ async function maybeAskClaude(postId, text, contextNote, io, imageUrl, authorId)
     if (!reply) return;
     const comment = db.addComment({ post_id: +postId, user_id: CLAUDE_BOT_ID, body: reply });
     io?.emit(EVENTS.POST_COMMENT, { postId: String(postId), comment });
+    // Notify the user who triggered Claude
+    if (+authorId !== CLAUDE_BOT_ID) {
+      db.addNotif({ user_id: +authorId, actor_id: CLAUDE_BOT_ID, type: 'mention', icon: '🤖', text: '<strong>Claude</strong> replied to your post.', read: 0 });
+    }
   } catch (err) {
     console.error('[maybeAskClaude] Error:', err.message);
     // Post a friendly error comment
