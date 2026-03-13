@@ -2667,3 +2667,94 @@ body {
 .upgrade-prompt-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 4px; line-height: 1; flex-shrink: 0; }
 .upgrade-prompt-close:hover { color: var(--text-primary); }
 @keyframes slideInUp { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+/* ===== POLLS ===== */
+.poll-card { margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.poll-option { position: relative; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; overflow: hidden; padding: 10px 12px; cursor: pointer; transition: border-color .2s; display: flex; align-items: center; justify-content: space-between; }
+.poll-option:hover { border-color: rgba(108,99,255,.6); }
+.poll-option.voted { border-color: #6c63ff; cursor: default; }
+.poll-option.winner { border-color: #a78bfa; }
+.poll-option-bar { position: absolute; left: 0; top: 0; height: 100%; background: rgba(108,99,255,.18); transition: width .6s cubic-bezier(.4,0,.2,1); z-index: 0; }
+.poll-option-text { position: relative; z-index: 1; font-size: 14px; }
+.poll-option-pct { position: relative; z-index: 1; font-size: 13px; font-weight: 600; opacity: .9; }
+.poll-meta { font-size: 12px; opacity: .5; margin-top: 4px; }
+
+/* ===== SEARCH ===== */
+.search-hero { padding: 20px 16px 12px; }
+.search-input-big { width: 100%; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 14px 18px; font-size: 16px; color: inherit; outline: none; transition: border-color .2s; box-sizing: border-box; }
+.search-input-big:focus { border-color: #6c63ff; }
+.search-tabs { display: flex; gap: 8px; padding: 0 16px 12px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.search-tab { padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,.15); background: none; color: inherit; transition: all .2s; }
+.search-tab.active, .search-tab:hover { background: #6c63ff; border-color: #6c63ff; }
+.search-section-title { font-size: 13px; font-weight: 600; opacity: .5; padding: 12px 16px 6px; text-transform: uppercase; letter-spacing: .05em; }
+.search-user-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer; transition: background .15s; }
+.search-user-row:hover { background: rgba(255,255,255,.04); }
+.search-game-row { display: flex; align-items: center; gap: 12px; padding: 8px 16px; cursor: pointer; transition: background .15s; }
+.search-game-row:hover { background: rgba(255,255,255,.04); }
+.search-game-img { width: 36px; height: 48px; object-fit: cover; border-radius: 4px; }
+.search-recent { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.search-recent-chip { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); border-radius: 20px; padding: 5px 14px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.search-recent-chip:hover { background: rgba(108,99,255,.2); }
+
+/* ===== CLANS ===== */
+.clan-card { border: 1px solid rgba(255,255,255,.1); border-radius: 12px; overflow: hidden; cursor: pointer; transition: border-color .2s, transform .15s; margin: 0 16px 12px; }
+.clan-card:hover { border-color: #6c63ff; transform: translateY(-1px); }
+.clan-card-banner { height: 60px; }
+.clan-card-body { padding: 10px 14px 14px; }
+.clan-card-top { display: flex; align-items: center; gap: 10px; margin-top: -20px; }
+.clan-avatar { width: 44px; height: 44px; border-radius: 10px; background: #6c63ff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; border: 3px solid var(--bg-primary, #0a0a0f); flex-shrink: 0; }
+.clan-tag { display: inline-block; background: rgba(108,99,255,.2); border: 1px solid rgba(108,99,255,.4); color: #a78bfa; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 700; font-family: monospace; }
+.clan-tag-inline { background: rgba(108,99,255,.15); border: 1px solid rgba(108,99,255,.3); color: #a78bfa; border-radius: 3px; padding: 0 5px; font-size: 11px; font-weight: 700; font-family: monospace; margin-left: 4px; }
+.clan-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+.clan-meta { font-size: 12px; opacity: .55; display: flex; gap: 10px; flex-wrap: wrap; }
+.clan-detail-header { position: relative; height: 120px; border-radius: 12px 12px 0 0; overflow: hidden; }
+.clan-detail-body { padding: 16px; }
+.clan-detail-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,.08); margin-bottom: 16px; }
+.clan-detail-tab { padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; opacity: .6; transition: all .2s; }
+.clan-detail-tab.active { border-color: #6c63ff; opacity: 1; }
+.my-clan-pill { display: inline-flex; align-items: center; gap: 6px; background: rgba(108,99,255,.15); border: 1px solid rgba(108,99,255,.3); border-radius: 20px; padding: 4px 12px; font-size: 12px; cursor: pointer; margin: 4px; }
+
+/* ===== CHALLENGES WIDGET ===== */
+.challenge-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.challenge-item:last-child { border-bottom: none; }
+.challenge-icon { font-size: 20px; flex-shrink: 0; }
+.challenge-info { flex: 1; min-width: 0; }
+.challenge-title { font-size: 13px; font-weight: 600; }
+.challenge-desc { font-size: 11px; opacity: .5; }
+.challenge-progress-bar { height: 4px; background: rgba(255,255,255,.1); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.challenge-progress-fill { height: 100%; background: linear-gradient(90deg, #6c63ff, #a78bfa); border-radius: 2px; transition: width .4s; }
+.challenge-claim-btn { background: linear-gradient(135deg, #6c63ff, #a78bfa); border: none; color: white; border-radius: 20px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+.challenge-claim-btn:disabled { background: rgba(255,255,255,.1); cursor: default; }
+.challenge-xp { font-size: 11px; font-weight: 700; color: #a78bfa; flex-shrink: 0; }
+
+/* ===== VIDEO CLIP PLAYER ===== */
+.clip-video-wrapper { position: relative; border-radius: 12px; overflow: hidden; background: #000; margin: 8px 0; }
+.post-clip-video { width: 100%; max-height: 400px; display: block; }
+
+/* ===== HASHTAGS & MENTIONS ===== */
+.post-hashtag { color: #6c63ff; cursor: pointer; font-weight: 500; }
+.post-hashtag:hover { text-decoration: underline; }
+.post-mention { color: #a78bfa; cursor: pointer; font-weight: 500; }
+.post-mention:hover { text-decoration: underline; }
+.hashtag-trending-pill { display: inline-block; background: rgba(108,99,255,.15); border: 1px solid rgba(108,99,255,.25); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; color: #a78bfa; cursor: pointer; margin: 3px; transition: background .2s; }
+.hashtag-trending-pill:hover { background: rgba(108,99,255,.3); }
+
+/* ===== NOW PLAYING BADGE ===== */
+.now-playing-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #6c63ff; font-weight: 500; background: rgba(108,99,255,.1); border-radius: 10px; padding: 2px 8px; }
+
+/* ===== PROFILE BANNER ===== */
+.profile-banner { width: 100%; height: 140px; object-fit: cover; border-radius: 12px 12px 0 0; display: block; }
+.profile-banner-placeholder { width: 100%; height: 140px; border-radius: 12px 12px 0 0; }
+.profile-banner-upload-btn { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.2); color: white; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+
+/* ===== INPUT FIELD (shared) ===== */
+.input-field { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 10px 14px; font-size: 14px; color: inherit; outline: none; width: 100%; box-sizing: border-box; transition: border-color .2s; font-family: inherit; }
+.input-field:focus { border-color: #6c63ff; }
+
+/* ===== COMPOSE ACTION BTN ===== */
+.compose-action-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 4px 6px; border-radius: 6px; transition: color .2s; display: flex; align-items: center; }
+.compose-action-btn:hover { color: #6c63ff; }
+.compose-action-btn.active { color: #6c63ff; }
+
+/* ===== MODAL CLOSE BUTTON ===== */
+.modal-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 20px; line-height: 1; padding: 4px 8px; }

@@ -65,6 +65,9 @@ app.use('/api/lfg',           require('./routes/lfg'));
 app.use('/api/messages',      require('./routes/messages'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/games',         require('./routes/games'));
+app.use('/api/clans',         require('./routes/clans'));
+app.use('/api/hashtags',      require('./routes/hashtags'));
+app.get('/api/search',        (req, res) => res.json(db.fullSearch(req.query.q, null)));
 
 // Leaderboard endpoint
 app.get('/api/leaderboard', (req, res) => {

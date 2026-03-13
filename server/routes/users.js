@@ -25,6 +25,24 @@ const avatarUpload = multer({
   },
 });
 
+// Banner upload setup
+const bannerDir = path.join(__dirname, '..', 'uploads', 'banners');
+if (!fs.existsSync(bannerDir)) fs.mkdirSync(bannerDir, { recursive: true });
+const bannerUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, bannerDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+      cb(null, `banner_${req.user.userId}_${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Images only'));
+  },
+});
+
 router.get('/online', (req, res) => res.json(db.getOnlineUsers().map(u => ({ id:u.id, username:u.username, avatar:u.avatar, avatar_url:u.avatar_url, gradient:u.gradient, now_playing:u.now_playing, online:u.online }))));
 router.get('/game-follows/mine', requireAuth, (req, res) => res.json(db.getGameFollows(req.user.userId)));
 router.post('/game/follow', requireAuth, (req, res) => { const {game}=req.body; if(!game)return res.status(400).json({error:'game required'}); res.json({action:db.toggleGameFollow(req.user.userId,game)}); });
@@ -87,6 +105,26 @@ router.post('/me/avatar', requireAuth, avatarUpload.single('avatar'), (req, res)
   res.json({ avatar_url, user: db.safeUser(user, req.user.userId) });
 });
 
+// POST /api/users/me/banner — upload banner image
+router.post('/me/banner', requireAuth, bannerUpload.single('banner'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  const banner_url = '/uploads/banners/' + req.file.filename;
+  const user = db.updateUser(req.user.userId, { banner_url });
+  res.json({ banner_url, user: db.safeUser(user, req.user.userId) });
+});
+
+// GET /api/users/challenges — daily challenges
+router.get('/challenges', requireAuth, (req, res) => {
+  res.json(db.getDailyChallenges(req.user.userId));
+});
+
+// POST /api/users/challenges/:id/claim — claim XP for completed challenge
+router.post('/challenges/:id/claim', requireAuth, (req, res) => {
+  const result = db.claimChallengeXP(req.user.userId, req.params.id);
+  if (result.error) return res.status(400).json(result);
+  res.json(result);
+});
+
 // DELETE /api/users/me — delete account
 router.delete('/me', requireAuth, (req, res) => {
   const uid = req.user.userId;
@@ -144,6 +182,7 @@ router.post('/:id/follow', requireAuth, (req, res) => {
   if (result.action === 'followed') {
     const me = db.getUser(req.user.userId);
     db.addNotif({ user_id: tid, actor_id: req.user.userId, type: 'follow', icon: '👤', text: `<strong>${me.username}</strong> started following you.`, read: 0 });
+    db.updateChallengeProgress(req.user.userId, 'follow');
   }
   res.json(result);
 });

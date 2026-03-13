@@ -48,6 +48,12 @@ const T = {
   stories:        new Table('stories'),
   story_views:    new Table('story_views'),
   games:          new Table('games'),
+  bookmarks:      new Table('bookmarks'),
+  poll_options:   new Table('poll_options'),
+  poll_votes:     new Table('poll_votes'),
+  clans:          new Table('clans'),
+  clan_members:   new Table('clan_members'),
+  user_challenges: new Table('user_challenges'),
 };
 
 // ================================================================
@@ -58,8 +64,8 @@ const T = {
 // DB API
 // ================================================================
 function timeAgo(d){const diff=Date.now()-new Date(d).getTime(),s=Math.floor(diff/1000),m=Math.floor(s/60),h=Math.floor(m/60),dy=Math.floor(h/24);if(dy>0)return dy+'d ago';if(h>0)return h+'h ago';if(m>0)return m+'m ago';return'just now';}
-function safeUser(u,viewerId){if(!u)return null;const{password_hash,...s}=u;s.followers=T.follows.count(f=>f.following_id===u.id);s.following=T.follows.count(f=>f.follower_id===u.id);s.posts_count=T.posts.count(p=>p.user_id===u.id);s.isFollowing=viewerId?!!T.follows.findOne(f=>f.follower_id===+viewerId&&f.following_id===u.id):false;s.verified=!!u.verified;s.plan=u.plan||'free';return s;}
-function formatPost(p,viewerId){const user=safeUser(T.users.findOne(u=>u.id===p.user_id),viewerId);const myReaction=viewerId?T.post_reactions.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):null;const reposted=viewerId?!!T.post_reposts.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):false;let quotedPost=null;if(p.quoted_post_id){const qp=T.posts.findOne(x=>x.id===+p.quoted_post_id);if(qp){const qu=safeUser(T.users.findOne(u=>u.id===qp.user_id),viewerId);quotedPost={id:qp.id,body:qp.body,user:qu,time:timeAgo(qp.created_at)};}}return{...p,user,myReaction:myReaction?.reaction_type||null,reposted,reactions:{gg:p.reactions_gg||0,fire:p.reactions_fire||0,rekt:p.reactions_rekt||0,king:p.reactions_king||0,epic:p.reactions_epic||0,lul:p.reactions_lul||0},achievement:p.achievement_title?{title:p.achievement_title,game:p.achievement_game,icon:p.achievement_icon}:null,clip:p.clip_title?{title:p.clip_title,desc:p.clip_desc}:null,quotedPost,time:timeAgo(p.created_at),views:p.views?String(p.views):'0'};}
+function safeUser(u,viewerId){if(!u)return null;const{password_hash,...s}=u;s.followers=T.follows.count(f=>f.following_id===u.id);s.following=T.follows.count(f=>f.follower_id===u.id);s.posts_count=T.posts.count(p=>p.user_id===u.id);s.isFollowing=viewerId?!!T.follows.findOne(f=>f.follower_id===+viewerId&&f.following_id===u.id):false;s.verified=!!u.verified;s.plan=u.plan||'free';s.xp=u.xp||0;s.clan_tag=(()=>{const m=T.clan_members.findOne(cm=>cm.user_id===u.id);return m?(T.clans.findOne(c=>c.id===m.clan_id)?.tag||null):null;})();return s;}
+function formatPost(p,viewerId){if(typeof p==='number'||typeof p==='string'){const found=T.posts.findOne(x=>x.id===+p);if(!found)return null;p=found;}if(!p)return null;const user=safeUser(T.users.findOne(u=>u.id===p.user_id),viewerId);const myReaction=viewerId?T.post_reactions.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):null;const reposted=viewerId?!!T.post_reposts.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):false;let quotedPost=null;if(p.quoted_post_id){const qp=T.posts.findOne(x=>x.id===+p.quoted_post_id);if(qp){const qu=safeUser(T.users.findOne(u=>u.id===qp.user_id),viewerId);quotedPost={id:qp.id,body:qp.body,user:qu,time:timeAgo(qp.created_at)};}}const bookmarked=viewerId?!!T.bookmarks.findOne(b=>b.user_id===+viewerId&&b.post_id===p.id):false;const poll=p.has_poll?(()=>{const opts=T.poll_options.findAll(o=>o.post_id===p.id);if(!opts.length)return null;const total=opts.reduce((s,o)=>s+(o.votes||0),0);const uv=viewerId?T.poll_votes.findOne(v=>v.post_id===p.id&&v.user_id===+viewerId):null;return{options:opts.map(o=>({...o,pct:total?Math.round((o.votes/total)*100):0})),totalVotes:total,userVoteId:uv?.option_id||null};})():null;return{...p,user,myReaction:myReaction?.reaction_type||null,reposted,reactions:{gg:p.reactions_gg||0,fire:p.reactions_fire||0,rekt:p.reactions_rekt||0,king:p.reactions_king||0,epic:p.reactions_epic||0,lul:p.reactions_lul||0},achievement:p.achievement_title?{title:p.achievement_title,game:p.achievement_game,icon:p.achievement_icon}:null,clip:p.clip_title?{title:p.clip_title,desc:p.clip_desc}:null,quotedPost,bookmarked,poll,time:timeAgo(p.created_at),views:p.views?String(p.views):'0'};}
 function formatLFG(l,viewerId){const user=safeUser(T.users.findOne(u=>u.id===l.user_id),viewerId);const members=T.lfg_members.findAll(m=>m.lfg_id===l.id).map(m=>safeUser(T.users.findOne(u=>u.id===m.user_id),viewerId)).filter(Boolean);const filled=members.length+1;const isMember=viewerId?!!T.lfg_members.findOne(m=>m.lfg_id===l.id&&m.user_id===+viewerId):false;const isHost=viewerId&&l.user_id===+viewerId;let status='open';if(filled>=l.slots)status='full';else if(filled>=l.slots-1)status='filling';return{...l,user,members,filled,status,isMember,isHost,time:timeAgo(l.created_at)};}
 
 const db = {
@@ -100,7 +106,7 @@ const db = {
   },
   getUserPosts:(uid,viewerId)=>T.posts.findAll(p=>p.user_id===+uid).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(p=>formatPost(p,viewerId)),
   getPost:(id)=>T.posts.findOne(p=>p.id===+id),
-  createPost:(data)=>{const p=T.posts.insert(data);return formatPost(p,data.user_id);},
+  createPost:(data)=>{const p=T.posts.insert({...data,has_poll:data.has_poll||false});return formatPost(p,data.user_id);},
   deletePost:(id)=>T.posts.delete(p=>p.id===+id),
   updatePost:(id,changes)=>{T.posts.update(p=>p.id===+id,changes);return T.posts.findOne(p=>p.id===+id);},
   // Reactions
@@ -175,6 +181,178 @@ const db = {
   clearGames:()=>{T.games.data=[];T.games._save();},
   // Leaderboard
   getLeaderboard:()=>T.users.findAll().map(u=>{const posts=T.posts.findAll(p=>p.user_id===u.id);const reactions=posts.reduce((s,p)=>s+(p.reactions_gg||0)+(p.reactions_fire||0)+(p.reactions_epic||0)+(p.reactions_king||0)+(p.reactions_rekt||0)+(p.reactions_lul||0),0);const views=posts.reduce((s,p)=>s+(p.views||0),0);const score=reactions+Math.floor(views/10);return{...u,post_count:posts.length,score,total_reactions:reactions,total_views:views};}).sort((a,b)=>b.score-a.score).slice(0,20).map((u,i)=>{const{password_hash,...s}=u;return{...s,rank_position:i+1};}),
+  // Bookmarks
+  toggleBookmark(userId, postId) {
+    const existing = T.bookmarks.findOne(b => b.user_id === +userId && b.post_id === +postId);
+    if (existing) { T.bookmarks.delete(b => b.id === existing.id); return 'removed'; }
+    T.bookmarks.insert({ user_id: +userId, post_id: +postId, created_at: new Date().toISOString() });
+    return 'added';
+  },
+  getBookmarks(userId) {
+    const bms = T.bookmarks.findAll(b => b.user_id === +userId).sort((a,b) => b.id - a.id);
+    return bms.map(b => this.formatPost(b.post_id, +userId)).filter(Boolean);
+  },
+  isBookmarked(userId, postId) {
+    return !!T.bookmarks.findOne(b => b.user_id === +userId && b.post_id === +postId);
+  },
+  // Polls
+  createPollOptions(postId, options) {
+    return options.map(text => T.poll_options.insert({ post_id: +postId, text, votes: 0 }));
+  },
+  getPollData(postId, userId) {
+    const options = T.poll_options.findAll(o => o.post_id === +postId);
+    if (!options.length) return null;
+    const totalVotes = options.reduce((s, o) => s + (o.votes || 0), 0);
+    const userVote = userId ? T.poll_votes.findOne(v => v.post_id === +postId && v.user_id === +userId) : null;
+    return { options: options.map(o => ({ ...o, pct: totalVotes ? Math.round((o.votes/totalVotes)*100) : 0 })), totalVotes, userVoteId: userVote?.option_id || null };
+  },
+  votePoll(postId, userId, optionId) {
+    const existing = T.poll_votes.findOne(v => v.post_id === +postId && v.user_id === +userId);
+    if (existing) return { error: 'Already voted' };
+    const option = T.poll_options.findOne(o => o.id === +optionId && o.post_id === +postId);
+    if (!option) return { error: 'Invalid option' };
+    T.poll_votes.insert({ post_id: +postId, user_id: +userId, option_id: +optionId });
+    T.poll_options.update(o => o.id === +optionId, { votes: (option.votes || 0) + 1 });
+    return this.getPollData(postId, userId);
+  },
+  // Clans
+  createClan({ owner_id, name, tag, description, game, banner_color }) {
+    const exists = T.clans.findOne(c => c.tag.toLowerCase() === tag.toLowerCase());
+    if (exists) return { error: 'Tag taken' };
+    const clan = T.clans.insert({ owner_id: +owner_id, name, tag: tag.toUpperCase().slice(0,4), description: description||'', game: game||null, banner_color: banner_color||'#6c63ff', member_count: 1, created_at: new Date().toISOString() });
+    T.clan_members.insert({ clan_id: clan.id, user_id: +owner_id, role: 'owner', joined_at: new Date().toISOString() });
+    return clan;
+  },
+  getClan(id) {
+    return T.clans.findOne(c => c.id === +id);
+  },
+  getClanByTag(tag) {
+    return T.clans.findOne(c => c.tag.toLowerCase() === tag.toLowerCase());
+  },
+  getUserClans(userId) {
+    const memberships = T.clan_members.findAll(m => m.user_id === +userId);
+    return memberships.map(m => ({ ...T.clans.findOne(c => c.id === m.clan_id), role: m.role })).filter(c => c.id);
+  },
+  getClanMembers(clanId) {
+    const members = T.clan_members.findAll(m => m.clan_id === +clanId);
+    return members.map(m => { const u = this.safeUser(T.users.findOne(u => u.id === m.user_id)); return u ? { ...u, role: m.role, joined_at: m.joined_at } : null; }).filter(Boolean);
+  },
+  isClanMember(clanId, userId) {
+    return !!T.clan_members.findOne(m => m.clan_id === +clanId && m.user_id === +userId);
+  },
+  joinClanById(clanId, userId) {
+    if (this.isClanMember(clanId, userId)) return { error: 'Already a member' };
+    T.clan_members.insert({ clan_id: +clanId, user_id: +userId, role: 'member', joined_at: new Date().toISOString() });
+    const clan = T.clans.findOne(c => c.id === +clanId);
+    if (clan) T.clans.update(c => c.id === +clanId, { member_count: (clan.member_count || 0) + 1 });
+    return { success: true };
+  },
+  leaveClan(clanId, userId) {
+    const clan = T.clans.findOne(c => c.id === +clanId);
+    if (!clan) return { error: 'Not found' };
+    if (clan.owner_id === +userId) return { error: 'Owner cannot leave, delete instead' };
+    T.clan_members.delete(m => m.clan_id === +clanId && m.user_id === +userId);
+    T.clans.update(c => c.id === +clanId, { member_count: Math.max(0, (clan.member_count || 1) - 1) });
+    return { success: true };
+  },
+  deleteClan(clanId, userId) {
+    const clan = T.clans.findOne(c => c.id === +clanId);
+    if (!clan) return { error: 'Not found' };
+    if (clan.owner_id !== +userId) return { error: 'Not owner' };
+    T.clan_members.delete(m => m.clan_id === +clanId);
+    T.clans.delete(c => c.id === +clanId);
+    return { success: true };
+  },
+  searchClans(query) {
+    const q = (query||'').toLowerCase();
+    if (!q) return T.clans.findAll(() => true).slice(0, 20);
+    return T.clans.findAll(c => c.name.toLowerCase().includes(q) || c.tag.toLowerCase().includes(q) || (c.game||'').toLowerCase().includes(q)).slice(0, 20);
+  },
+  getClanFeed(clanId, viewerId) {
+    const members = T.clan_members.findAll(m => m.clan_id === +clanId).map(m => m.user_id);
+    const posts = T.posts.findAll(p => members.includes(p.user_id)).sort((a,b) => b.id - a.id).slice(0, 30);
+    return posts.map(p => this.formatPost(p.id, viewerId)).filter(Boolean);
+  },
+  // Trending Hashtags + Search
+  getTrendingHashtags() {
+    const recent = T.posts.findAll(() => true).sort((a,b) => b.id - a.id).slice(0, 200);
+    const counts = {};
+    recent.forEach(p => { const tags = (p.body||'').match(/#(\w+)/g) || []; tags.forEach(t => { const key = t.toLowerCase(); counts[key] = (counts[key]||0) + 1; }); });
+    return Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,15).map(([tag, count]) => ({ tag, count }));
+  },
+  getPostsByHashtag(hashtag, viewerId) {
+    const tag = hashtag.startsWith('#') ? hashtag : '#'+hashtag;
+    const re = new RegExp(tag.replace('#','#')+'\\b', 'i');
+    const posts = T.posts.findAll(p => re.test(p.body||'')).sort((a,b) => b.id - a.id).slice(0,30);
+    return posts.map(p => this.formatPost(p.id, viewerId)).filter(Boolean);
+  },
+  fullSearch(query, viewerId) {
+    if (!query) return { posts: [], users: [], games: [] };
+    const q = query.toLowerCase();
+    const posts = T.posts.findAll(p => (p.body||'').toLowerCase().includes(q)).sort((a,b) => b.id-a.id).slice(0,10).map(p => this.formatPost(p.id, viewerId)).filter(Boolean);
+    const users = T.users.findAll(u => !u.is_bot && ((u.username||'').toLowerCase().includes(q) || (u.handle||'').toLowerCase().includes(q))).slice(0,10).map(u => this.safeUser(u));
+    const games = T.games ? T.games.findAll(g => (g.name||'').toLowerCase().includes(q)).slice(0,10) : [];
+    return { posts, users, games };
+  },
+  // Daily Challenges
+  getDailyChallenges(userId) {
+    const allChallenges = [
+      { id: 1, type: 'post', title: 'Make a Post', desc: 'Share something with the community', xp: 50, target: 1, icon: '📝' },
+      { id: 2, type: 'react', title: 'React to 5 Posts', desc: 'Spread the love with reactions', xp: 30, target: 5, icon: '🎮' },
+      { id: 3, type: 'comment', title: 'Comment on 3 Posts', desc: 'Join the conversation', xp: 40, target: 3, icon: '💬' },
+      { id: 4, type: 'follow', title: 'Follow a Gamer', desc: 'Grow your network', xp: 20, target: 1, icon: '👥' },
+      { id: 5, type: 'post', title: 'Post a Clip', desc: 'Share your best gameplay moment', xp: 75, target: 1, icon: '🎬' },
+      { id: 6, type: 'react', title: 'React to 10 Posts', desc: 'Be the hype squad', xp: 60, target: 10, icon: '🔥' },
+      { id: 7, type: 'comment', title: 'Comment on 5 Posts', desc: 'Be a community pillar', xp: 75, target: 5, icon: '🏆' },
+      { id: 8, type: 'post', title: 'Post 3 Times', desc: 'Stay active today', xp: 100, target: 3, icon: '⚡' },
+      { id: 9, type: 'follow', title: 'Follow 3 Gamers', desc: 'Expand your crew', xp: 50, target: 3, icon: '🎯' },
+      { id: 10, type: 'react', title: 'Try All Reactions', desc: 'Use every reaction type', xp: 80, target: 6, icon: '👑' },
+    ];
+    const today = new Date().toISOString().slice(0,10);
+    const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(),0,0)) / 86400000);
+    const selected = [allChallenges[dayOfYear % 10], allChallenges[(dayOfYear+3) % 10], allChallenges[(dayOfYear+7) % 10]];
+    return selected.map(ch => {
+      const prog = userId ? T.user_challenges.findOne(uc => uc.user_id === +userId && uc.challenge_id === ch.id && uc.date === today) : null;
+      return { ...ch, progress: prog?.progress || 0, completed: prog?.completed || false, claimed: prog?.claimed || false };
+    });
+  },
+  updateChallengeProgress(userId, type) {
+    if (!userId) return;
+    const today = new Date().toISOString().slice(0,10);
+    const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(),0,0)) / 86400000);
+    const allChallenges = [
+      { id: 1, type: 'post', target: 1 }, { id: 2, type: 'react', target: 5 }, { id: 3, type: 'comment', target: 3 },
+      { id: 4, type: 'follow', target: 1 }, { id: 5, type: 'post', target: 1 }, { id: 6, type: 'react', target: 10 },
+      { id: 7, type: 'comment', target: 5 }, { id: 8, type: 'post', target: 3 }, { id: 9, type: 'follow', target: 3 },
+      { id: 10, type: 'react', target: 6 },
+    ];
+    const todayChallenges = [allChallenges[dayOfYear % 10], allChallenges[(dayOfYear+3) % 10], allChallenges[(dayOfYear+7) % 10]];
+    todayChallenges.filter(ch => ch.type === type).forEach(ch => {
+      const existing = T.user_challenges.findOne(uc => uc.user_id === +userId && uc.challenge_id === ch.id && uc.date === today);
+      if (existing && existing.completed) return;
+      if (existing) {
+        const newProg = (existing.progress || 0) + 1;
+        T.user_challenges.update(uc => uc.id === existing.id, { progress: newProg, completed: newProg >= ch.target });
+      } else {
+        T.user_challenges.insert({ user_id: +userId, challenge_id: ch.id, date: today, progress: 1, completed: 1 >= ch.target, claimed: false });
+      }
+    });
+  },
+  claimChallengeXP(userId, challengeId) {
+    const today = new Date().toISOString().slice(0,10);
+    const rec = T.user_challenges.findOne(uc => uc.user_id === +userId && uc.challenge_id === +challengeId && uc.date === today);
+    if (!rec || !rec.completed || rec.claimed) return { error: 'Cannot claim' };
+    const allChallenges = [
+      { id: 1, xp: 50 }, { id: 2, xp: 30 }, { id: 3, xp: 40 }, { id: 4, xp: 20 }, { id: 5, xp: 75 },
+      { id: 6, xp: 60 }, { id: 7, xp: 75 }, { id: 8, xp: 100 }, { id: 9, xp: 50 }, { id: 10, xp: 80 },
+    ];
+    const ch = allChallenges.find(c => c.id === +challengeId);
+    const xp = ch?.xp || 0;
+    T.user_challenges.update(uc => uc.id === rec.id, { claimed: true });
+    const user = T.users.findOne(u => u.id === +userId);
+    T.users.update(u => u.id === +userId, { xp: (user?.xp || 0) + xp });
+    return { xp, totalXp: (user?.xp || 0) + xp };
+  },
 };
 
 module.exports = db;

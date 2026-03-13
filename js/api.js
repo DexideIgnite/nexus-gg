@@ -126,6 +126,41 @@ const api = {
   deleteStory:       (id)      => api.delete(`/stories/${id}`),
   viewStory:         (id)      => api.post(`/stories/${id}/view`),
   getStoryViewCount: (id)      => api.get(`/stories/${id}/views`),
+
+  // Bookmarks
+  toggleBookmark: (postId) => apiRequest('POST', `/posts/${postId}/bookmark`),
+  getBookmarks: () => apiRequest('GET', '/posts/bookmarks/mine'),
+
+  // Polls
+  votePoll: (postId, optionId) => apiRequest('POST', `/posts/${postId}/vote`, { option_id: optionId }),
+
+  // Search
+  search: (q, type='all') => apiRequest('GET', `/search?q=${encodeURIComponent(q)}&type=${type}`),
+
+  // Hashtags
+  getTrendingHashtags: () => apiRequest('GET', '/hashtags/trending'),
+  getPostsByHashtag: (tag) => apiRequest('GET', `/hashtags/posts/${encodeURIComponent(tag)}`),
+
+  // Clans
+  getClans: (q='') => apiRequest('GET', `/clans?q=${encodeURIComponent(q)}`),
+  getMyClans: () => apiRequest('GET', '/clans/mine'),
+  getClan: (id) => apiRequest('GET', `/clans/${id}`),
+  getClanMembers: (id) => apiRequest('GET', `/clans/${id}/members`),
+  getClanFeed: (id) => apiRequest('GET', `/clans/${id}/feed`),
+  createClan: (data) => apiRequest('POST', '/clans', data),
+  joinClan: (id) => apiRequest('POST', `/clans/${id}/join`),
+  leaveClan: (id) => apiRequest('DELETE', `/clans/${id}/leave`),
+  deleteClan: (id) => apiRequest('DELETE', `/clans/${id}`),
+
+  // Challenges
+  getChallenges: () => apiRequest('GET', '/users/challenges'),
+  claimChallenge: (id) => apiRequest('POST', `/users/challenges/${id}/claim`),
+
+  // Banner
+  uploadBanner: (file) => { const fd = new FormData(); fd.append('banner', file); return fetch('/api/users/me/banner', { method:'POST', headers:{ Authorization:`Bearer ${Auth.getToken()}` }, body:fd }).then(r=>r.json()); },
+
+  // Clip upload
+  uploadClip: (file) => { const fd = new FormData(); fd.append('clip', file); return fetch('/api/posts/upload-clip', { method:'POST', headers:{ Authorization:`Bearer ${Auth.getToken()}` }, body:fd }).then(r=>r.json()); },
 };
 
 // ================================================================

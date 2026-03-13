@@ -107,9 +107,10 @@ function formatNum(n) {
 }
 
 function parseBody(text) {
-  return text
-    .replace(/(#\w+)/g, '<span class="hashtag">$1</span>')
-    .replace(/(@\w+#?\d*)/g, '<span class="mention">$1</span>');
+  if (!text) return '';
+  return escapeHtml(text)
+    .replace(/#(\w+)/g, '<span class="post-hashtag" onclick="searchHashtag(\'$1\')">#$1</span>')
+    .replace(/@(\w+)/g, '<span class="post-mention" onclick="searchUser(\'$1\')">@$1</span>');
 }
 
 function avatarEl(user, cls='post-avatar') {
@@ -347,6 +348,9 @@ function navigate(section) {
     plans: loadPlans,
     settings: loadSettings,
     'user-profile': loadUserProfile,
+    bookmarks: loadBookmarks,
+    clans: loadClans,
+    search: loadSearch,
   };
   if (loaders[section]) loaders[section]();
 }
@@ -920,7 +924,14 @@ function renderPost(post) {
   const total = totalReactions(reactions);
 
   let extra = '';
-  if (post.type === 'clip' && post.clip) {
+  // Now playing badge
+  const nowPlayingBadge = user.now_playing ? `<span class="now-playing-badge">🎮 ${escapeHtml(user.now_playing)}</span>` : '';
+
+  if (post.type === 'clip' && post.clip_url) {
+    extra = `<div class="clip-video-wrapper">
+      <video class="post-clip-video" controls preload="metadata" src="${post.clip_url}"></video>
+    </div>`;
+  } else if (post.type === 'clip' && post.clip) {
     extra = `<div class="post-clip-preview">
       <div class="clip-icon">🎬</div>
       <div class="clip-info">
@@ -968,6 +979,7 @@ function renderPost(post) {
           ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? '🎬 Clip' : post.type === 'achievement' ? '🏆 Achievement' : '👥 LFG'}</span>` : ''}
           ${post.game ? `<span class="post-game-tag" onclick="navigate('games')">🎮 ${post.game}</span>` : ''}
           ${post.platform ? `<span class="post-platform-badge">${post.platform}</span>` : ''}
+          ${nowPlayingBadge}
         </div>
         <span class="post-tag">${userHandle(user)}</span>
       </div>
@@ -976,6 +988,7 @@ function renderPost(post) {
     <div class="post-body">${parseBody(post.body)}</div>
     ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox('${post.image_url}')"></div>` : ''}
     ${extra}
+    ${post.poll ? renderPollCard(post.poll, post.id) : ''}
     <div class="post-actions">
       <button class="post-action-btn ${liked ? 'liked' : ''}" onclick="toggleLike(${post.id},this)">
         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" ${liked?'fill="currentColor"':''}/></svg>
@@ -999,6 +1012,9 @@ function renderPost(post) {
       <button class="post-action-btn views-btn">
         <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>${post.views}</span>
+      </button>
+      <button class="post-action-btn ${post.bookmarked ? 'active' : ''}" title="${post.bookmarked ? 'Remove bookmark' : 'Bookmark'}" onclick="toggleBookmark(${post.id},this)">
+        <svg viewBox="0 0 24 24" fill="${post.bookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
       </button>
     </div>
   </div>`;
@@ -3090,6 +3106,378 @@ function searchExploreTag(tag) {
 }
 
 // ================================================================
+// MODAL HELPER
+// ================================================================
+
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.style.display = 'none';
+}
+
+// ================================================================
+// BOOKMARKS
+// ================================================================
+
+async function loadBookmarks() {
+  const feed = document.getElementById('bookmarks-feed');
+  if (!feed) return;
+  feed.innerHTML = '<div class="loading-spinner" style="margin:40px auto"></div>';
+  try {
+    const posts = await api.getBookmarks();
+    if (!posts.length) { feed.innerHTML = '<div style="text-align:center;padding:40px;opacity:.5">No bookmarks yet.<br>Save posts with the bookmark icon.</div>'; return; }
+    feed.innerHTML = posts.map(p => renderPost(normalizePost(p))).join('');
+  } catch(e) { feed.innerHTML = '<div style="text-align:center;padding:40px;opacity:.5">Failed to load bookmarks.</div>'; }
+}
+
+async function toggleBookmark(postId, btn) {
+  if (!Auth.isLoggedIn()) { showToast('Log in to bookmark posts'); return; }
+  try {
+    const res = await api.toggleBookmark(postId);
+    const isNowBookmarked = res.action === 'added';
+    if (btn) { btn.classList.toggle('active', isNowBookmarked); btn.title = isNowBookmarked ? 'Remove bookmark' : 'Bookmark'; }
+    showToast(isNowBookmarked ? 'Bookmarked!' : 'Removed bookmark');
+  } catch(e) { showToast('Failed to bookmark', 'error', '⚠️'); }
+}
+
+// ================================================================
+// POLLS
+// ================================================================
+
+function togglePollCompose() {
+  const area = document.getElementById('poll-compose-area');
+  if (!area) return;
+  const show = area.style.display === 'none';
+  area.style.display = show ? 'block' : 'none';
+  const btn = document.getElementById('poll-toggle-btn');
+  if (btn) btn.style.color = show ? '#6c63ff' : '';
+}
+
+function addPollOption() {
+  const container = document.getElementById('poll-options-container');
+  if (!container) return;
+  const inputs = container.querySelectorAll('.poll-option-input');
+  if (inputs.length >= 4) { showToast('Max 4 poll options'); return; }
+  const inp = document.createElement('input');
+  inp.className = 'input-field poll-option-input';
+  inp.placeholder = `Option ${inputs.length + 1}`;
+  inp.style.marginBottom = '6px';
+  container.appendChild(inp);
+}
+
+function renderPollCard(poll, postId) {
+  if (!poll) return '';
+  const { options, totalVotes, userVoteId } = poll;
+  if (!options || !options.length) return '';
+  const hasVoted = !!userVoteId;
+  return `<div class="poll-card">
+    ${options.map(o => {
+      const isVoted = o.id === userVoteId;
+      const isWinner = hasVoted && o.pct === Math.max(...options.map(x => x.pct));
+      return `<div class="poll-option${isVoted?' voted':''}${isWinner&&hasVoted?' winner':''}" onclick="${hasVoted?'':'castPollVote('+postId+','+o.id+',this.closest(\'.poll-card\'))'}">
+        <div class="poll-option-bar" style="width:${hasVoted?o.pct:0}%"></div>
+        <span class="poll-option-text">${isVoted?'✓ ':''}${escapeHtml(o.text)}</span>
+        ${hasVoted?`<span class="poll-option-pct">${o.pct}%</span>`:''}
+      </div>`;
+    }).join('')}
+    <div class="poll-meta">${totalVotes} vote${totalVotes!==1?'s':''} · ${hasVoted?'You voted':'Tap to vote'}</div>
+  </div>`;
+}
+
+async function castPollVote(postId, optionId, card) {
+  if (!Auth.isLoggedIn()) { showToast('Log in to vote'); return; }
+  try {
+    const result = await api.votePoll(postId, optionId);
+    if (result.error) { showToast(result.error); return; }
+    if (card) card.outerHTML = renderPollCard(result, postId);
+  } catch(e) { showToast('Failed to vote', 'error', '⚠️'); }
+}
+
+// ================================================================
+// HASHTAGS / MENTIONS
+// ================================================================
+
+function searchHashtag(tag) {
+  navigate('search');
+  setTimeout(() => {
+    const inp = document.getElementById('search-input-big');
+    if (inp) { inp.value = '#'+tag; doSearch('#'+tag); }
+  }, 100);
+}
+
+function searchUser(handle) {
+  navigate('search');
+  setTimeout(() => {
+    const inp = document.getElementById('search-input-big');
+    if (inp) { inp.value = '@'+handle; doSearch('@'+handle); }
+  }, 100);
+}
+
+// ================================================================
+// SEARCH
+// ================================================================
+
+let searchDebounceTimer = null;
+
+function debounceSearch(q) {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => doSearch(q), 300);
+}
+
+async function doSearch(q) {
+  const container = document.getElementById('search-results');
+  const recentEl = document.getElementById('search-recent');
+  if (!container) return;
+  q = (q || '').trim();
+  if (!q) {
+    container.innerHTML = '';
+    loadSearchRecent(recentEl);
+    return;
+  }
+  // Save recent
+  const recents = JSON.parse(localStorage.getItem('searchRecent') || '[]');
+  if (!recents.includes(q)) { recents.unshift(q); localStorage.setItem('searchRecent', JSON.stringify(recents.slice(0,8))); }
+  if (recentEl) recentEl.innerHTML = '';
+  container.innerHTML = '<div class="loading-spinner" style="margin:30px auto"></div>';
+  try {
+    const res = await api.search(q);
+    let html = '';
+    if (res.posts && res.posts.length) {
+      html += `<div class="search-section-title">Posts</div>`;
+      html += res.posts.map(p => renderPost(normalizePost(p))).join('');
+    }
+    if (res.users && res.users.length) {
+      html += `<div class="search-section-title">Players</div>`;
+      html += res.users.map(u => `<div class="search-user-row" onclick="openUserProfile(${u.id})">
+        <div class="avatar-circle" style="background:${u.gradient||'#6c63ff'};width:38px;height:38px;font-size:14px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700">${u.avatar||u.username?.[0]?.toUpperCase()||'?'}</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:600">${escapeHtml(u.username)} ${planBadge(u.plan)}</div><div style="font-size:12px;opacity:.5">@${escapeHtml(u.handle||u.username)}</div></div>
+      </div>`).join('');
+    }
+    if (res.games && res.games.length) {
+      html += `<div class="search-section-title">Games</div>`;
+      html += res.games.map(g => `<div class="search-game-row" onclick="navigate('games')">
+        ${g.cover_url ? `<img src="${g.cover_url}" class="search-game-img" onerror="this.style.display='none'">` : ''}
+        <div><div style="font-weight:600">${escapeHtml(g.name)}</div><div style="font-size:12px;opacity:.5">${g.category||'Game'}</div></div>
+      </div>`).join('');
+    }
+    if (!html) html = '<div style="text-align:center;padding:40px;opacity:.5">No results found</div>';
+    container.innerHTML = html;
+  } catch(e) { container.innerHTML = '<div style="text-align:center;padding:40px;opacity:.5">Search failed</div>'; }
+}
+
+function loadSearchRecent(el) {
+  if (!el) return;
+  const recents = JSON.parse(localStorage.getItem('searchRecent') || '[]');
+  if (!recents.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="search-recent"><div style="font-size:12px;opacity:.5;width:100%;margin-bottom:2px">Recent searches</div>` +
+    recents.map(r => `<div class="search-recent-chip" onclick="document.getElementById('search-input-big').value='${escapeHtml(r).replace(/'/g, "\\'")}';doSearch('${escapeHtml(r).replace(/'/g, "\\'")}')"><span>${escapeHtml(r)}</span> <span onclick="removeSearchRecent('${escapeHtml(r).replace(/'/g, "\\'")}',event)" style="opacity:.4;font-size:10px">✕</span></div>`).join('') + '</div>';
+}
+
+function removeSearchRecent(q, e) {
+  e.stopPropagation();
+  const recents = JSON.parse(localStorage.getItem('searchRecent') || '[]').filter(r => r !== q);
+  localStorage.setItem('searchRecent', JSON.stringify(recents));
+  loadSearchRecent(document.getElementById('search-recent'));
+}
+
+function loadSearch() {
+  loadSearchRecent(document.getElementById('search-recent'));
+}
+
+// ================================================================
+// CLANS
+// ================================================================
+
+async function loadClans() {
+  searchClans('');
+  const myEl = document.getElementById('my-clans-list');
+  if (!myEl) return;
+  if (!Auth.isLoggedIn()) { myEl.innerHTML = ''; return; }
+  try {
+    const clans = await api.getMyClans();
+    myEl.innerHTML = clans.length ? clans.map(renderClanCard).join('') : '<div style="padding:16px;opacity:.5;font-size:13px">You haven\'t joined any clans yet.</div>';
+  } catch(e) { myEl.innerHTML = ''; }
+}
+
+async function searchClans(q) {
+  const el = document.getElementById('clans-list');
+  if (!el) return;
+  try {
+    const clans = await api.getClans(q);
+    el.innerHTML = clans.length ? clans.map(renderClanCard).join('') : '<div style="padding:16px;opacity:.5;font-size:13px">No clans found.</div>';
+  } catch(e) { el.innerHTML = '<div style="padding:16px;opacity:.5;font-size:13px">Could not load clans.</div>'; }
+}
+
+function renderClanCard(clan) {
+  return `<div class="clan-card" onclick="openClanDetail(${clan.id})">
+    <div class="clan-card-banner" style="background:${clan.banner_color||'#6c63ff'}"></div>
+    <div class="clan-card-body">
+      <div class="clan-card-top">
+        <div class="clan-avatar" style="background:${clan.banner_color||'#6c63ff'}">${clan.tag?.[0]||'?'}</div>
+        <div style="flex:1;padding-top:22px">
+          <div class="clan-name">${escapeHtml(clan.name)} <span class="clan-tag">[${escapeHtml(clan.tag)}]</span></div>
+          <div class="clan-meta"><span>👥 ${clan.member_count||1} members</span>${clan.game?`<span>🎮 ${escapeHtml(clan.game)}</span>`:''}</div>
+        </div>
+      </div>
+      ${clan.description ? `<div style="font-size:13px;opacity:.6;margin-top:8px;line-height:1.4">${escapeHtml(clan.description)}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+async function openClanDetail(clanId) {
+  try {
+    const [clan, members] = await Promise.all([api.getClan(clanId), api.getClanMembers(clanId)]);
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'display:flex;z-index:1000';
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+    const isMember = clan.isMember;
+    modal.innerHTML = `<div class="modal-box" style="max-width:560px;max-height:80vh;overflow-y:auto;padding:0">
+      <div class="clan-detail-header" style="background:${clan.banner_color||'#6c63ff'}">
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()" style="position:absolute;top:8px;right:8px">×</button>
+      </div>
+      <div class="clan-detail-body">
+        <div style="display:flex;align-items:center;gap:12px;margin-top:-22px;margin-bottom:12px">
+          <div class="clan-avatar" style="background:${clan.banner_color||'#6c63ff'};width:52px;height:52px;font-size:20px">${clan.tag?.[0]||'?'}</div>
+          <div>
+            <div style="font-size:18px;font-weight:700">${escapeHtml(clan.name)} <span class="clan-tag">[${escapeHtml(clan.tag)}]</span></div>
+            <div class="clan-meta"><span>👥 ${clan.member_count||1} members</span>${clan.game?`<span>🎮 ${escapeHtml(clan.game)}</span>`:''}</div>
+          </div>
+          <div style="margin-left:auto">
+            ${!isMember ? `<button class="btn-primary" onclick="joinClan(${clan.id},this)">Join Clan</button>` : `<button class="btn-secondary" onclick="leaveClanAction(${clan.id},this)">Leave</button>`}
+          </div>
+        </div>
+        ${clan.description ? `<p style="font-size:14px;opacity:.7;margin-bottom:16px">${escapeHtml(clan.description)}</p>` : ''}
+        <div class="clan-detail-tabs">
+          <div class="clan-detail-tab active" onclick="switchClanTab(this,'members-tab')">Members</div>
+          <div class="clan-detail-tab" onclick="switchClanTab(this,'feed-tab',${clan.id})">Feed</div>
+        </div>
+        <div id="members-tab">
+          ${(members||[]).map(m => `<div class="search-user-row" onclick="this.closest('.modal-overlay').remove();openUserProfile(${m.id})">
+            <div style="background:${m.gradient||'#6c63ff'};width:38px;height:38px;font-size:14px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700">${m.avatar||m.username?.[0]?.toUpperCase()||'?'}</div>
+            <div style="flex:1"><div style="font-weight:600">${escapeHtml(m.username)} ${m.role==='owner'?'👑':''} ${planBadge(m.plan)}</div><div style="font-size:12px;opacity:.5">@${escapeHtml(m.handle||m.username)}</div></div>
+          </div>`).join('')}
+        </div>
+        <div id="feed-tab" style="display:none"><div class="loading-spinner" style="margin:20px auto"></div></div>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+  } catch(e) { showToast('Failed to load clan'); }
+}
+
+function switchClanTab(btn, tabId, clanId) {
+  const body = btn.closest('.clan-detail-body');
+  body.querySelectorAll('.clan-detail-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  body.querySelectorAll('[id$="-tab"]').forEach(t => t.style.display='none');
+  const tab = body.querySelector('#'+tabId);
+  if (tab) tab.style.display='block';
+  if (tabId === 'feed-tab' && clanId && tab && tab.innerHTML.includes('loading-spinner')) {
+    api.getClanFeed(clanId).then(posts => {
+      tab.innerHTML = posts.length ? posts.map(p => renderPost(normalizePost(p))).join('') : '<div style="padding:20px;text-align:center;opacity:.5">No posts yet</div>';
+    }).catch(() => { tab.innerHTML = '<div style="padding:20px;text-align:center;opacity:.5">Failed to load feed</div>'; });
+  }
+}
+
+async function joinClan(clanId, btn) {
+  if (!Auth.isLoggedIn()) { showToast('Log in to join clans'); return; }
+  try {
+    const res = await api.joinClan(clanId);
+    if (res.error) { showToast(res.error); return; }
+    showToast('Joined clan!');
+    if (btn) { btn.textContent = 'Leave'; btn.className = 'btn-secondary'; btn.onclick = () => leaveClanAction(clanId, btn); }
+  } catch(e) { showToast('Failed to join clan', 'error', '⚠️'); }
+}
+
+async function leaveClanAction(clanId, btn) {
+  try {
+    const res = await api.leaveClan(clanId);
+    if (res.error) { showToast(res.error); return; }
+    showToast('Left clan');
+    if (btn) { btn.textContent = 'Join Clan'; btn.className = 'btn-primary'; btn.onclick = () => joinClan(clanId, btn); }
+  } catch(e) { showToast('Failed to leave clan', 'error', '⚠️'); }
+}
+
+function openCreateClan() {
+  if (!Auth.isLoggedIn()) { showToast('Log in to create a clan'); return; }
+  const m = document.getElementById('create-clan-modal');
+  if (m) m.style.display = 'flex';
+}
+
+async function submitCreateClan() {
+  const name = document.getElementById('clan-name-input')?.value?.trim();
+  const tag = document.getElementById('clan-tag-input')?.value?.trim().toUpperCase();
+  const game = document.getElementById('clan-game-input')?.value?.trim();
+  const description = document.getElementById('clan-desc-input')?.value?.trim();
+  const banner_color = document.getElementById('clan-color-input')?.value;
+  if (!name || !tag) { showToast('Name and tag required'); return; }
+  if (tag.length > 4) { showToast('Tag max 4 characters'); return; }
+  try {
+    const clan = await api.createClan({ name, tag, game, description, banner_color });
+    if (clan.error) { showToast(clan.error); return; }
+    closeModal('create-clan-modal');
+    showToast('Clan created!');
+    loadClans();
+    openClanDetail(clan.id);
+  } catch(e) { showToast('Failed to create clan'); }
+}
+
+// ================================================================
+// CHALLENGES WIDGET
+// ================================================================
+
+async function loadChallengesWidget() {
+  const el = document.getElementById('challenges-list');
+  if (!el) return;
+  try {
+    const challenges = await api.getChallenges();
+    if (!challenges || !challenges.length) { el.innerHTML = '<div style="opacity:.5;padding:12px;font-size:13px">No challenges available</div>'; return; }
+    el.innerHTML = challenges.map(ch => {
+      const pct = Math.min(100, Math.round((ch.progress / ch.target) * 100));
+      return `<div class="challenge-item" id="challenge-${ch.id}">
+        <div class="challenge-icon">${ch.icon}</div>
+        <div class="challenge-info">
+          <div class="challenge-title">${escapeHtml(ch.title)}</div>
+          <div class="challenge-desc">${escapeHtml(ch.desc)}</div>
+          <div class="challenge-progress-bar"><div class="challenge-progress-fill" style="width:${pct}%"></div></div>
+          <div style="font-size:11px;opacity:.4;margin-top:2px">${ch.progress}/${ch.target}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div class="challenge-xp">+${ch.xp} XP</div>
+          ${ch.completed && !ch.claimed ? `<button class="challenge-claim-btn" onclick="claimChallengeXP(${ch.id},this)">Claim!</button>` : ch.claimed ? `<span style="font-size:11px;opacity:.4">✓ Done</span>` : `<span style="font-size:11px;opacity:.3">${pct}%</span>`}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { el.innerHTML = '<div style="opacity:.5;padding:12px;font-size:13px">Log in to see challenges</div>'; }
+}
+
+async function claimChallengeXP(challengeId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    const res = await api.claimChallenge(challengeId);
+    if (res.error) { showToast(res.error); if (btn) { btn.disabled = false; btn.textContent = 'Claim!'; } return; }
+    showToast(`+${res.xp} XP earned!`);
+    const item = document.getElementById(`challenge-${challengeId}`);
+    if (item) {
+      const claimArea = item.querySelector('.challenge-claim-btn')?.parentElement;
+      if (claimArea) claimArea.innerHTML = `<span style="font-size:11px;opacity:.4">✓ Done</span>`;
+    }
+  } catch(e) { showToast('Failed to claim', 'error', '⚠️'); if (btn) { btn.disabled = false; btn.textContent = 'Claim!'; } }
+}
+
+// ================================================================
+// TRENDING HASHTAGS
+// ================================================================
+
+async function loadTrendingHashtags() {
+  const el = document.getElementById('trending-hashtags');
+  if (!el) return;
+  try {
+    const tags = await api.getTrendingHashtags();
+    el.innerHTML = tags.map(t => `<span class="hashtag-trending-pill" onclick="searchHashtag('${escapeHtml(t.tag.replace('#',''))}')">${escapeHtml(t.tag)} <span style="opacity:.5">${t.count}</span></span>`).join('');
+  } catch(e) {}
+}
+
+// ================================================================
 // BOOT — Real API version
 // ================================================================
 
@@ -3116,6 +3504,8 @@ async function init(user) {
   await loadWidgets();
   navigate('home');
   await updateNotifBadge();
+  loadChallengesWidget();
+  loadTrendingHashtags();
   // Pre-load game list for dropdowns + refresh trending widget once data loads
   api.getTrendingGames(500).then(g => {
     if (g && g.length) {
