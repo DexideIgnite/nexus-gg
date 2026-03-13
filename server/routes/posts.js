@@ -2,6 +2,23 @@ const router = require('express').Router();
 const db = require('../db');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { askClaude, CLAUDE_BOT_ID } = require('../services/askClaude');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const postImgDir = path.join(__dirname, '..', 'uploads', 'posts');
+if (!fs.existsSync(postImgDir)) fs.mkdirSync(postImgDir, { recursive: true });
+const postImgUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, postImgDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+      cb(null, `post_${req.user?.userId}_${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Images only')),
+});
 
 // Fire-and-forget: if text mentions @Claude, post Claude's reply as a comment
 async function maybeAskClaude(postId, text, contextNote, io) {
@@ -29,7 +46,8 @@ router.post('/', requireAuth, (req, res) => {
   const { body, type, game, platform, clip_title, clip_desc, achievement_title, achievement_game, achievement_icon } = req.body;
   if (!body?.trim()) return res.status(400).json({ error: 'Post body required' });
   if (body.length > 500) return res.status(400).json({ error: 'Max 500 characters' });
-  const post = db.createPost({ user_id: req.user.userId, body: body.trim(), type: type||'post', game: game||null, platform: platform||null, clip_title: clip_title||null, clip_desc: clip_desc||null, achievement_title: achievement_title||null, achievement_game: achievement_game||null, achievement_icon: achievement_icon||null, reactions_gg:0,reactions_fire:0,reactions_rekt:0,reactions_king:0,reactions_epic:0,reactions_lul:0,comments_count:0,reposts_count:0,views:0 });
+  const { image_url } = req.body;
+  const post = db.createPost({ user_id: req.user.userId, body: body.trim(), type: type||'post', game: game||null, platform: platform||null, image_url: image_url||null, clip_title: clip_title||null, clip_desc: clip_desc||null, achievement_title: achievement_title||null, achievement_game: achievement_game||null, achievement_icon: achievement_icon||null, reactions_gg:0,reactions_fire:0,reactions_rekt:0,reactions_king:0,reactions_epic:0,reactions_lul:0,comments_count:0,reposts_count:0,views:0 });
   const io = req.app.get('io');
   io?.emit('post:new', post);
   // If post mentions @Claude, reply as a comment (async, non-blocking)
@@ -112,6 +130,12 @@ router.post('/:id/ask-claude', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /api/posts/upload-image
+router.post('/upload-image', requireAuth, postImgUpload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image provided' });
+  res.json({ url: `/uploads/posts/${req.file.filename}` });
 });
 
 module.exports = router;

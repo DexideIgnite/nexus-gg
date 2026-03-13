@@ -799,6 +799,7 @@ function renderPost(post) {
       <span class="post-time">${post.time}</span>
     </div>
     <div class="post-body">${parseBody(post.body)}</div>
+    ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox('${post.image_url}')"></div>` : ''}
     ${extra}
     <div class="post-actions">
       <button class="post-action-btn ${liked ? 'liked' : ''}" onclick="toggleLike(${post.id},this)">
@@ -1265,6 +1266,30 @@ function closePostModal() {
   document.getElementById('post-modal').classList.add('hidden');
   document.getElementById('modal-post-text').value = '';
   document.getElementById('modal-char-count').textContent = '0';
+  document.getElementById('post-image-input').value = '';
+  const preview = document.getElementById('post-image-preview');
+  preview.innerHTML = ''; preview.classList.add('hidden');
+  window._pendingPostImageUrl = null;
+}
+
+function handlePostImageSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('post-image-preview');
+    preview.classList.remove('hidden');
+    preview.innerHTML = `<div class="post-img-wrap"><img src="${e.target.result}" class="post-img-thumb"><button class="post-img-remove" onclick="removePostImage()">✕</button></div>`;
+    window._pendingPostFile = file;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePostImage() {
+  document.getElementById('post-image-input').value = '';
+  const preview = document.getElementById('post-image-preview');
+  preview.innerHTML = ''; preview.classList.add('hidden');
+  window._pendingPostFile = null;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1289,11 +1314,24 @@ async function submitModalPost() {
   btn.disabled = true; btn.textContent = 'Posting...';
 
   try {
+    let image_url = null;
+    if (window._pendingPostFile) {
+      const form = new FormData();
+      form.append('image', window._pendingPostFile);
+      const r = await fetch('/api/posts/upload-image', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
+        body: form,
+      });
+      const data = await r.json();
+      if (data.url) image_url = data.url;
+    }
     await api.createPost({
       body: text,
       type: document.getElementById('modal-post-type').value,
       game: document.getElementById('modal-game-tag').value || null,
       platform: document.getElementById('modal-platform').value || null,
+      image_url,
     });
     closePostModal();
     showToast('Post published! 🎮', 'success', '✅');
@@ -2434,24 +2472,28 @@ async function renderProfile(userId, container) {
     const isFollowing = false; // Will be from API in future
     const gameIcon = GAMES.find(g => (user.games||[])[0] === g.name)?.icon || '🎮';
 
+    const bannerGrad = user.is_bot
+      ? 'linear-gradient(135deg,#cc785c 0%,#a85f45 50%,#2d1810 100%)'
+      : (user.gradient||'linear-gradient(135deg,#1a0a3a,#3b1a6e,#0a1a40)');
+
     container.innerHTML = `
-      <div class="profile-banner" style="background:${user.gradient||'linear-gradient(135deg,#1a0a3a,#0a1a40)'};font-size:80px">
-        ${gameIcon}
+      <div class="profile-banner" style="background:${bannerGrad}">
+        <div class="profile-banner-icon">${user.is_bot ? '<img src="/claude-avatar.svg" style="width:56px;height:56px;border-radius:50%;opacity:.35">' : `<span>${gameIcon}</span>`}</div>
         <div class="profile-banner-overlay"></div>
       </div>
       <div class="profile-header-info">
         <div class="profile-avatar-row">
-          <div class="profile-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
+          <div class="profile-avatar-lg" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
           <div class="profile-actions-row">
             ${isMe
-              ? `<button class="btn-secondary" onclick="openEditProfile()">✏️ Edit Profile</button>`
+              ? `<button class="btn-secondary profile-edit-btn" onclick="openEditProfile()"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Profile</button>`
               : `<button class="btn-primary" id="follow-btn-${user.id}" onclick="toggleFollow(${user.id},this)">${user.isFollowing?'Following':'+ Follow'}</button>
                  <button class="btn-secondary" onclick="navigate('messages')">💬 Message</button>`}
           </div>
         </div>
-        <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg">✓</span>' : ''} <span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span></div>
-        <div class="profile-handle">@${(user.handle||user.username||'player').replace(/^@/,'')} · <span style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'🟢 Online':'⚫ Offline'}</span></div>
-        <div class="profile-bio">${user.bio||''}</div>
+        <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg">✓</span>' : ''} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`}</div>
+        <div class="profile-handle">@${(user.handle||user.username||'player').replace(/^@/,'')} <span class="profile-online-dot" style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'● Online':'● Offline'}</span></div>
+        ${user.bio ? `<div class="profile-bio">${user.bio}</div>` : ''}
         <div class="profile-stats-row">
           <div class="profile-stat"><span class="stat-val">${user.post_count||user.posts_count||user.posts||0}</span> <span class="stat-label">Posts</span></div>
           <div class="profile-stat clickable-stat" onclick="openFollowModal('followers',${effectiveId})"><span class="stat-val">${formatNum(user.followers||0)}</span> <span class="stat-label">Followers</span></div>
@@ -2523,14 +2565,29 @@ async function switchProfileTab(btn, tab, userId) {
       const emptyMsg = userId === 999
         ? `<div class="empty-state"><div class="empty-icon">🤖</div><p>No replies yet — mention @Claude in a post!</p></div>`
         : `<div class="empty-state"><div class="empty-icon">💬</div><p>No replies yet</p></div>`;
+      const isBot = userId === 999;
+      const authorName = isBot ? 'Claude' : null;
       content.innerHTML = replies.length
-        ? replies.map(c => `
-          <div class="claude-reply-card" onclick="scrollToPost(${c.post_id})">
-            <div class="claude-reply-context">Replied to <strong>${c.post_author}</strong>'s post</div>
-            <div class="claude-reply-quote">${parseBody((c.post_body||'').slice(0, 100))}${(c.post_body||'').length > 100 ? '…' : ''}</div>
-            <div class="claude-reply-body">${parseBody(c.body)}</div>
-            <div class="claude-reply-time">${c.time}</div>
-          </div>`).join('')
+        ? `<div class="replies-feed">${replies.map(c => {
+            const displayName = authorName || c.username || 'Player';
+            const avatarEl = isBot
+              ? `<img src="/claude-avatar.svg" class="reply-feed-avatar reply-feed-avatar-bot">`
+              : `<div class="reply-feed-avatar" style="background:${c.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${c.avatar||'?'}</div>`;
+            return `
+            <div class="reply-feed-item" onclick="scrollToPost(${c.post_id})">
+              <div class="reply-feed-quote-block">
+                <div class="reply-feed-quote-label">Replying to <strong>@${c.post_author}</strong></div>
+                <div class="reply-feed-quote-text">${(c.post_body||'').slice(0,120)}${(c.post_body||'').length>120?'…':''}</div>
+              </div>
+              <div class="reply-feed-row">
+                ${avatarEl}
+                <div class="reply-feed-bubble">
+                  <div class="reply-feed-meta"><span class="reply-feed-name">${displayName}</span>${isBot?'<span class="claude-ai-badge" style="font-size:10px">AI</span>':''}<span class="reply-feed-time">${c.time}</span></div>
+                  <div class="reply-feed-text">${parseBody(c.body)}</div>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}</div>`
         : emptyMsg;
     } catch {
       content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load replies</p></div>`;
@@ -2555,6 +2612,14 @@ async function switchProfileTab(btn, tab, userId) {
 // ================================================================
 // USER PROFILE MODAL
 // ================================================================
+
+function openImageLightbox(url) {
+  const el = document.createElement('div');
+  el.className = 'img-lightbox';
+  el.innerHTML = `<div class="img-lightbox-inner"><img src="${url}"><button onclick="this.closest('.img-lightbox').remove()">✕</button></div>`;
+  el.addEventListener('click', e => { if (e.target === el) el.remove(); });
+  document.body.appendChild(el);
+}
 
 function scrollToPost(postId) {
   navigate('home');
