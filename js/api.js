@@ -59,8 +59,9 @@ const api = {
   deletePost:  (id)            => api.delete(`/posts/${id}`),
   reactToPost: (id, type)      => api.post(`/posts/${id}/react`, { type }),
   repostPost:  (id)            => api.post(`/posts/${id}/repost`),
-  getComments: (id)            => api.get(`/posts/${id}/comments`),
-  addComment:  (id, body)      => api.post(`/posts/${id}/comments`, { body }),
+  getComments:    (id)              => api.get(`/posts/${id}/comments`),
+  addComment:     (id, body, parentId) => api.post(`/posts/${id}/comments`, { body, parent_id: parentId||null }),
+  askAIInsight:   (id)              => api.post(`/posts/${id}/ask-claude`),
 
   // Users
   getUsers:          (search)  => api.get(`/users${search?'?search='+encodeURIComponent(search):''}`),
@@ -165,7 +166,7 @@ function initSocket(token) {
     if (list && typeof window.renderComment === 'function') {
       const empty = list.querySelector('.empty-comments');
       if (empty) empty.remove();
-      list.insertAdjacentHTML('beforeend', window.renderComment(comment));
+      list.insertAdjacentHTML('beforeend', `<div class="comment-thread-item" id="ci-${comment.id}">${window.renderComment(comment)}</div>`);
       list.scrollTop = list.scrollHeight;
     }
     // Update comment count on post card

@@ -824,7 +824,11 @@ function renderPost(post) {
         <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>${post.views}</span>
       </button>
+      <button class="post-action-btn ai-action-btn" onclick="toggleAIBubble(${post.id},this)" title="Ask Claude about this post">
+        <img src="/claude-avatar.svg" style="width:16px;height:16px;border-radius:50%;vertical-align:middle"> <span>AI</span>
+      </button>
     </div>
+    <div class="ai-bubble hidden" id="ai-bubble-${post.id}"></div>
   </div>`;
 }
 
@@ -844,6 +848,38 @@ async function toggleLike(postId, btn) {
   } catch {
     showToast('Failed to like', 'error', '⚠️');
   }
+}
+
+async function toggleAIBubble(postId, btn) {
+  const bubble = document.getElementById(`ai-bubble-${postId}`);
+  if (!bubble) return;
+  if (!bubble.classList.contains('hidden')) { bubble.classList.add('hidden'); btn?.classList.remove('active'); return; }
+  bubble.classList.remove('hidden');
+  btn?.classList.add('active');
+  if (bubble.dataset.loaded) return; // already fetched
+  bubble.innerHTML = `<div class="ai-bubble-thinking"><span></span><span></span><span></span></div>`;
+  try {
+    const data = await api.askAIInsight(postId);
+    const chips = (data.chips||[]).map(c => `<button class="ai-chip" onclick="injectAIChip(${postId},'${c.replace(/'/g,"\\'")}',this)">${c}</button>`).join('');
+    bubble.innerHTML = `
+      <div class="ai-bubble-header"><img src="/claude-avatar.svg" style="width:18px;height:18px;border-radius:50%"> <span>Claude's take</span></div>
+      <div class="ai-bubble-text">${data.reply||'No insight available.'}</div>
+      ${chips ? `<div class="ai-chips">${chips}</div>` : ''}`;
+    bubble.dataset.loaded = '1';
+  } catch {
+    bubble.innerHTML = `<div class="ai-bubble-text" style="color:var(--text-muted)">Could not load AI insight.</div>`;
+  }
+}
+
+function injectAIChip(postId, question, btn) {
+  btn?.classList.add('used');
+  // Open comment box and prefill with @Claude + the chip question
+  const section = document.getElementById(`comments-${postId}`);
+  if (!section || section.classList.contains('hidden')) toggleComment(postId, null);
+  setTimeout(() => {
+    const input = document.getElementById(`comment-input-${postId}`);
+    if (input) { input.value = `@Claude ${question}`; input.focus(); }
+  }, 200);
 }
 
 async function toggleComment(postId, btn) {
@@ -876,71 +912,168 @@ async function loadComments(postId) {
   }
 }
 
+const _commentSort = {};
+
 function renderCommentSection(postId, comments, me) {
   const section = document.getElementById(`comments-${postId}`);
   if (!section) return;
   const isLoggedIn = !!window.Auth?.getToken();
+  const sort = _commentSort[postId] || 'recent';
   section.innerHTML = `
+    <div class="comment-sort-tabs">
+      <button class="csort-tab ${sort==='recent'?'active':''}" onclick="setCommentSort(${postId},'recent')">Recent</button>
+      <button class="csort-tab ${sort==='top'?'active':''}" onclick="setCommentSort(${postId},'top')">Top</button>
+      <button class="csort-tab ${sort==='verified'?'active':''}" onclick="setCommentSort(${postId},'verified')">Verified</button>
+      <button class="csort-tab ${sort==='ai'?'active':''}" onclick="setCommentSort(${postId},'ai')">✨ AI Picks</button>
+    </div>
     <div class="comments-list" id="comments-list-${postId}">
-      ${comments.length ? comments.map(renderComment).join('') : '<div class="empty-comments">No comments yet — be first!</div>'}
+      ${renderSortedComments(postId, comments, sort)}
     </div>
     ${isLoggedIn ? `<div class="comment-input-row">
       <div class="comment-avatar" style="background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${me.avatar_url?`background-image:url('${me.avatar_url}');background-size:cover;background-position:center`:''}">${me.avatar_url?'':me.avatar||'?'}</div>
       <div class="comment-input-wrap">
-        <input class="comment-input" id="comment-input-${postId}" placeholder="Comment… try @Claude for an AI reply" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId})}">
-        <button class="comment-submit-btn" onclick="submitComment(${postId})">↑</button>
+        <input class="comment-input" id="comment-input-${postId}" placeholder="Comment… try @Claude for an AI reply" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId},null)}">
+        <button class="comment-submit-btn" onclick="submitComment(${postId},null)">↑</button>
       </div>
     </div>` : ''}`;
+  section.dataset.comments = JSON.stringify(comments);
 }
 
-function renderComment(c) {
+function renderSortedComments(postId, comments, sort) {
+  let sorted = [...comments];
+  if (sort === 'top') sorted.sort((a,b) => (b.likes||0)-(a.likes||0));
+  else if (sort === 'verified') sorted = sorted.filter(c => c.verified || c.user_id === 999);
+  else if (sort === 'ai') sorted = sorted.filter(c => c.aiHighlighted || c.user_id === 999);
+  else sorted.sort((a,b) => new Date(a.created_at)-new Date(b.created_at)); // recent
+  const roots = sorted.filter(c => !c.parent_id);
+  const replies = sorted.filter(c => !!c.parent_id);
+  if (!roots.length && !sorted.length) return '<div class="empty-comments">No comments yet — be first!</div>';
+  if (!roots.length && sorted.length) return sorted.map(c => renderCommentNode(c, postId, 0, [])).join('');
+  return roots.map(c => renderCommentNode(c, postId, 0, replies)).join('');
+}
+
+function renderCommentNode(c, postId, depth, allReplies) {
+  const children = depth < 3 ? allReplies.filter(r => r.parent_id === c.id) : [];
+  const childrenHtml = children.length
+    ? `<div class="comment-thread-replies">${children.map(r => renderCommentNode(r, postId, depth+1, allReplies)).join('')}</div>`
+    : '';
+  return `<div class="comment-thread-item" id="ci-${c.id}">${renderCommentInner(c, postId, depth)}${childrenHtml}</div>`;
+}
+
+function setCommentSort(postId, sort) {
+  _commentSort[postId] = sort;
+  const section = document.getElementById(`comments-${postId}`);
+  const raw = section?.dataset.comments;
+  if (!raw) return;
+  const comments = JSON.parse(raw);
+  const me = window.Auth?.getUser() || window.CURRENT_USER;
+  renderCommentSection(postId, comments, me);
+}
+
+// legacy shim used by socket handler
+function renderComment(c) { return renderCommentInner(c, c.post_id, 0); }
+
+function renderCommentInner(c, postId, depth) {
   const isBot = c.user_id === 999;
   const avatarBg = `background:${c.gradient||'linear-gradient(135deg,#cc785c,#a85f45)'}`;
   const avatarContent = isBot
     ? `<img src="/claude-avatar.svg" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
     : (c.avatar||'?');
   const replyHandle = isBot ? 'Claude' : (c.handle||c.username||'Player');
+  const threadLine = depth > 0 ? '' : ''; // thread line is handled by CSS on .comment-thread-replies
   return `
-    <div class="comment-item${isBot?' comment-claude':''}">
-      <div class="comment-avatar${isBot?' claude-comment-avatar':''}" style="${isBot?'background:transparent':avatarBg};padding:0;overflow:hidden" onclick="openUserProfile(${c.user_id})">${avatarContent}</div>
+    <div class="comment-item${isBot?' comment-claude':''}${depth>0?' comment-nested':''}">
+      <div class="comment-left">
+        <div class="comment-avatar${isBot?' claude-comment-avatar':''}" style="${isBot?'background:transparent':avatarBg};padding:0;overflow:hidden" onclick="openUserProfile(${c.user_id})">${avatarContent}</div>
+        <div class="comment-thread-line"></div>
+      </div>
       <div class="comment-body">
         <div class="comment-meta">
           <span class="comment-author" onclick="openUserProfile(${c.user_id})">${c.username||'Player'}</span>
           ${isBot ? `<span class="claude-ai-badge">AI</span>` : (c.verified ? '<span class="verified-badge">✓</span>' : '')}
           <span class="comment-time">${c.time||'just now'}</span>
-          <button class="comment-reply-btn" onclick="replyToComment(${c.post_id||0},'${replyHandle}')">Reply</button>
         </div>
         <div class="comment-text">${parseBody(c.body||'')}</div>
+        <div class="comment-actions-micro">
+          <button class="comment-reply-btn" onclick="openInlineReply(${postId},${c.id},'${replyHandle}')">Reply</button>
+        </div>
+        <div class="inline-reply-wrap" id="inline-reply-${c.id}"></div>
       </div>
     </div>`;
 }
 
-function replyToComment(postId, handle) {
-  const input = document.getElementById(`comment-input-${postId}`);
-  if (!input) return;
-  const prefix = `@${handle} `;
-  if (!input.value.startsWith(prefix)) input.value = prefix + input.value.replace(/^@\S+\s*/,'');
-  input.focus();
-  input.setSelectionRange(input.value.length, input.value.length);
+function openInlineReply(postId, commentId, handle) {
+  const wrap = document.getElementById(`inline-reply-${commentId}`);
+  if (!wrap) return;
+  if (wrap.children.length) { wrap.innerHTML = ''; return; } // toggle off
+  const me = window.Auth?.getUser() || window.CURRENT_USER;
+  const avatarStyle = me.avatar_url
+    ? `background-image:url('${me.avatar_url}');background-size:cover;background-position:center;background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}`
+    : `background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}`;
+  wrap.innerHTML = `
+    <div class="comment-input-row inline-reply-row">
+      <div class="comment-avatar" style="${avatarStyle}">${me.avatar_url?'':me.avatar||'?'}</div>
+      <div class="comment-input-wrap">
+        <input class="comment-input" id="inline-input-${commentId}" placeholder="Reply to @${handle}…"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitInlineReply(${postId},${commentId},this)}"
+          value="@${handle} ">
+        <button class="comment-submit-btn" onclick="submitInlineReply(${postId},${commentId},document.getElementById('inline-input-${commentId}'))">↑</button>
+      </div>
+    </div>`;
+  const input = wrap.querySelector('input');
+  input?.focus();
+  input?.setSelectionRange(input.value.length, input.value.length);
 }
 
-async function submitComment(postId) {
+async function submitInlineReply(postId, parentId, inputEl) {
+  const body = inputEl?.value?.trim();
+  if (!body) return;
+  inputEl.disabled = true;
+  try {
+    const comment = await api.addComment(postId, body, parentId);
+    // inject after the parent comment node
+    const parentNode = document.getElementById(`ci-${parentId}`);
+    if (parentNode) {
+      let repliesDiv = parentNode.querySelector('.comment-thread-replies');
+      if (!repliesDiv) {
+        repliesDiv = document.createElement('div');
+        repliesDiv.className = 'comment-thread-replies';
+        parentNode.appendChild(repliesDiv);
+      }
+      repliesDiv.insertAdjacentHTML('beforeend', `<div class="comment-thread-item" id="ci-${comment.id}">${renderCommentInner(comment, postId, 1)}</div>`);
+    }
+    // close inline composer
+    document.getElementById(`inline-reply-${parentId}`)?.remove();
+  } catch (err) {
+    showToast(err.message||'Failed to reply','error','⚠️');
+    inputEl.disabled = false;
+  }
+}
+
+async function submitComment(postId, parentId) {
   const input = document.getElementById(`comment-input-${postId}`);
   if (!input?.value.trim()) return;
   const body = input.value.trim();
   input.value = '';
   input.disabled = true;
   try {
-    const comment = await api.addComment(postId, body);
+    const comment = await api.addComment(postId, body, parentId||null);
     const list = document.getElementById(`comments-list-${postId}`);
     if (list) {
       const empty = list.querySelector('.empty-comments');
       if (empty) empty.remove();
-      list.insertAdjacentHTML('beforeend', renderComment(comment));
+      list.insertAdjacentHTML('beforeend', `<div class="comment-thread-item" id="ci-${comment.id}">${renderCommentInner(comment, postId, 0)}</div>`);
       list.scrollTop = list.scrollHeight;
     }
     const countSpan = document.getElementById(`comment-count-${postId}`);
     if (countSpan) countSpan.textContent = (+countSpan.textContent||0) + 1;
+    // update cached comments for sort
+    const section = document.getElementById(`comments-${postId}`);
+    if (section?.dataset.comments) {
+      const arr = JSON.parse(section.dataset.comments);
+      arr.push(comment);
+      section.dataset.comments = JSON.stringify(arr);
+    }
   } catch (err) {
     showToast(err.message||'Failed to comment','error','⚠️');
     input.value = body;

@@ -74,11 +74,11 @@ router.get('/:id/comments', (req, res) => res.json(db.getComments(req.params.id)
 
 // POST /api/posts/:id/comments
 router.post('/:id/comments', requireAuth, (req, res) => {
-  const { body } = req.body;
+  const { body, parent_id } = req.body;
   if (!body?.trim()) return res.status(400).json({ error: 'body required' });
   const post = db.getPost(req.params.id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
-  const comment = db.addComment({ post_id:+req.params.id, user_id: req.user.userId, body: body.trim() });
+  const comment = db.addComment({ post_id:+req.params.id, user_id: req.user.userId, body: body.trim(), parent_id: parent_id||null });
   if (post.user_id !== req.user.userId) {
     const me = db.getUser(req.user.userId);
     db.addNotif({ user_id: post.user_id, actor_id: req.user.userId, type:'mention', icon:'💬', text:`<strong>${me.username}</strong> commented on your post.`, read:0 });
@@ -88,6 +88,30 @@ router.post('/:id/comments', requireAuth, (req, res) => {
   // If comment mentions @Claude, reply as another comment (async, non-blocking)
   maybeAskClaude(req.params.id, body.trim(), post.body, io);
   res.status(201).json(comment);
+});
+
+// POST /api/posts/:id/ask-claude  — inline AI insight (no comment created)
+router.post('/:id/ask-claude', async (req, res) => {
+  const post = db.getPost(req.params.id);
+  if (!post) return res.status(404).json({ error: 'Post not found' });
+  const { askClaude } = require('../services/askClaude');
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'AI not configured' });
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 400,
+      system: `You are Claude, an AI gaming assistant on NEXUS GG. Give a helpful insight about the post, then suggest 2 short follow-up questions a gamer might ask. Reply as JSON: {"reply":"...","chips":["...","..."]}. Keep reply under 2 sentences. Be casual and gaming-focused.`,
+      messages: [{ role: 'user', content: post.body }],
+    });
+    const text = msg.content[0]?.text || '{}';
+    let parsed = { reply: text, chips: [] };
+    try { parsed = JSON.parse(text); } catch {}
+    res.json(parsed);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
