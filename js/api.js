@@ -15,7 +15,6 @@ const Auth = {
   logout: () => {
     localStorage.removeItem('nx_token');
     localStorage.removeItem('nx_user');
-    // Clean up old offline state
     if (window.SOCKET) window.SOCKET.disconnect();
     window.location.reload();
   },
@@ -23,20 +22,48 @@ const Auth = {
 };
 
 // ================================================================
+// JWT EXPIRY CHECK
+// ================================================================
+function isTokenExpired(token) {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch { return true; }
+}
+
+// ================================================================
 // HTTP HELPERS
 // ================================================================
+
+// fetchWithAuth: wraps fetch for FormData/file uploads with auth + 401 handling
+async function fetchWithAuth(url, opts = {}) {
+  const token = Auth.getToken();
+  if (!opts.headers) opts.headers = {};
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(url, opts);
+  if (res.status === 401) { Auth.logout(); throw new Error('Session expired'); }
+  return res;
+}
+
 async function apiRequest(method, path, body) {
+  // Check token expiry before making request
+  const token = Auth.getToken();
+  if (token && isTokenExpired(token)) { Auth.logout(); throw new Error('Session expired'); }
+
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
   };
-  const token = Auth.getToken();
   if (token) opts.headers['Authorization'] = 'Bearer ' + token;
   if (body) opts.body = JSON.stringify(body);
 
   const res = await fetch(API_BASE + path, opts);
-  const data = await res.json().catch(() => ({}));
 
+  // Global 401 handling
+  if (res.status === 401) { Auth.logout(); throw new Error('Session expired'); }
+
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
 }
@@ -81,9 +108,8 @@ const api = {
   uploadAvatar:      (file)    => {
     const form = new FormData();
     form.append('avatar', file);
-    return fetch(API_BASE + '/users/me/avatar', {
+    return fetchWithAuth(API_BASE + '/users/me/avatar', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
       body: form,
     }).then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'Upload failed'); return d; }));
   },
@@ -117,9 +143,8 @@ const api = {
     const form = new FormData();
     form.append('media', file);
     if (caption) form.append('caption', caption);
-    return fetch(API_BASE + '/stories', {
+    return fetchWithAuth(API_BASE + '/stories', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
       body: form,
     }).then(r => r.json().then(d => { if (!r.ok) throw new Error(d.error || 'Upload failed'); return d; }));
   },
@@ -157,10 +182,10 @@ const api = {
   claimChallenge: (id) => apiRequest('POST', `/users/challenges/${id}/claim`),
 
   // Banner
-  uploadBanner: (file) => { const fd = new FormData(); fd.append('banner', file); return fetch('/api/users/me/banner', { method:'POST', headers:{ Authorization:`Bearer ${Auth.getToken()}` }, body:fd }).then(r=>r.json()); },
+  uploadBanner: (file) => { const fd = new FormData(); fd.append('banner', file); return fetchWithAuth('/api/users/me/banner', { method:'POST', body:fd }).then(r=>r.json()); },
 
   // Clip upload
-  uploadClip: (file) => { const fd = new FormData(); fd.append('clip', file); return fetch('/api/posts/upload-clip', { method:'POST', headers:{ Authorization:`Bearer ${Auth.getToken()}` }, body:fd }).then(r=>r.json()); },
+  uploadClip: (file) => { const fd = new FormData(); fd.append('clip', file); return fetchWithAuth('/api/posts/upload-clip', { method:'POST', body:fd }).then(r=>r.json()); },
 };
 
 // ================================================================
@@ -168,18 +193,41 @@ const api = {
 // ================================================================
 function initSocket(token) {
   if (typeof io === 'undefined') return;
+
+  // Prevent duplicate socket connections
+  if (window.SOCKET) {
+    window.SOCKET.disconnect();
+    window.SOCKET = null;
+  }
+
   const socket = io({ auth: { token } });
   window.SOCKET = socket;
 
+  const banner = document.getElementById('reconnecting-banner');
+
   socket.on('connect', () => {
     console.log('🔌 Socket connected');
-    // Reload online widget now that we're connected
+    if (banner) banner.style.display = 'none';
     if (typeof loadWidgets === 'function') loadWidgets();
   });
-  socket.on('disconnect', () => console.log('🔌 Socket disconnected'));
+
+  socket.on('disconnect', () => {
+    console.log('🔌 Socket disconnected');
+    if (banner) banner.style.display = '';
+  });
+
+  socket.on('connect_error', (err) => {
+    console.warn('🔌 Socket connect error:', err.message);
+    if (banner) banner.style.display = '';
+    // If auth error, log out
+    if (err.message === 'auth_error') {
+      Auth.logout();
+      return;
+    }
+  });
 
   // New post from someone else
-  socket.on('post:new', (post) => {
+  socket.on(EVENTS.POST_NEW, (post) => {
     if (post.user?.id === Auth.getUser()?.id) return;
     if (window.STATE?.currentSection === 'home') {
       const container = document.getElementById('feed-container');
@@ -193,7 +241,7 @@ function initSocket(token) {
   });
 
   // Real-time comment (e.g. Claude bot reply)
-  socket.on('post:comment', ({ postId, comment }) => {
+  socket.on(EVENTS.POST_COMMENT, ({ postId, comment }) => {
     // Skip if it's the current user's own comment — already inserted locally by submitComment
     const myId = window.Auth?.getUser()?.id || window.CURRENT_USER?.id;
     if (myId && comment.user_id === +myId) return;
@@ -212,7 +260,7 @@ function initSocket(token) {
   });
 
   // Real-time message
-  socket.on('message:receive', (msg) => {
+  socket.on(EVENTS.MESSAGE_RECEIVE, (msg) => {
     if (window.STATE?.currentSection === 'messages' && window.STATE?.currentConversation === msg.sender_id) {
       appendChatMessage(msg, false);
     }
@@ -221,38 +269,38 @@ function initSocket(token) {
     updateBadge('msg');
   });
 
-  socket.on('message:sent', (msg) => {
+  socket.on(EVENTS.MESSAGE_SENT, (msg) => {
     appendChatMessage(msg, true);
   });
 
   // Typing indicator
-  socket.on('typing:start', ({ userId }) => {
+  socket.on(EVENTS.TYPING_START, ({ userId }) => {
     const indicator = document.getElementById('typing-indicator');
     if (indicator && window.STATE?.currentConversation === userId) indicator.style.display = 'flex';
   });
-  socket.on('typing:stop', ({ userId }) => {
+  socket.on(EVENTS.TYPING_STOP, ({ userId }) => {
     const indicator = document.getElementById('typing-indicator');
     if (indicator) indicator.style.display = 'none';
   });
 
   // Online/offline
-  socket.on('user:online', ({ userId }) => {
+  socket.on(EVENTS.USER_ONLINE, ({ userId }) => {
     document.querySelectorAll(`.conv-avatar[data-uid="${userId}"] .conv-online-dot`).forEach(d => d.style.background = 'var(--accent-green)');
     if (typeof loadWidgets === 'function') loadWidgets();
   });
-  socket.on('user:offline', ({ userId }) => {
+  socket.on(EVENTS.USER_OFFLINE, ({ userId }) => {
     document.querySelectorAll(`.conv-avatar[data-uid="${userId}"] .conv-online-dot`).forEach(d => d.style.background = 'var(--text-muted)');
     if (typeof loadWidgets === 'function') loadWidgets();
   });
 
   // User status update (now playing)
-  socket.on('user:status', ({ userId, nowPlaying }) => {
+  socket.on(EVENTS.USER_STATUS, ({ userId, nowPlaying }) => {
     const el = document.querySelector(`.friend-game[data-uid="${userId}"]`);
     if (el) el.textContent = nowPlaying ? '🎮 ' + nowPlaying : 'In lobby';
   });
 
   // LFG update
-  socket.on('lfg:new', () => {
+  socket.on(EVENTS.LFG_NEW, () => {
     if (window.STATE?.currentSection === 'lfg') window.loadLFG?.();
   });
 
@@ -411,11 +459,12 @@ function initAuthModal() {
 // BOOT
 // ================================================================
 async function bootWithAuth() {
-  initAuthModal(); // wire up all form events (safe to call multiple times)
+  initAuthModal();
 
   const token = Auth.getToken();
-  if (!token) {
-    showAuthModal('login');
+  if (!token || isTokenExpired(token)) {
+    if (token) Auth.logout(); // clear expired token
+    else showAuthModal('login');
     return;
   }
 
@@ -429,7 +478,6 @@ async function bootWithAuth() {
 }
 
 function bootApp(user, token) {
-  // Patch window.CURRENT_USER with real user data
   if (window.CURRENT_USER !== undefined) {
     Object.assign(window.CURRENT_USER, user, {
       id: user.id,
@@ -450,3 +498,4 @@ window.bootWithAuth = bootWithAuth;
 window.showAuthModal = showAuthModal;
 window.switchAuthTab = switchAuthTab;
 window.initSocket = initSocket;
+window.fetchWithAuth = fetchWithAuth;

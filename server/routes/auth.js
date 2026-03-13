@@ -20,7 +20,7 @@ router.post('/register', (req, res) => {
   const user = db.createUser({
     username, email,
     handle: `${username.toLowerCase().replace(/\s+/g,'_')}#${Math.floor(1000+Math.random()*9000)}`,
-    password_hash: bcrypt.hashSync(password, 10),
+    password_hash: bcrypt.hashSync(password, 12),
     avatar: username[0].toUpperCase(),
     rank: rank || 'Bronze',
     bio: bio || '',

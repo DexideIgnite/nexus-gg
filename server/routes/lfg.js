@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const db = require('../db');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
+const EVENTS = require('../../shared/events');
 
 router.get('/', optionalAuth, (req, res) => {
   const posts = db.getLFG(req.query.game, req.query.region);
@@ -11,7 +12,7 @@ router.post('/', requireAuth, (req, res) => {
   if (!game) return res.status(400).json({ error: 'game required' });
   const p = db.createLFG({ user_id: req.user.userId, game, mode: mode||'Ranked', rank_req: rank_req||'Any', region: region||'NA', slots: slots||5, description: description||'' });
   const formatted = db.formatLFG(p, req.user.userId);
-  req.app.get('io')?.emit('lfg:new', formatted);
+  req.app.get('io')?.emit(EVENTS.LFG_NEW, formatted);
   res.status(201).json(formatted);
 });
 router.post('/:id/join', requireAuth, (req, res) => {
@@ -26,7 +27,7 @@ router.post('/:id/join', requireAuth, (req, res) => {
     db.addNotif({ user_id: post.user_id, actor_id: req.user.userId, type:'system', icon:'👥', text:`<strong>${me.username}</strong> joined your LFG for ${post.game}!`, read:0 });
   }
   const updated = db.formatLFG(db.getLFGPost(req.params.id), req.user.userId);
-  req.app.get('io')?.emit('lfg:update', updated);
+  req.app.get('io')?.emit(EVENTS.LFG_UPDATE, updated);
   res.json({ action, ...updated });
 });
 router.delete('/:id', requireAuth, (req, res) => {

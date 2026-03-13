@@ -11,7 +11,19 @@ const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 // ================================================================
-// JSON FILE STORE — synchronous, like SQLite but pure JS
+// WRITE-LOCK QUEUE — serializes async writes per file to prevent corruption
+// ================================================================
+const writeQueues = new Map();
+
+function enqueueWrite(filePath, fn) {
+  const prev = writeQueues.get(filePath) || Promise.resolve();
+  const next = prev.then(fn, fn); // always run even if previous failed
+  writeQueues.set(filePath, next);
+  return next;
+}
+
+// ================================================================
+// JSON FILE STORE — synchronous + async, like SQLite but pure JS
 // ================================================================
 
 class Table {
@@ -21,12 +33,16 @@ class Table {
   }
   _load() { try { return JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch { return []; } }
   _save() { fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2)); }
+  _saveAsync() { return enqueueWrite(this.file, () => fs.promises.writeFile(this.file, JSON.stringify(this.data, null, 2))); }
   nextId() { return this.data.length ? Math.max(...this.data.map(r => r.id || 0)) + 1 : 1; }
   insert(record) { const row = { id: this.nextId(), created_at: new Date().toISOString(), ...record }; this.data.push(row); this._save(); return row; }
+  insertAsync(record) { const row = { id: this.nextId(), created_at: new Date().toISOString(), ...record }; this.data.push(row); return this._saveAsync().then(() => row); }
   findAll(predicate) { return predicate ? this.data.filter(predicate) : [...this.data]; }
   findOne(predicate) { return this.data.find(predicate) || null; }
   update(predicate, changes) { let n=0; this.data=this.data.map(r=>{if(predicate(r)){n++;return{...r,...changes};}return r;}); this._save(); return n; }
+  updateAsync(predicate, changes) { let n=0; this.data=this.data.map(r=>{if(predicate(r)){n++;return{...r,...changes};}return r;}); return this._saveAsync().then(() => n); }
   delete(predicate) { const b=this.data.length; this.data=this.data.filter(r=>!predicate(r)); this._save(); return b-this.data.length; }
+  deleteAsync(predicate) { const b=this.data.length; this.data=this.data.filter(r=>!predicate(r)); return this._saveAsync().then(() => b-this.data.length); }
   count(predicate) { return predicate ? this.data.filter(predicate).length : this.data.length; }
 }
 
@@ -65,7 +81,7 @@ const T = {
 // ================================================================
 function timeAgo(d){const diff=Date.now()-new Date(d).getTime(),s=Math.floor(diff/1000),m=Math.floor(s/60),h=Math.floor(m/60),dy=Math.floor(h/24);if(dy>0)return dy+'d ago';if(h>0)return h+'h ago';if(m>0)return m+'m ago';return'just now';}
 function safeUser(u,viewerId){if(!u)return null;const{password_hash,...s}=u;s.followers=T.follows.count(f=>f.following_id===u.id);s.following=T.follows.count(f=>f.follower_id===u.id);s.posts_count=T.posts.count(p=>p.user_id===u.id);s.isFollowing=viewerId?!!T.follows.findOne(f=>f.follower_id===+viewerId&&f.following_id===u.id):false;s.verified=!!u.verified;s.plan=u.plan||'free';s.xp=u.xp||0;s.clan_tag=(()=>{const m=T.clan_members.findOne(cm=>cm.user_id===u.id);return m?(T.clans.findOne(c=>c.id===m.clan_id)?.tag||null):null;})();return s;}
-function formatPost(p,viewerId){if(typeof p==='number'||typeof p==='string'){const found=T.posts.findOne(x=>x.id===+p);if(!found)return null;p=found;}if(!p)return null;const user=safeUser(T.users.findOne(u=>u.id===p.user_id),viewerId);const myReaction=viewerId?T.post_reactions.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):null;const reposted=viewerId?!!T.post_reposts.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):false;let quotedPost=null;if(p.quoted_post_id){const qp=T.posts.findOne(x=>x.id===+p.quoted_post_id);if(qp){const qu=safeUser(T.users.findOne(u=>u.id===qp.user_id),viewerId);quotedPost={id:qp.id,body:qp.body,user:qu,time:timeAgo(qp.created_at)};}}const bookmarked=viewerId?!!T.bookmarks.findOne(b=>b.user_id===+viewerId&&b.post_id===p.id):false;const poll=p.has_poll?(()=>{const opts=T.poll_options.findAll(o=>o.post_id===p.id);if(!opts.length)return null;const total=opts.reduce((s,o)=>s+(o.votes||0),0);const uv=viewerId?T.poll_votes.findOne(v=>v.post_id===p.id&&v.user_id===+viewerId):null;return{options:opts.map(o=>({...o,pct:total?Math.round((o.votes/total)*100):0})),totalVotes:total,userVoteId:uv?.option_id||null};})():null;return{...p,user,myReaction:myReaction?.reaction_type||null,reposted,reactions:{gg:p.reactions_gg||0,fire:p.reactions_fire||0,rekt:p.reactions_rekt||0,king:p.reactions_king||0,epic:p.reactions_epic||0,lul:p.reactions_lul||0},achievement:p.achievement_title?{title:p.achievement_title,game:p.achievement_game,icon:p.achievement_icon}:null,clip:p.clip_title?{title:p.clip_title,desc:p.clip_desc}:null,quotedPost,bookmarked,poll,time:timeAgo(p.created_at),views:p.views?String(p.views):'0'};}
+function formatPost(p,viewerId){if(typeof p==='number'||typeof p==='string'){const found=T.posts.findOne(x=>x.id===+p);if(!found)return null;p=found;}if(!p)return null;const user=safeUser(T.users.findOne(u=>u.id===p.user_id),viewerId);const myReaction=viewerId?T.post_reactions.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):null;const reposted=viewerId?!!T.post_reposts.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):false;let quotedPost=null;if(p.quoted_post_id){if(p.quoted_snapshot){const snap=p.quoted_snapshot;quotedPost={id:+p.quoted_post_id,body:snap.body,user:{username:snap.username,handle:snap.handle,avatar:snap.avatar,gradient:snap.gradient},time:timeAgo(snap.created_at)};}else{const qp=T.posts.findOne(x=>x.id===+p.quoted_post_id);if(qp){const qu=safeUser(T.users.findOne(u=>u.id===qp.user_id),viewerId);quotedPost={id:qp.id,body:qp.body,user:qu,time:timeAgo(qp.created_at)};}}}const bookmarked=viewerId?!!T.bookmarks.findOne(b=>b.user_id===+viewerId&&b.post_id===p.id):false;const poll=p.has_poll?(()=>{const opts=T.poll_options.findAll(o=>o.post_id===p.id);if(!opts.length)return null;const total=opts.reduce((s,o)=>s+(o.votes||0),0);const uv=viewerId?T.poll_votes.findOne(v=>v.post_id===p.id&&v.user_id===+viewerId):null;return{options:opts.map(o=>({...o,pct:total?Math.round((o.votes/total)*100):0})),totalVotes:total,userVoteId:uv?.option_id||null};})():null;return{...p,user,myReaction:myReaction?.reaction_type||null,reposted,reactions:{gg:p.reactions_gg||0,fire:p.reactions_fire||0,rekt:p.reactions_rekt||0,king:p.reactions_king||0,epic:p.reactions_epic||0,lul:p.reactions_lul||0},achievement:p.achievement_title?{title:p.achievement_title,game:p.achievement_game,icon:p.achievement_icon}:null,clip:p.clip_title?{title:p.clip_title,desc:p.clip_desc}:null,quotedPost,bookmarked,poll,time:timeAgo(p.created_at),views:p.views?String(p.views):'0'};}
 function formatLFG(l,viewerId){const user=safeUser(T.users.findOne(u=>u.id===l.user_id),viewerId);const members=T.lfg_members.findAll(m=>m.lfg_id===l.id).map(m=>safeUser(T.users.findOne(u=>u.id===m.user_id),viewerId)).filter(Boolean);const filled=members.length+1;const isMember=viewerId?!!T.lfg_members.findOne(m=>m.lfg_id===l.id&&m.user_id===+viewerId):false;const isHost=viewerId&&l.user_id===+viewerId;let status='open';if(filled>=l.slots)status='full';else if(filled>=l.slots-1)status='filling';return{...l,user,members,filled,status,isMember,isHost,time:timeAgo(l.created_at)};}
 
 const db = {
@@ -85,7 +101,8 @@ const db = {
       return p.map(x=>formatPost(x,userId));
     }
     if(tab==='hot'){
-      const p=T.posts.findAll().sort((a,b)=>((b.reactions_gg||0)+(b.reactions_fire||0)+(b.reactions_epic||0)+(b.reactions_king||0)+(b.comments_count||0)*2+(b.reposts_count||0)*2)-((a.reactions_gg||0)+(a.reactions_fire||0)+(a.reactions_epic||0)+(a.reactions_king||0)+(a.comments_count||0)*2+(a.reposts_count||0)*2)).slice(0,30);
+      const hotScore=x=>((x.reactions_gg||0)+(x.reactions_fire||0)+(x.reactions_epic||0)+(x.reactions_king||0)+(x.comments_count||0)*2+(x.reposts_count||0)*2)||0;
+      const p=T.posts.findAll().sort((a,b)=>hotScore(b)-hotScore(a)).slice(0,30);
       return p.map(x=>formatPost(x,userId));
     }
     if(game){
@@ -96,11 +113,13 @@ const db = {
     const followedIds=userId?T.follows.findAll(f=>f.follower_id===+userId).map(f=>f.following_id):[];
     const now=Date.now();
     const scored=T.posts.findAll().map(p=>{
-      const hoursOld=Math.max(0,(now-new Date(p.created_at).getTime())/(1000*60*60));
+      const rawHours=(now-new Date(p.created_at).getTime())/(1000*60*60);
+      const hoursOld=Number.isFinite(rawHours)?Math.max(0,rawHours):72;
       const recency=Math.max(0,72-hoursOld)/72*50;
       const engagement=((p.reactions_gg||0)+(p.reactions_fire||0)+(p.reactions_rekt||0)+(p.reactions_king||0)+(p.reactions_epic||0)+(p.reactions_lul||0)+(p.comments_count||0)*2+(p.reposts_count||0)*2)*0.5;
       const followBoost=followedIds.includes(p.user_id)?30:0;
-      return{post:p,score:recency+engagement+followBoost};
+      const score=recency+engagement+followBoost;
+      return{post:p,score:Number.isFinite(score)?score:0};
     });
     return scored.sort((a,b)=>b.score-a.score).slice(0,30).map(x=>formatPost(x.post,userId));
   },

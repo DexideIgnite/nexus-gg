@@ -92,9 +92,13 @@ router.post('/me/password', requireAuth, async (req, res) => {
   const user = db.getUser(req.user.userId);
   const valid = await bcrypt.compare(current_password, user.password_hash);
   if (!valid) return res.status(400).json({ error: 'Current password incorrect' });
-  const hash = await bcrypt.hash(new_password, 10);
+  const hash = await bcrypt.hash(new_password, 12);
   db.updateUser(req.user.userId, { password_hash: hash });
-  res.json({ success: true });
+  const jwt = require('jsonwebtoken');
+  const JWT_SECRET = process.env.JWT_SECRET || 'nexusgg_super_secret_key_change_this_in_production';
+  const JWT_EXPIRES = process.env.JWT_EXPIRES_IN || '7d';
+  const token = jwt.sign({ userId: req.user.userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  res.json({ success: true, token });
 });
 
 // POST /api/users/me/avatar — upload profile picture
@@ -125,14 +129,60 @@ router.post('/challenges/:id/claim', requireAuth, (req, res) => {
   res.json(result);
 });
 
-// DELETE /api/users/me — delete account
+// Helper: fire-and-forget file unlink
+function unlinkUpload(urlPath) {
+  if (!urlPath || !urlPath.startsWith('/uploads/')) return;
+  const abs = path.join(__dirname, '..', urlPath);
+  fs.unlink(abs, () => {}); // ignore errors
+}
+
+// DELETE /api/users/me — delete account (full cascade)
 router.delete('/me', requireAuth, (req, res) => {
   const uid = req.user.userId;
-  db.T.users.delete(u => u.id === uid);
+  const user = db.getUser(uid);
+
+  // Collect file paths before deleting records
+  if (user?.avatar_url) unlinkUpload(user.avatar_url);
+  if (user?.banner_url) unlinkUpload(user.banner_url);
+
+  // Unlink post images/clips
+  db.T.posts.findAll(p => p.user_id === uid).forEach(p => {
+    if (p.image_url) unlinkUpload(p.image_url);
+    if (p.clip_url) unlinkUpload(p.clip_url);
+  });
+
+  // Unlink story media
+  db.T.stories.findAll(s => s.user_id === uid).forEach(s => {
+    if (s.media_url) unlinkUpload(s.media_url);
+    if (s.thumbnail_url) unlinkUpload(s.thumbnail_url);
+  });
+
+  // Delete from leaf tables first
+  db.T.post_reactions.delete(r => r.user_id === uid);
+  db.T.post_reposts.delete(r => r.user_id === uid);
+  db.T.comments.delete(c => c.user_id === uid);
+  db.T.bookmarks.delete(b => b.user_id === uid);
+  db.T.poll_votes.delete(v => v.user_id === uid);
+  db.T.story_views.delete(v => v.viewer_id === uid);
+  db.T.stories.delete(s => s.user_id === uid);
+  db.T.game_follows.delete(f => f.user_id === uid);
+  db.T.lfg_members.delete(m => m.user_id === uid);
+  db.T.lfg_posts.delete(p => p.user_id === uid);
+  db.T.user_challenges.delete(uc => uc.user_id === uid);
+
+  // Update clan member counts, delete owned clans
+  const ownedClans = db.T.clans.findAll(c => c.owner_id === uid);
+  ownedClans.forEach(c => db.T.clan_members.delete(m => m.clan_id === c.id));
+  db.T.clans.delete(c => c.owner_id === uid);
+  db.T.clan_members.delete(m => m.user_id === uid);
+
+  // Parent tables
   db.T.posts.delete(p => p.user_id === uid);
   db.T.follows.delete(f => f.follower_id === uid || f.following_id === uid);
-  db.T.notifications.delete(n => n.user_id === uid);
+  db.T.notifications.delete(n => n.user_id === uid || n.actor_id === uid);
   db.T.messages.delete(m => m.sender_id === uid || m.receiver_id === uid);
+  db.T.users.delete(u => u.id === uid);
+
   res.json({ success: true });
 });
 

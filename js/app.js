@@ -2255,7 +2255,7 @@ async function sendMessage(e) {
   input.value = '';
 
   if (window.SOCKET?.connected) {
-    window.SOCKET.emit('message:send', { receiverId: state.currentConversation, text });
+    window.SOCKET.emit(EVENTS.MESSAGE_SEND, { receiverId: state.currentConversation, text });
   } else {
     try {
       const msg = await api.sendMessage(state.currentConversation, text);
@@ -2615,10 +2615,12 @@ async function savePassword(e) {
   const errEl = document.getElementById('s-pw-error');
   errEl.style.display = 'none';
   try {
-    await api.changePassword({
+    const data = await api.changePassword({
       current_password: document.getElementById('s-cur-pw').value,
       new_password: document.getElementById('s-new-pw').value,
     });
+    // Store new token returned after password change
+    if (data.token) Auth.setToken(data.token);
     document.getElementById('s-cur-pw').value = '';
     document.getElementById('s-new-pw').value = '';
     showToast('Password updated!', 'success', '✅');
@@ -2823,7 +2825,12 @@ function saveNotifPref(key, val) {
 }
 
 async function confirmDeleteAccount() {
-  if (!confirm('Are you absolutely sure? This CANNOT be undone.')) return;
+  const me = Auth.getUser();
+  const input = prompt(`This will permanently delete your account and ALL data. Type your username "${me?.username}" to confirm:`);
+  if (!input || input.trim() !== me?.username) {
+    if (input !== null) showToast('Username did not match. Deletion cancelled.', 'error', '⚠️');
+    return;
+  }
   try {
     await api.deleteAccount();
     Auth.logout();

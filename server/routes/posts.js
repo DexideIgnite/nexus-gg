@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db = require('../db');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { askClaude, CLAUDE_BOT_ID } = require('../services/askClaude');
+const EVENTS = require('../../shared/events');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -35,12 +36,21 @@ const clipUpload = multer({
 });
 
 // Fire-and-forget: if text mentions @Claude, post Claude's reply as a comment
-async function maybeAskClaude(postId, text, contextNote, io, imageUrl) {
+async function maybeAskClaude(postId, text, contextNote, io, imageUrl, authorId) {
   if (!/@Claude\b/i.test(text)) return;
-  const reply = await askClaude(text, contextNote, imageUrl);
-  if (!reply) return;
-  const comment = db.addComment({ post_id: +postId, user_id: CLAUDE_BOT_ID, body: reply });
-  io?.emit('post:comment', { postId: String(postId), comment });
+  // Prevent self-trigger: don't let Claude respond to its own posts/comments
+  if (+authorId === CLAUDE_BOT_ID) return;
+  try {
+    const reply = await askClaude(text, contextNote, imageUrl);
+    if (!reply) return;
+    const comment = db.addComment({ post_id: +postId, user_id: CLAUDE_BOT_ID, body: reply });
+    io?.emit(EVENTS.POST_COMMENT, { postId: String(postId), comment });
+  } catch (err) {
+    console.error('[maybeAskClaude] Error:', err.message);
+    // Post a friendly error comment
+    const errorComment = db.addComment({ post_id: +postId, user_id: CLAUDE_BOT_ID, body: "Sorry, I'm having trouble thinking right now. Try again in a bit! 🤖" });
+    io?.emit(EVENTS.POST_COMMENT, { postId: String(postId), comment: errorComment });
+  }
 }
 
 // GET /api/posts
@@ -62,29 +72,50 @@ router.get('/bookmarks/mine', requireAuth, (req, res) => {
 
 // POST /api/posts
 router.post('/', requireAuth, (req, res) => {
-  const { body, type, game, platform, clip_title, clip_desc, achievement_title, achievement_game, achievement_icon, has_poll, poll_options } = req.body;
+  const { body, type, game, platform, clip_title, clip_desc, achievement_title, achievement_game, achievement_icon, has_poll, poll_options, quoted_post_id } = req.body;
   if (!body?.trim()) return res.status(400).json({ error: 'Post body required' });
   if (body.length > 500) return res.status(400).json({ error: 'Max 500 characters' });
   const { image_url, clip_url } = req.body;
   const hasPoll = !!has_poll && Array.isArray(poll_options) && poll_options.length >= 2;
-  const post = db.createPost({ user_id: req.user.userId, body: body.trim(), type: type||'post', game: game||null, platform: platform||null, image_url: image_url||null, clip_url: clip_url||null, clip_title: clip_title||null, clip_desc: clip_desc||null, achievement_title: achievement_title||null, achievement_game: achievement_game||null, achievement_icon: achievement_icon||null, has_poll: hasPoll, reactions_gg:0,reactions_fire:0,reactions_rekt:0,reactions_king:0,reactions_epic:0,reactions_lul:0,comments_count:0,reposts_count:0,views:0 });
+
+  // Snapshot the quoted post at creation time
+  let quoted_snapshot = null;
+  if (quoted_post_id) {
+    const qp = db.getPost(quoted_post_id);
+    if (qp) {
+      const qu = db.getUser(qp.user_id);
+      quoted_snapshot = { body: qp.body, username: qu?.username, handle: qu?.handle || qu?.username, avatar: qu?.avatar, gradient: qu?.gradient, created_at: qp.created_at };
+    }
+  }
+
+  const post = db.createPost({ user_id: req.user.userId, body: body.trim(), type: type||'post', game: game||null, platform: platform||null, image_url: image_url||null, clip_url: clip_url||null, clip_title: clip_title||null, clip_desc: clip_desc||null, achievement_title: achievement_title||null, achievement_game: achievement_game||null, achievement_icon: achievement_icon||null, has_poll: hasPoll, quoted_post_id: quoted_post_id||null, quoted_snapshot, reactions_gg:0,reactions_fire:0,reactions_rekt:0,reactions_king:0,reactions_epic:0,reactions_lul:0,comments_count:0,reposts_count:0,views:0 });
   if (hasPoll) db.createPollOptions(post.id, poll_options.slice(0, 6));
   db.updateChallengeProgress(req.user.userId, 'post');
   const io = req.app.get('io');
-  io?.emit('post:new', post);
+  io?.emit(EVENTS.POST_NEW, post);
   // If post mentions @Claude, check subscription before replying
   const wantsClaude = /@Claude\b/i.test(body.trim());
   const postUser = db.getUser(req.user.userId);
   const hasAI = postUser?.plan === 'plus' || postUser?.plan === 'pro';
-  if (wantsClaude && hasAI) maybeAskClaude(post.id, body.trim(), null, io, image_url||null);
+  if (wantsClaude && hasAI) maybeAskClaude(post.id, body.trim(), null, io, image_url||null, req.user.userId);
   res.status(201).json({ ...post, _claudeGated: wantsClaude && !hasAI });
 });
+
+// Helper: fire-and-forget file unlink
+function unlinkUpload(urlPath) {
+  if (!urlPath || !urlPath.startsWith('/uploads/')) return;
+  const abs = path.join(__dirname, '..', urlPath);
+  fs.unlink(abs, () => {}); // ignore errors
+}
 
 // DELETE /api/posts/:id
 router.delete('/:id', requireAuth, (req, res) => {
   const post = db.getPost(req.params.id);
   if (!post) return res.status(404).json({ error: 'Not found' });
   if (post.user_id !== req.user.userId) return res.status(403).json({ error: 'Not your post' });
+  // Clean up uploaded files
+  if (post.image_url) unlinkUpload(post.image_url);
+  if (post.clip_url) unlinkUpload(post.clip_url);
   db.deletePost(req.params.id);
   res.json({ success: true });
 });
@@ -129,12 +160,12 @@ router.post('/:id/comments', requireAuth, (req, res) => {
   }
   db.updateChallengeProgress(req.user.userId, 'comment');
   const io = req.app.get('io');
-  io?.emit('post:comment', { postId: req.params.id, comment });
+  io?.emit(EVENTS.POST_COMMENT, { postId: req.params.id, comment });
   // If comment mentions @Claude, check subscription before replying
   const wantsClaude = /@Claude\b/i.test(body.trim());
   const commentUser = db.getUser(req.user.userId);
   const hasAI = commentUser?.plan === 'plus' || commentUser?.plan === 'pro';
-  if (wantsClaude && hasAI) maybeAskClaude(req.params.id, body.trim(), post.body, io);
+  if (wantsClaude && hasAI) maybeAskClaude(req.params.id, body.trim(), post.body, io, null, req.user.userId);
   res.status(201).json({ ...comment, _claudeGated: wantsClaude && !hasAI });
 });
 

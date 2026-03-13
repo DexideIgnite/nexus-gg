@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const EVENTS = require('../../shared/events');
 
 router.get('/notifications/count', requireAuth, (req, res) => res.json({ notifications: db.unreadNotifCount(req.user.userId), messages: db.unreadMsgCount(req.user.userId) }));
 router.get('/conversations', requireAuth, (req, res) => res.json(db.getConversations(req.user.userId)));
@@ -15,7 +16,7 @@ router.post('/:userId', requireAuth, (req, res) => {
   const payload = { ...msg, mine: true, username: me.username, avatar: me.avatar, gradient: me.gradient, time: 'just now' };
   const onlineUsers = req.app.get('onlineUsers');
   const rid = onlineUsers?.get(+req.params.userId);
-  if (rid) req.app.get('io')?.to(rid).emit('message:receive', { ...payload, mine: false });
+  if (rid) req.app.get('io')?.to(rid).emit(EVENTS.MESSAGE_RECEIVE, { ...payload, mine: false });
   res.status(201).json(payload);
 });
 module.exports = router;

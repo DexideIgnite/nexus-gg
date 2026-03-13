@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const fs = require('fs');
 const db = require('./db');
+const EVENTS = require('../shared/events');
 
 const app = express();
 const server = http.createServer(app);
@@ -53,6 +54,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '..')));
+app.use('/shared', express.static(path.join(__dirname, '..', 'shared')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ================================================================
@@ -170,7 +172,9 @@ io.use((socket, next) => {
   if (token) {
     try {
       socket.user = jwt.verify(token, JWT_SECRET);
-    } catch {}
+    } catch {
+      return next(new Error('auth_error'));
+    }
   }
   next();
 });
@@ -182,12 +186,12 @@ io.on('connection', (socket) => {
     onlineUsers.set(userId, socket.id);
     db.updateUser(userId, { online: 1 });
     socket.join(`user:${userId}`);
-    io.emit('user:online', { userId });
+    io.emit(EVENTS.USER_ONLINE, { userId });
     console.log(`🟢 User ${userId} connected`);
   }
 
   // Direct message via socket
-  socket.on('message:send', ({ receiverId, text }) => {
+  socket.on(EVENTS.MESSAGE_SEND, ({ receiverId, text }) => {
     if (!userId || !text?.trim()) return;
     const savedMsg = db.sendMessage(userId, receiverId, text.trim());
     const sender = db.getUser(userId);
@@ -195,37 +199,37 @@ io.on('connection', (socket) => {
 
     // Send to receiver
     const receiverSocketId = onlineUsers.get(+receiverId);
-    if (receiverSocketId) io.to(receiverSocketId).emit('message:receive', { ...payload, mine: false });
+    if (receiverSocketId) io.to(receiverSocketId).emit(EVENTS.MESSAGE_RECEIVE, { ...payload, mine: false });
 
     // Confirm to sender
-    socket.emit('message:sent', { ...payload, mine: true });
+    socket.emit(EVENTS.MESSAGE_SENT, { ...payload, mine: true });
 
     // Notification
     db.addNotif({ user_id: +receiverId, actor_id: userId, type: 'message', icon: '💬', text: `<strong>${sender?.username}</strong> sent you a message.`, read: 0 });
   });
 
   // Typing indicator
-  socket.on('typing:start', ({ receiverId }) => {
+  socket.on(EVENTS.TYPING_START, ({ receiverId }) => {
     const receiverSocketId = onlineUsers.get(+receiverId);
-    if (receiverSocketId) io.to(receiverSocketId).emit('typing:start', { userId });
+    if (receiverSocketId) io.to(receiverSocketId).emit(EVENTS.TYPING_START, { userId });
   });
-  socket.on('typing:stop', ({ receiverId }) => {
+  socket.on(EVENTS.TYPING_STOP, ({ receiverId }) => {
     const receiverSocketId = onlineUsers.get(+receiverId);
-    if (receiverSocketId) io.to(receiverSocketId).emit('typing:stop', { userId });
+    if (receiverSocketId) io.to(receiverSocketId).emit(EVENTS.TYPING_STOP, { userId });
   });
 
   // Update now_playing status
-  socket.on('status:update', ({ nowPlaying }) => {
+  socket.on(EVENTS.STATUS_UPDATE, ({ nowPlaying }) => {
     if (!userId) return;
     db.updateUser(userId, { now_playing: nowPlaying || null });
-    io.emit('user:status', { userId, nowPlaying });
+    io.emit(EVENTS.USER_STATUS, { userId, nowPlaying });
   });
 
   socket.on('disconnect', () => {
     if (userId) {
       onlineUsers.delete(userId);
       db.updateUser(userId, { online: 0, now_playing: null });
-      io.emit('user:offline', { userId });
+      io.emit(EVENTS.USER_OFFLINE, { userId });
       console.log(`⚫ User ${userId} disconnected`);
     }
   });
