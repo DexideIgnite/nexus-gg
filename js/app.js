@@ -2637,12 +2637,11 @@ function openAvatarCropper(file) {
       </div>
       <div class="avatar-crop-body">
         <div class="avatar-crop-container" id="avatar-crop-container">
-          <img id="avatar-crop-img" src="${url}" draggable="false">
-          <div class="avatar-crop-circle" id="avatar-crop-circle"></div>
+          <canvas id="avatar-crop-canvas" width="380" height="300"></canvas>
         </div>
         <div class="avatar-crop-controls">
           <label style="font-size:13px;color:var(--text-secondary)">Zoom</label>
-          <input type="range" id="avatar-crop-zoom" min="1" max="3" step="0.01" value="1" class="avatar-crop-slider">
+          <input type="range" id="avatar-crop-zoom" min="0.5" max="3" step="0.01" value="1" class="avatar-crop-slider">
         </div>
       </div>
       <div class="avatar-crop-footer">
@@ -2652,68 +2651,108 @@ function openAvatarCropper(file) {
     </div>`;
   document.body.appendChild(overlay);
 
-  const img = document.getElementById('avatar-crop-img');
-  const container = document.getElementById('avatar-crop-container');
+  const canvas = document.getElementById('avatar-crop-canvas');
+  const ctx = canvas.getContext('2d');
   const zoomSlider = document.getElementById('avatar-crop-zoom');
-  let scale = 1, offsetX = 0, offsetY = 0, dragging = false, startX = 0, startY = 0;
+  const img = new Image();
+  let scale = 1, panX = 0, panY = 0, dragging = false, lastX = 0, lastY = 0;
 
-  function updateTransform() {
-    img.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  // Circle crop area (centered, 80% of min dimension)
+  const circleR = Math.min(canvas.width, canvas.height) * 0.4;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw image centered + pan + scale
+    const imgW = img.naturalWidth;
+    const imgH = img.naturalHeight;
+    // Fit image to canvas initially
+    const fitScale = Math.max(canvas.width / imgW, canvas.height / imgH);
+    const drawW = imgW * fitScale * scale;
+    const drawH = imgH * fitScale * scale;
+    const drawX = (canvas.width - drawW) / 2 + panX;
+    const drawY = (canvas.height - drawH) / 2 + panY;
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+    // Darken outside circle
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(cx, cy, circleR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Draw circle border
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, circleR, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
-  zoomSlider.addEventListener('input', () => {
-    scale = parseFloat(zoomSlider.value);
-    updateTransform();
-  });
+  img.onload = () => {
+    // Auto-zoom to fill the circle
+    const fitScale = Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+    const autoZoom = (circleR * 2) / (Math.min(img.naturalWidth, img.naturalHeight) * fitScale);
+    scale = Math.max(autoZoom, 1);
+    zoomSlider.value = scale;
+    draw();
+  };
+  img.src = url;
 
-  container.addEventListener('mousedown', (e) => { dragging = true; startX = e.clientX - offsetX; startY = e.clientY - offsetY; e.preventDefault(); });
-  document.addEventListener('mousemove', (e) => { if (!dragging) return; offsetX = e.clientX - startX; offsetY = e.clientY - startY; updateTransform(); });
-  document.addEventListener('mouseup', () => { dragging = false; });
-  container.addEventListener('touchstart', (e) => { dragging = true; startX = e.touches[0].clientX - offsetX; startY = e.touches[0].clientY - offsetY; });
-  container.addEventListener('touchmove', (e) => { if (!dragging) return; offsetX = e.touches[0].clientX - startX; offsetY = e.touches[0].clientY - startY; updateTransform(); e.preventDefault(); });
-  container.addEventListener('touchend', () => { dragging = false; });
+  zoomSlider.addEventListener('input', () => { scale = parseFloat(zoomSlider.value); draw(); });
+
+  canvas.addEventListener('mousedown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.style.cursor = 'grabbing'; });
+  window.addEventListener('mousemove', (e) => { if (!dragging) return; panX += e.clientX - lastX; panY += e.clientY - lastY; lastX = e.clientX; lastY = e.clientY; draw(); });
+  window.addEventListener('mouseup', () => { dragging = false; canvas.style.cursor = 'grab'; });
+  canvas.addEventListener('touchstart', (e) => { dragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; });
+  canvas.addEventListener('touchmove', (e) => { if (!dragging) return; panX += e.touches[0].clientX - lastX; panY += e.touches[0].clientY - lastY; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; draw(); e.preventDefault(); });
+  canvas.addEventListener('touchend', () => { dragging = false; });
 
   document.getElementById('avatar-crop-save').addEventListener('click', async () => {
-    const canvas = document.createElement('canvas');
-    const size = 256;
-    canvas.width = size; canvas.height = size;
-    const ctx = canvas.getContext('2d');
+    // Render the cropped circle to a new canvas
+    const outSize = 256;
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = outSize; outCanvas.height = outSize;
+    const outCtx = outCanvas.getContext('2d');
 
-    // Calculate crop
-    const rect = container.getBoundingClientRect();
-    const circleSize = Math.min(rect.width, rect.height) * 0.8;
-    const circleX = (rect.width - circleSize) / 2;
-    const circleY = (rect.height - circleSize) / 2;
+    const imgW = img.naturalWidth;
+    const imgH = img.naturalHeight;
+    const fitScale = Math.max(canvas.width / imgW, canvas.height / imgH);
+    const drawW = imgW * fitScale * scale;
+    const drawH = imgH * fitScale * scale;
+    const drawX = (canvas.width - drawW) / 2 + panX;
+    const drawY = (canvas.height - drawH) / 2 + panY;
 
-    const imgRect = img.getBoundingClientRect();
-    const sx = (rect.left + circleX - imgRect.left) / (imgRect.width / img.naturalWidth);
-    const sy = (rect.top + circleY - imgRect.top) / (imgRect.height / img.naturalHeight);
-    const sSize = circleSize / (imgRect.width / img.naturalWidth);
+    // Map the circle region from the preview canvas to the output
+    const srcX = (cx - circleR - drawX) / drawW * imgW;
+    const srcY = (cy - circleR - drawY) / drawH * imgH;
+    const srcSize = (circleR * 2) / drawW * imgW;
 
-    ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, Math.PI*2); ctx.clip();
-    ctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, size, size);
+    outCtx.beginPath();
+    outCtx.arc(outSize/2, outSize/2, outSize/2, 0, Math.PI*2);
+    outCtx.clip();
+    outCtx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, outSize, outSize);
 
-    canvas.toBlob(async (blob) => {
+    outCanvas.toBlob(async (blob) => {
       if (!blob) { showToast('Crop failed', 'error', '⚠️'); return; }
       const croppedFile = new File([blob], 'avatar.png', { type: 'image/png' });
+      const blobUrl = URL.createObjectURL(blob);
       closeAvatarCropper();
 
+      // Update all avatar previews
       const preview = document.getElementById('s-avatar-preview');
-      if (preview) {
-        preview.style.backgroundImage = `url('${URL.createObjectURL(blob)}')`;
-        preview.style.backgroundSize = 'cover';
-        preview.textContent = '';
-      }
+      if (preview) { preview.style.backgroundImage = `url('${blobUrl}')`; preview.style.backgroundSize = 'cover'; preview.textContent = ''; }
+      const epPreview = document.getElementById('ep-avatar-preview');
+      if (epPreview) { epPreview.style.backgroundImage = `url('${blobUrl}')`; epPreview.style.backgroundSize = 'cover'; epPreview.textContent = ''; }
 
       try {
         const result = await api.uploadAvatar(croppedFile);
         window.CURRENT_USER.avatar_url = result.avatar_url;
-        const sidebarAv = document.getElementById('sidebar-avatar');
-        if (sidebarAv) {
-          sidebarAv.style.backgroundImage = `url('${result.avatar_url}')`;
-          sidebarAv.style.backgroundSize = 'cover';
-          sidebarAv.textContent = '';
-        }
+        updateSidebarUser();
         showToast('Profile picture updated!', 'success', '✅');
         if (state.currentSection === 'profile') loadProfile();
       } catch (err) { showToast(err.message || 'Upload failed', 'error', '⚠️'); }
@@ -3170,6 +3209,9 @@ function closeEditProfile() {
 async function handleEditProfileAvatar(input) {
   const file = input.files[0];
   if (!file) return;
+  openAvatarCropper(file);
+  return;
+  // Legacy direct upload (kept for reference)
   const preview = document.getElementById('ep-avatar-preview');
   if (preview) {
     preview.style.backgroundImage = `url('${URL.createObjectURL(file)}')`;
@@ -3865,22 +3907,42 @@ async function submitClipUpload() {
   btn.disabled = true;
   btn.textContent = 'Uploading...';
 
-  try {
-    // Upload video as a clip post using the existing post + image upload API
-    const fd = new FormData();
-    fd.append('body', body);
-    fd.append('type', 'clip');
-    if (game) fd.append('game', game);
-    if (platform) fd.append('platform', platform);
-    fd.append('image', _clipVideoFile);
+  const token = Auth.getToken();
+  const authHeaders = token ? { 'Authorization': 'Bearer ' + token } : {};
 
-    const token = Auth.getToken();
-    const res = await fetch('/api/posts', {
+  try {
+    // Step 1: Upload the video file to the clip upload endpoint
+    const fd = new FormData();
+    fd.append('clip', _clipVideoFile);
+    btn.textContent = 'Uploading video...';
+    const uploadRes = await fetch('/api/posts/upload-clip', {
       method: 'POST',
-      headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+      headers: authHeaders,
       body: fd,
     });
-    if (!res.ok) throw new Error('Upload failed');
+    if (!uploadRes.ok) {
+      const err = await uploadRes.json().catch(() => ({}));
+      throw new Error(err.error || 'Video upload failed');
+    }
+    const { url: clipUrl } = await uploadRes.json();
+
+    // Step 2: Create the post with the clip URL
+    btn.textContent = 'Creating post...';
+    const postRes = await fetch('/api/posts', {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        body,
+        type: 'clip',
+        game: game || null,
+        platform: platform || null,
+        clip_url: clipUrl,
+      }),
+    });
+    if (!postRes.ok) {
+      const err = await postRes.json().catch(() => ({}));
+      throw new Error(err.error || 'Post creation failed');
+    }
     showToast('Clip uploaded! 🎬', 'success', '🎬');
     closeClipUpload();
     loadClips();

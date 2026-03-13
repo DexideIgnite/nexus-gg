@@ -65,9 +65,9 @@ router.post('/', requireAuth, (req, res) => {
   const { body, type, game, platform, clip_title, clip_desc, achievement_title, achievement_game, achievement_icon, has_poll, poll_options } = req.body;
   if (!body?.trim()) return res.status(400).json({ error: 'Post body required' });
   if (body.length > 500) return res.status(400).json({ error: 'Max 500 characters' });
-  const { image_url } = req.body;
+  const { image_url, clip_url } = req.body;
   const hasPoll = !!has_poll && Array.isArray(poll_options) && poll_options.length >= 2;
-  const post = db.createPost({ user_id: req.user.userId, body: body.trim(), type: type||'post', game: game||null, platform: platform||null, image_url: image_url||null, clip_title: clip_title||null, clip_desc: clip_desc||null, achievement_title: achievement_title||null, achievement_game: achievement_game||null, achievement_icon: achievement_icon||null, has_poll: hasPoll, reactions_gg:0,reactions_fire:0,reactions_rekt:0,reactions_king:0,reactions_epic:0,reactions_lul:0,comments_count:0,reposts_count:0,views:0 });
+  const post = db.createPost({ user_id: req.user.userId, body: body.trim(), type: type||'post', game: game||null, platform: platform||null, image_url: image_url||null, clip_url: clip_url||null, clip_title: clip_title||null, clip_desc: clip_desc||null, achievement_title: achievement_title||null, achievement_game: achievement_game||null, achievement_icon: achievement_icon||null, has_poll: hasPoll, reactions_gg:0,reactions_fire:0,reactions_rekt:0,reactions_king:0,reactions_epic:0,reactions_lul:0,comments_count:0,reposts_count:0,views:0 });
   if (hasPoll) db.createPollOptions(post.id, poll_options.slice(0, 6));
   db.updateChallengeProgress(req.user.userId, 'post');
   const io = req.app.get('io');
