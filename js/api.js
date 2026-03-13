@@ -105,6 +105,8 @@ const api = {
   getFollowing:      (id)      => api.get(`/users/${id}/following`),
   getUserGameFollows:(id)      => api.get(`/users/${id}/game-follows`),
   getUserComments:   (id)      => api.get(`/users/${id}/comments`),
+  trackProfileView:  (id)      => api.post(`/users/${id}/profile-view`).catch(() => {}),
+  getAnalytics:      (id)      => api.get(`/users/${id}/analytics`),
   uploadAvatar:      (file)    => {
     const form = new FormData();
     form.append('avatar', file);

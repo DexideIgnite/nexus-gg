@@ -2888,6 +2888,9 @@ async function renderProfile(userId, container) {
     const isMe = userId === myId || userId === 0;
     const effectiveId = isMe ? myId : userId;
 
+    // Track profile view (fire-and-forget)
+    if (!isMe) api.trackProfileView(effectiveId);
+
     let user;
     if (isMe) {
       user = { ...window.Auth?.getUser(), ...window.CURRENT_USER };
@@ -2957,31 +2960,227 @@ async function switchProfileTab(btn, tab, userId) {
   if (!content) return;
 
   if (tab === 'analytics') {
-    content.innerHTML = `<div style="padding:20px;color:var(--text-muted);text-align:center">Loading analytics...</div>`;
+    content.innerHTML = `<div style="padding:20px;color:var(--text-muted);text-align:center"><div class="spinner" style="margin:0 auto 12px"></div>Loading analytics...</div>`;
     try {
-      const posts = await api.getUserPosts(userId);
-      const totalViews = posts.reduce((s, p) => s + (parseInt(p.views) || 0), 0);
-      const totalReacts = posts.reduce((s, p) => s + totalReactions(p.reactions || {}), 0);
-      const totalComments = posts.reduce((s, p) => s + (p.comments || p.comments_count || 0), 0);
-      const topPosts = [...posts].sort((a, b) => totalReactions(b.reactions || {}) - totalReactions(a.reactions || {})).slice(0, 5);
+      const data = await api.getAnalytics(userId);
+      const o = data.overview;
+      const d = data.daily;
+      const reactionEmojis = { gg: '🎮', fire: '🔥', rekt: '💀', king: '👑', epic: '🏆', lul: '😂' };
+
+      // Helper: build a mini sparkline SVG from data array
+      function sparkline(values, color, h = 40, w = 160) {
+        if (!values.length) return '';
+        const max = Math.max(...values, 1);
+        const pts = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - (v / max) * (h - 4)}`).join(' ');
+        const fill = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - (v / max) * (h - 4)}`);
+        fill.push(`${w},${h}`, `0,${h}`);
+        return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;overflow:visible">
+          <polygon points="${fill.join(' ')}" fill="${color}15" />
+          <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>`;
+      }
+
+      // Helper: bar chart SVG
+      function barChart(labels, values, color, h = 120, w = 500) {
+        if (!values.length) return '';
+        const max = Math.max(...values, 1);
+        const barW = Math.max(4, Math.floor((w - 20) / values.length) - 2);
+        const bars = values.map((v, i) => {
+          const bh = Math.max(1, (v / max) * (h - 24));
+          const x = 10 + i * (barW + 2);
+          return `<rect x="${x}" y="${h - 16 - bh}" width="${barW}" height="${bh}" rx="2" fill="${color}" opacity="0.85"><title>${labels[i]}: ${v}</title></rect>`;
+        }).join('');
+        // X-axis labels (show every 5th)
+        const xLabels = values.map((v, i) => {
+          if (i % 5 !== 0 && i !== values.length - 1) return '';
+          const x = 10 + i * (barW + 2) + barW / 2;
+          return `<text x="${x}" y="${h - 2}" fill="var(--text-muted)" font-size="9" text-anchor="middle">${labels[i].slice(5)}</text>`;
+        }).join('');
+        return `<svg width="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="display:block;overflow:visible">${bars}${xLabels}</svg>`;
+      }
+
+      // Helper: horizontal bar for reaction breakdown
+      function reactionBar(rb) {
+        const total = Object.values(rb).reduce((s, v) => s + v, 0) || 1;
+        const colors = { gg: '#8b5cf6', fire: '#f97316', rekt: '#ef4444', king: '#eab308', epic: '#3b82f6', lul: '#22c55e' };
+        return Object.entries(rb).map(([k, v]) => {
+          const pct = (v / total * 100).toFixed(1);
+          return `<div class="analytics-reaction-row">
+            <span class="analytics-reaction-emoji">${reactionEmojis[k]}</span>
+            <span class="analytics-reaction-name">${k.toUpperCase()}</span>
+            <div class="analytics-reaction-bar-track"><div class="analytics-reaction-bar-fill" style="width:${pct}%;background:${colors[k]}"></div></div>
+            <span class="analytics-reaction-pct">${v} (${pct}%)</span>
+          </div>`;
+        }).join('');
+      }
+
+      // Helper: hourly heatmap
+      function hourlyHeatmap(buckets) {
+        const max = Math.max(...buckets, 1);
+        return `<div class="analytics-heatmap">${buckets.map((v, h) => {
+          const intensity = v / max;
+          const bg = intensity > 0 ? `rgba(139,92,246,${0.15 + intensity * 0.85})` : 'var(--bg-tertiary)';
+          const label = h === 0 ? '12a' : h < 12 ? h + 'a' : h === 12 ? '12p' : (h - 12) + 'p';
+          return `<div class="analytics-heatmap-cell" style="background:${bg}" title="${label}: ${v} engagement"><span>${label}</span></div>`;
+        }).join('')}</div>`;
+      }
+
+      // Helper: game breakdown table
+      function gameTable(gb) {
+        const entries = Object.entries(gb).sort((a, b) => b[1].reactions - a[1].reactions);
+        if (!entries.length) return '<div style="color:var(--text-muted);padding:12px">No game data yet</div>';
+        return `<div class="analytics-game-table">${entries.map(([name, s]) =>
+          `<div class="analytics-game-row">
+            <span class="analytics-game-name">${escapeHtml(name)}</span>
+            <span class="analytics-game-stat">${s.posts} posts</span>
+            <span class="analytics-game-stat">${s.reactions} reactions</span>
+            <span class="analytics-game-stat">${s.views} views</span>
+          </div>`).join('')}</div>`;
+      }
+
+      // Short date labels for charts
+      const shortLabels = d.labels.map(l => l.slice(5)); // "MM-DD"
+
       content.innerHTML = `
-        <div class="analytics-grid">
-          <div class="analytics-card"><div class="analytics-card-value">${formatNum(totalViews)}</div><div class="analytics-card-label">Total Views</div></div>
-          <div class="analytics-card"><div class="analytics-card-value">${formatNum(totalReacts)}</div><div class="analytics-card-label">Total Reactions</div></div>
-          <div class="analytics-card"><div class="analytics-card-value">${formatNum(totalComments)}</div><div class="analytics-card-label">Total Comments</div></div>
-          <div class="analytics-card"><div class="analytics-card-value">${posts.length}</div><div class="analytics-card-label">Total Posts</div></div>
-        </div>
-        ${topPosts.length ? `
-          <div class="analytics-top-posts">
-            <h4 style="padding:0 0 12px;font-size:14px;opacity:.7">Top Reacted Posts</h4>
-            ${topPosts.map(p => `
-              <div class="analytics-top-post-item" onclick="scrollToPost(${p.id})">
-                <div class="analytics-top-post-body">${escapeHtml((p.body||'').slice(0,80))}</div>
-                <div class="analytics-top-post-stat">${totalReactions(p.reactions||{})} reactions · ${p.views||0} views</div>
-              </div>`).join('')}
-          </div>` : ''}`;
-    } catch {
-      content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load analytics</p></div>`;
+        <div class="analytics-dashboard">
+          <!-- Overview Cards -->
+          <div class="analytics-grid analytics-grid-6">
+            <div class="analytics-card analytics-card-accent">
+              <div class="analytics-card-icon">👁️</div>
+              <div class="analytics-card-value">${formatNum(o.totalViews)}</div>
+              <div class="analytics-card-label">Post Views</div>
+              ${sparkline(d.posts, '#8b5cf6')}
+            </div>
+            <div class="analytics-card analytics-card-accent">
+              <div class="analytics-card-icon">❤️</div>
+              <div class="analytics-card-value">${formatNum(o.totalReactions)}</div>
+              <div class="analytics-card-label">Reactions</div>
+              ${sparkline(d.reactions, '#f97316')}
+            </div>
+            <div class="analytics-card analytics-card-accent">
+              <div class="analytics-card-icon">💬</div>
+              <div class="analytics-card-value">${formatNum(o.totalCommentsReceived)}</div>
+              <div class="analytics-card-label">Comments</div>
+              ${sparkline(d.comments, '#3b82f6')}
+            </div>
+            <div class="analytics-card analytics-card-accent">
+              <div class="analytics-card-icon">📝</div>
+              <div class="analytics-card-value">${formatNum(o.totalPosts)}</div>
+              <div class="analytics-card-label">Posts</div>
+              ${sparkline(d.posts, '#22c55e')}
+            </div>
+            <div class="analytics-card analytics-card-accent">
+              <div class="analytics-card-icon">👥</div>
+              <div class="analytics-card-value">${formatNum(o.totalFollowers)}</div>
+              <div class="analytics-card-label">Followers</div>
+              ${sparkline(d.followers, '#eab308')}
+            </div>
+            <div class="analytics-card analytics-card-accent">
+              <div class="analytics-card-icon">🔄</div>
+              <div class="analytics-card-value">${formatNum(o.totalReposts)}</div>
+              <div class="analytics-card-label">Reposts</div>
+            </div>
+          </div>
+
+          <!-- Key Metrics Row -->
+          <div class="analytics-metrics-row">
+            <div class="analytics-metric">
+              <div class="analytics-metric-value">${o.engagementRate}%</div>
+              <div class="analytics-metric-label">Engagement Rate</div>
+            </div>
+            <div class="analytics-metric">
+              <div class="analytics-metric-value">${o.avgReactionsPerPost}</div>
+              <div class="analytics-metric-label">Avg Reactions/Post</div>
+            </div>
+            <div class="analytics-metric">
+              <div class="analytics-metric-value">${formatNum(o.uniqueCommenters)}</div>
+              <div class="analytics-metric-label">Unique Commenters</div>
+            </div>
+            <div class="analytics-metric">
+              <div class="analytics-metric-value">${formatNum(o.totalProfileViews)}</div>
+              <div class="analytics-metric-label">Profile Views</div>
+            </div>
+          </div>
+
+          <!-- Trends -->
+          <div class="analytics-trends-row">
+            <div class="analytics-trend-card">
+              <div class="analytics-trend-header">📈 Profile Views</div>
+              <div class="analytics-trend-stats">
+                <span><strong>${data.trends.profileViewsLast7}</strong> last 7d</span>
+                <span><strong>${data.trends.profileViewsLast30}</strong> last 30d</span>
+              </div>
+              ${barChart(shortLabels, d.profileViews, '#8b5cf6')}
+            </div>
+            <div class="analytics-trend-card">
+              <div class="analytics-trend-header">👥 Follower Growth</div>
+              <div class="analytics-trend-stats">
+                <span><strong>+${data.trends.followersLast7}</strong> last 7d</span>
+                <span><strong>+${data.trends.followersLast30}</strong> last 30d</span>
+              </div>
+              ${barChart(shortLabels, d.followers, '#22c55e')}
+            </div>
+          </div>
+
+          <!-- Activity Chart -->
+          <div class="analytics-section-card">
+            <div class="analytics-section-title">📊 Daily Activity (30 days)</div>
+            <div class="analytics-chart-tabs">
+              <button class="analytics-chart-tab active" onclick="switchAnalyticsChart(this,'posts')">Posts</button>
+              <button class="analytics-chart-tab" onclick="switchAnalyticsChart(this,'reactions')">Reactions</button>
+              <button class="analytics-chart-tab" onclick="switchAnalyticsChart(this,'comments')">Comments</button>
+            </div>
+            <div id="analytics-activity-chart">${barChart(shortLabels, d.posts, '#8b5cf6', 140)}</div>
+          </div>
+
+          <!-- Two-column: Reactions + Best Time -->
+          <div class="analytics-two-col">
+            <div class="analytics-section-card">
+              <div class="analytics-section-title">❤️ Reaction Breakdown</div>
+              ${reactionBar(data.reactionBreakdown)}
+            </div>
+            <div class="analytics-section-card">
+              <div class="analytics-section-title">🕐 Best Time to Post</div>
+              <p class="analytics-hint">Engagement by hour of day</p>
+              ${hourlyHeatmap(data.hourlyEngagement)}
+            </div>
+          </div>
+
+          <!-- Game Breakdown -->
+          <div class="analytics-section-card">
+            <div class="analytics-section-title">🎮 Performance by Game</div>
+            ${gameTable(data.gameBreakdown)}
+          </div>
+
+          <!-- Top Posts -->
+          ${data.topPosts.length ? `
+          <div class="analytics-section-card">
+            <div class="analytics-section-title">🏆 Top Posts by Engagement</div>
+            <div class="analytics-top-posts-list">
+              ${data.topPosts.map((p, i) => `
+                <div class="analytics-top-post-row" onclick="scrollToPost(${p.id})">
+                  <div class="analytics-top-post-rank">#${i + 1}</div>
+                  <div class="analytics-top-post-content">
+                    <div class="analytics-top-post-body">${escapeHtml(p.body)}</div>
+                    <div class="analytics-top-post-meta">
+                      ${p.game ? `<span class="analytics-top-post-game">${escapeHtml(p.game)}</span>` : ''}
+                      <span>👁️ ${formatNum(p.views)}</span>
+                      <span>❤️ ${formatNum(Object.values(p.reactions).reduce((s, v) => s + v, 0))}</span>
+                      <span>💬 ${p.comments_count}</span>
+                      <span>🔄 ${p.reposts_count}</span>
+                    </div>
+                  </div>
+                  <div class="analytics-top-post-eng">${formatNum(p.engagement)}<small>eng</small></div>
+                </div>`).join('')}
+            </div>
+          </div>` : ''}
+        </div>`;
+
+      // Store chart data for tab switching
+      window._analyticsChartData = { labels: shortLabels, posts: d.posts, reactions: d.reactions, comments: d.comments };
+    } catch (err) {
+      console.error('Analytics error:', err);
+      content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load analytics</p><span>${err.message || ''}</span></div>`;
     }
     return;
   }
@@ -3082,6 +3281,31 @@ function openImageLightbox(url) {
   el.innerHTML = `<div class="img-lightbox-inner"><img src="${url}"><button onclick="this.closest('.img-lightbox').remove()">✕</button></div>`;
   el.addEventListener('click', e => { if (e.target === el) el.remove(); });
   document.body.appendChild(el);
+}
+
+function switchAnalyticsChart(btn, type) {
+  btn.closest('.analytics-chart-tabs').querySelectorAll('.analytics-chart-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const d = window._analyticsChartData;
+  if (!d) return;
+  const container = document.getElementById('analytics-activity-chart');
+  if (!container) return;
+  const colors = { posts: '#8b5cf6', reactions: '#f97316', comments: '#3b82f6' };
+  const values = d[type] || d.posts;
+  const max = Math.max(...values, 1);
+  const w = 500, h = 140;
+  const barW = Math.max(4, Math.floor((w - 20) / values.length) - 2);
+  const bars = values.map((v, i) => {
+    const bh = Math.max(1, (v / max) * (h - 24));
+    const x = 10 + i * (barW + 2);
+    return `<rect x="${x}" y="${h - 16 - bh}" width="${barW}" height="${bh}" rx="2" fill="${colors[type]}" opacity="0.85"><title>${d.labels[i]}: ${v}</title></rect>`;
+  }).join('');
+  const xLabels = values.map((v, i) => {
+    if (i % 5 !== 0 && i !== values.length - 1) return '';
+    const x = 10 + i * (barW + 2) + barW / 2;
+    return `<text x="${x}" y="${h - 2}" fill="var(--text-muted)" font-size="9" text-anchor="middle">${d.labels[i].slice(5)}</text>`;
+  }).join('');
+  container.innerHTML = `<svg width="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="display:block;overflow:visible">${bars}${xLabels}</svg>`;
 }
 
 function scrollToPost(postId) {

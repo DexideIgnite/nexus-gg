@@ -186,6 +186,168 @@ router.delete('/me', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/users/:id/profile-view — track a profile view
+router.post('/:id/profile-view', optionalAuth, (req, res) => {
+  const viewerId = req.user?.userId || 0;
+  const targetId = +req.params.id;
+  if (viewerId === targetId) return res.json({ ok: true }); // don't count self-views
+  db.T.profile_views.insert({ user_id: targetId, viewer_id: viewerId });
+  res.json({ ok: true });
+});
+
+// GET /api/users/:id/analytics — full analytics data for Pro users
+router.get('/:id/analytics', requireAuth, (req, res) => {
+  const userId = +req.params.id;
+  if (req.user.userId !== userId) return res.status(403).json({ error: 'Can only view your own analytics' });
+  const user = db.getUser(userId);
+  if (!user || (user.plan || 'free') !== 'pro') return res.status(403).json({ error: 'Pro plan required' });
+
+  const now = Date.now();
+  const DAY = 86400000;
+
+  // --- Posts ---
+  const allPosts = db.T.posts.findAll(p => p.user_id === userId);
+  const totalPosts = allPosts.length;
+
+  // --- Reactions breakdown ---
+  const reactionTypes = ['gg', 'fire', 'rekt', 'king', 'epic', 'lul'];
+  const reactionTotals = {};
+  let totalReactions = 0;
+  reactionTypes.forEach(t => {
+    const sum = allPosts.reduce((s, p) => s + (p['reactions_' + t] || 0), 0);
+    reactionTotals[t] = sum;
+    totalReactions += sum;
+  });
+
+  // --- Comments received ---
+  const allComments = db.T.comments.findAll(c => allPosts.some(p => p.id === c.post_id));
+  const totalCommentsReceived = allComments.length;
+  const uniqueCommenters = new Set(allComments.map(c => c.user_id)).size;
+
+  // --- Views ---
+  const totalViews = allPosts.reduce((s, p) => s + (parseInt(p.views) || 0), 0);
+
+  // --- Reposts ---
+  const totalReposts = allPosts.reduce((s, p) => s + (p.reposts_count || 0), 0);
+
+  // --- Profile views ---
+  const profileViews = db.T.profile_views.findAll(v => v.user_id === userId);
+  const totalProfileViews = profileViews.length;
+  const profileViewsLast7 = profileViews.filter(v => now - new Date(v.created_at).getTime() < 7 * DAY).length;
+  const profileViewsLast30 = profileViews.filter(v => now - new Date(v.created_at).getTime() < 30 * DAY).length;
+
+  // --- Followers ---
+  const followers = db.T.follows.findAll(f => f.following_id === userId);
+  const totalFollowers = followers.length;
+  const followersLast7 = followers.filter(f => now - new Date(f.created_at).getTime() < 7 * DAY).length;
+  const followersLast30 = followers.filter(f => now - new Date(f.created_at).getTime() < 30 * DAY).length;
+
+  // --- Daily activity (last 30 days) for charts ---
+  const dailyPosts = {};
+  const dailyReactions = {};
+  const dailyViews = {};
+  const dailyFollowers = {};
+  const dailyComments = {};
+  const dailyProfileViews = {};
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(now - i * DAY);
+    const key = date.toISOString().slice(0, 10);
+    dailyPosts[key] = 0;
+    dailyReactions[key] = 0;
+    dailyViews[key] = 0;
+    dailyFollowers[key] = 0;
+    dailyComments[key] = 0;
+    dailyProfileViews[key] = 0;
+  }
+
+  allPosts.forEach(p => {
+    const key = new Date(p.created_at).toISOString().slice(0, 10);
+    if (dailyPosts[key] !== undefined) dailyPosts[key]++;
+  });
+
+  // Reactions received per day (approximate: use post created_at)
+  allPosts.forEach(p => {
+    const key = new Date(p.created_at).toISOString().slice(0, 10);
+    if (dailyReactions[key] !== undefined) {
+      dailyReactions[key] += reactionTypes.reduce((s, t) => s + (p['reactions_' + t] || 0), 0);
+    }
+  });
+
+  allComments.forEach(c => {
+    const key = new Date(c.created_at).toISOString().slice(0, 10);
+    if (dailyComments[key] !== undefined) dailyComments[key]++;
+  });
+
+  followers.forEach(f => {
+    const key = new Date(f.created_at).toISOString().slice(0, 10);
+    if (dailyFollowers[key] !== undefined) dailyFollowers[key]++;
+  });
+
+  profileViews.forEach(v => {
+    const key = new Date(v.created_at).toISOString().slice(0, 10);
+    if (dailyProfileViews[key] !== undefined) dailyProfileViews[key]++;
+  });
+
+  // --- Top 10 posts by engagement ---
+  const topPosts = [...allPosts].map(p => {
+    const eng = reactionTypes.reduce((s, t) => s + (p['reactions_' + t] || 0), 0)
+      + (p.comments_count || 0) * 2
+      + (p.reposts_count || 0) * 3;
+    return { id: p.id, body: (p.body || '').slice(0, 120), game: p.game, created_at: p.created_at,
+      views: parseInt(p.views) || 0, reactions: reactionTypes.reduce((o, t) => { o[t] = p['reactions_' + t] || 0; return o; }, {}),
+      comments_count: p.comments_count || 0, reposts_count: p.reposts_count || 0, engagement: eng,
+      image_url: p.image_url || null, clip_url: p.clip_url || null };
+  }).sort((a, b) => b.engagement - a.engagement).slice(0, 10);
+
+  // --- Best posting time (hour of day) ---
+  const hourBuckets = new Array(24).fill(0);
+  allPosts.forEach(p => {
+    const reactions = reactionTypes.reduce((s, t) => s + (p['reactions_' + t] || 0), 0);
+    const h = new Date(p.created_at).getHours();
+    hourBuckets[h] += reactions + (p.comments_count || 0) + (p.reposts_count || 0);
+  });
+
+  // --- Game breakdown ---
+  const gameCounts = {};
+  allPosts.forEach(p => {
+    const g = p.game || 'General';
+    if (!gameCounts[g]) gameCounts[g] = { posts: 0, reactions: 0, views: 0 };
+    gameCounts[g].posts++;
+    gameCounts[g].reactions += reactionTypes.reduce((s, t) => s + (p['reactions_' + t] || 0), 0);
+    gameCounts[g].views += parseInt(p.views) || 0;
+  });
+
+  // --- Engagement rate ---
+  const engagementRate = totalViews > 0 ? ((totalReactions + totalCommentsReceived + totalReposts) / totalViews * 100).toFixed(1) : '0.0';
+
+  // --- Avg reactions per post ---
+  const avgReactionsPerPost = totalPosts > 0 ? (totalReactions / totalPosts).toFixed(1) : '0.0';
+
+  res.json({
+    overview: {
+      totalPosts, totalViews, totalReactions, totalCommentsReceived, totalReposts,
+      totalFollowers, totalProfileViews, uniqueCommenters,
+      engagementRate: +engagementRate, avgReactionsPerPost: +avgReactionsPerPost,
+    },
+    reactionBreakdown: reactionTotals,
+    trends: {
+      profileViewsLast7, profileViewsLast30,
+      followersLast7, followersLast30,
+    },
+    daily: {
+      labels: Object.keys(dailyPosts),
+      posts: Object.values(dailyPosts),
+      reactions: Object.values(dailyReactions),
+      comments: Object.values(dailyComments),
+      followers: Object.values(dailyFollowers),
+      profileViews: Object.values(dailyProfileViews),
+    },
+    hourlyEngagement: hourBuckets,
+    gameBreakdown: gameCounts,
+    topPosts,
+  });
+});
+
 // GET /api/users/:id/followers
 router.get('/:id/followers', optionalAuth, (req, res) => {
   const follows = db.T.follows.findAll(f => f.following_id === +req.params.id);

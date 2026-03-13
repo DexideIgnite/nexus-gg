@@ -70,6 +70,7 @@ const T = {
   clans:          new Table('clans'),
   clan_members:   new Table('clan_members'),
   user_challenges: new Table('user_challenges'),
+  profile_views:  new Table('profile_views'),
 };
 
 // ================================================================
