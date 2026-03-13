@@ -68,6 +68,7 @@ const api = {
   getUser:           (id)      => api.get(`/users/${id}`),
   getOnline:         ()        => api.get('/users/online'),
   updateMe:          (data)    => api.patch('/users/me', data),
+  upgradePlan:       (plan)    => api.patch('/users/me/plan', { plan }),
   changePassword:    (data)    => api.post('/users/me/password', data),
   deleteAccount:     ()        => apiRequest('DELETE', '/users/me'),
   followUser:        (id)      => api.post(`/users/${id}/follow`),

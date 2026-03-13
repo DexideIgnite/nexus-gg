@@ -28,6 +28,7 @@ router.post('/register', (req, res) => {
     region: region || 'NA',
     gradient: gradients[Math.floor(Math.random()*gradients.length)],
     online: 0,
+    plan: 'free',
   });
   res.status(201).json({ token: makeToken(user.id), user: db.safeUser(user, null) });
 });

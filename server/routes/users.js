@@ -58,6 +58,14 @@ router.patch('/me', requireAuth, (req, res) => {
   res.json(db.safeUser(user, req.user.userId));
 });
 
+// PATCH /api/users/me/plan — update subscription plan
+router.patch('/me/plan', requireAuth, (req, res) => {
+  const { plan } = req.body;
+  if (!['free', 'plus', 'pro'].includes(plan)) return res.status(400).json({ error: 'Invalid plan' });
+  const user = db.updateUser(req.user.userId, { plan });
+  res.json(db.safeUser(user, req.user.userId));
+});
+
 // POST /api/users/me/password — change password
 router.post('/me/password', requireAuth, async (req, res) => {
   const { current_password, new_password } = req.body;

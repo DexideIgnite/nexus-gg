@@ -143,6 +143,178 @@ function showToast(msg, type='info', emoji='🎮') {
 }
 
 // ================================================================
+// PLANS / SUBSCRIPTION
+// ================================================================
+
+function planBadge(plan) {
+  if (plan === 'plus') return `<span class="plan-badge plan-badge-plus">NEXUS+</span>`;
+  if (plan === 'pro') return `<span class="plan-badge plan-badge-pro">PRO</span>`;
+  return '';
+}
+
+function showUpgradePrompt(feature) {
+  const existing = document.getElementById('upgrade-prompt-toast');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'upgrade-prompt-toast';
+  el.className = 'upgrade-prompt-toast';
+  el.innerHTML = `
+    <div class="upgrade-prompt-inner">
+      <div class="upgrade-prompt-icon">⚡</div>
+      <div class="upgrade-prompt-text">
+        <strong>NEXUS+ Required</strong>
+        <span>${feature} requires a NEXUS+ plan</span>
+      </div>
+      <button class="upgrade-prompt-btn" onclick="navigate('plans');this.closest('#upgrade-prompt-toast').remove()">Upgrade</button>
+      <button class="upgrade-prompt-close" onclick="this.closest('#upgrade-prompt-toast').remove()">✕</button>
+    </div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { if (el.parentNode) el.style.animation = 'slideOut 0.3s ease forwards'; setTimeout(() => el.remove(), 300); }, 6000);
+}
+
+function updatePlanUI() {
+  const u = window.CURRENT_USER;
+  const plan = u?.plan || 'free';
+  // Sidebar badge
+  const sidebarBadge = document.getElementById('sidebar-plan-badge');
+  if (sidebarBadge) {
+    sidebarBadge.innerHTML = planBadge(plan);
+    sidebarBadge.style.display = plan === 'free' ? 'none' : '';
+  }
+  // Nav NEXUS+ item badge
+  const navBadge = document.getElementById('nav-plans-badge');
+  if (navBadge) {
+    if (plan === 'free') { navBadge.textContent = 'Upgrade'; navBadge.style.display = ''; }
+    else { navBadge.style.display = 'none'; }
+  }
+  // Nav item glow for non-free
+  const navPlans = document.querySelector('.nav-item-plans');
+  if (navPlans) navPlans.classList.toggle('nav-plans-active', plan !== 'free');
+}
+
+async function upgradePlan(plan) {
+  const btn = document.getElementById(`plan-btn-${plan}`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Processing...'; }
+  try {
+    const user = await api.upgradePlan(plan);
+    window.CURRENT_USER.plan = user.plan;
+    Auth.setUser({ ...Auth.getUser(), plan: user.plan });
+    updatePlanUI();
+    loadPlans();
+    const names = { free: 'Free', plus: 'NEXUS+', pro: 'NEXUS Pro' };
+    showToast(`Switched to ${names[plan] || plan}!`, 'success', plan === 'free' ? '🔄' : '⚡');
+  } catch (err) {
+    showToast(err.message || 'Failed to update plan', 'error', '⚠️');
+    if (btn) { btn.disabled = false; btn.textContent = 'Select Plan'; }
+  }
+}
+
+function loadPlans() {
+  const container = document.getElementById('plans-container');
+  if (!container) return;
+  const currentPlan = window.CURRENT_USER?.plan || 'free';
+
+  const plans = [
+    {
+      id: 'free',
+      name: 'Free',
+      price: '$0',
+      period: '/month',
+      badge: '',
+      color: 'var(--text-muted)',
+      gradient: 'linear-gradient(135deg,#1a1a2e,#16213e)',
+      features: [
+        { ok: true,  text: 'Unlimited posts & clips' },
+        { ok: true,  text: 'Join LFG parties' },
+        { ok: true,  text: 'Follow gamers & games' },
+        { ok: true,  text: 'Direct messages' },
+        { ok: true,  text: 'Basic leaderboard' },
+        { ok: false, text: '@Claude AI assistant' },
+        { ok: false, text: 'AI game insights' },
+        { ok: false, text: 'NEXUS+ profile badge' },
+        { ok: false, text: 'Verified Pro badge' },
+      ],
+      cta: currentPlan === 'free' ? 'Current Plan' : 'Downgrade',
+      disabled: currentPlan === 'free',
+    },
+    {
+      id: 'plus',
+      name: 'NEXUS+',
+      price: '$4.99',
+      period: '/month',
+      badge: 'POPULAR',
+      color: '#8b5cf6',
+      gradient: 'linear-gradient(135deg,#1a0a3a,#3b1a6e)',
+      features: [
+        { ok: true,  text: 'Everything in Free' },
+        { ok: true,  text: '@Claude AI assistant' },
+        { ok: true,  text: 'AI game insights on posts' },
+        { ok: true,  text: 'NEXUS+ profile badge' },
+        { ok: true,  text: 'Priority support' },
+        { ok: false, text: 'Verified Pro badge ✓' },
+        { ok: false, text: 'Exclusive Pro cosmetics' },
+        { ok: false, text: 'Double XP on events' },
+      ],
+      cta: currentPlan === 'plus' ? 'Current Plan' : currentPlan === 'pro' ? 'Downgrade' : 'Upgrade to NEXUS+',
+      disabled: currentPlan === 'plus',
+    },
+    {
+      id: 'pro',
+      name: 'NEXUS Pro',
+      price: '$9.99',
+      period: '/month',
+      badge: 'BEST VALUE',
+      color: '#f59e0b',
+      gradient: 'linear-gradient(135deg,#1a0a00,#3d2000)',
+      features: [
+        { ok: true,  text: 'Everything in NEXUS+' },
+        { ok: true,  text: 'Verified Pro badge ✓' },
+        { ok: true,  text: 'Exclusive Pro cosmetics' },
+        { ok: true,  text: 'Double XP on events' },
+        { ok: true,  text: 'Early access to features' },
+        { ok: true,  text: 'Custom profile banner' },
+        { ok: true,  text: 'Priority matchmaking in LFG' },
+        { ok: true,  text: '24/7 dedicated support' },
+      ],
+      cta: currentPlan === 'pro' ? 'Current Plan' : 'Upgrade to Pro',
+      disabled: currentPlan === 'pro',
+    },
+  ];
+
+  container.innerHTML = `
+    <div class="plans-hero">
+      <div class="plans-hero-icon">⚡</div>
+      <h2 class="plans-hero-title">Level Up Your Gaming Experience</h2>
+      <p class="plans-hero-sub">Unlock AI-powered features, exclusive badges, and more with NEXUS+ plans</p>
+      ${currentPlan !== 'free' ? `<div class="plans-current-banner">You're on <strong>${currentPlan === 'plus' ? 'NEXUS+' : 'NEXUS Pro'}</strong> ${planBadge(currentPlan)}</div>` : ''}
+    </div>
+    <div class="plans-grid">
+      ${plans.map(p => `
+        <div class="plan-card ${currentPlan === p.id ? 'plan-card-current' : ''} ${p.id === 'plus' ? 'plan-card-featured' : ''}" style="--plan-color:${p.color};--plan-gradient:${p.gradient}">
+          ${p.badge ? `<div class="plan-badge-top" style="background:${p.color}">${p.badge}</div>` : ''}
+          <div class="plan-card-header">
+            <div class="plan-name">${p.name}</div>
+            <div class="plan-price">${p.price}<span class="plan-period">${p.period}</span></div>
+          </div>
+          <ul class="plan-features">
+            ${p.features.map(f => `
+              <li class="plan-feature ${f.ok ? 'feature-ok' : 'feature-no'}">
+                <span class="feature-icon">${f.ok ? '✓' : '✕'}</span>
+                <span>${f.text}</span>
+              </li>`).join('')}
+          </ul>
+          <button class="plan-cta-btn ${p.disabled ? 'plan-cta-current' : p.id === 'free' ? 'plan-cta-downgrade' : 'plan-cta-upgrade'}" id="plan-btn-${p.id}" ${p.disabled ? 'disabled' : ''} onclick="upgradePlan('${p.id}')">
+            ${p.cta}
+          </button>
+        </div>`).join('')}
+    </div>
+    <div class="plans-footer">
+      <p>All plans include access to the NEXUS GG platform. Plans can be changed or cancelled anytime.</p>
+      <p style="color:var(--text-muted);font-size:12px;margin-top:8px">This is a demo platform. No real payments are processed.</p>
+    </div>`;
+}
+
+// ================================================================
 // NAVIGATION
 // ================================================================
 
@@ -172,6 +344,7 @@ function navigate(section) {
     leaderboard: loadLeaderboard,
     profile: loadProfile,
     people: loadPeople,
+    plans: loadPlans,
     settings: loadSettings,
     'user-profile': loadUserProfile,
   };
@@ -213,6 +386,7 @@ function updateSidebarUser() {
   document.getElementById('modal-avatar').textContent = u.avatar_url ? '' : u.avatar;
   document.getElementById('modal-avatar').style.background = u.gradient || '';
   if (u.avatar_url) document.getElementById('modal-avatar').style.backgroundImage = `url('${u.avatar_url}')`;
+  updatePlanUI();
 }
 
 // ================================================================
@@ -789,6 +963,7 @@ function renderPost(post) {
         <div class="post-user-row">
           <span class="post-username" onclick="openUserProfile(${user.id})">${userName(user)}</span>
           ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
+          ${planBadge(user.plan)}
           <span class="${rankBadgeClass(user.rank)}">${user.rank||'Bronze'}</span>
           ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? '🎬 Clip' : post.type === 'achievement' ? '🏆 Achievement' : '👥 LFG'}</span>` : ''}
           ${post.game ? `<span class="post-game-tag" onclick="navigate('games')">🎮 ${post.game}</span>` : ''}
@@ -922,7 +1097,7 @@ function renderCommentSection(postId, comments, me) {
     ${isLoggedIn ? `<div class="comment-input-row">
       <div class="comment-avatar" style="background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${me.avatar_url?`background-image:url('${me.avatar_url}');background-size:cover;background-position:center`:''}">${me.avatar_url?'':me.avatar||'?'}</div>
       <div class="comment-input-wrap">
-        <input class="comment-input" id="comment-input-${postId}" placeholder="Comment… try @Claude for an AI reply" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId},null)}">
+        <input class="comment-input" id="comment-input-${postId}" placeholder="${(window.CURRENT_USER?.plan==='plus'||window.CURRENT_USER?.plan==='pro')?'Comment… @Claude AI is active':'Comment… @Claude requires NEXUS+'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId},null)}">
         <button class="comment-submit-btn" onclick="submitComment(${postId},null)">↑</button>
       </div>
     </div>` : ''}`;
@@ -977,6 +1152,7 @@ function renderCommentInner(c, postId, depth) {
         <div class="comment-meta">
           <span class="comment-author" onclick="openUserProfile(${c.user_id})">${c.username||'Player'}</span>
           ${isBot ? `<span class="claude-ai-badge">AI</span>` : (c.verified ? '<span class="verified-badge">✓</span>' : '')}
+          ${isBot ? '' : planBadge(c.plan)}
           <span class="comment-time">${c.time||'just now'}</span>
         </div>
         <div class="comment-text">${parseBody(c.body||'')}</div>
@@ -1030,6 +1206,7 @@ async function submitInlineReply(postId, parentId, inputEl) {
     }
     // close inline composer
     document.getElementById(`inline-reply-${parentId}`)?.remove();
+    if (comment._claudeGated) setTimeout(() => showUpgradePrompt('Reply with @Claude AI'), 600);
   } catch (err) {
     showToast(err.message||'Failed to reply','error','⚠️');
     inputEl.disabled = false;
@@ -1050,6 +1227,9 @@ async function submitComment(postId, parentId) {
       if (empty) empty.remove();
       list.insertAdjacentHTML('beforeend', `<div class="comment-thread-item" id="ci-${comment.id}">${renderCommentInner(comment, postId, 0)}</div>`);
       list.scrollTop = list.scrollHeight;
+    }
+    if (comment._claudeGated) {
+      setTimeout(() => showUpgradePrompt('Reply with @Claude AI in comments'), 600);
     }
     const countSpan = document.getElementById(`comment-count-${postId}`);
     if (countSpan) countSpan.textContent = (+countSpan.textContent||0) + 1;
@@ -1242,13 +1422,14 @@ async function submitInlinePost() {
   const btn = document.getElementById('compose-post-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Posting...'; }
   try {
-    await api.createPost({
+    const newPost = await api.createPost({
       body: text,
       type: _inlinePostType,
       game: document.getElementById('compose-game-tag')?.value || null,
     });
     collapseComposeBox();
     showToast('Post published! 🎮', 'success', '✅');
+    if (newPost._claudeGated) setTimeout(() => showUpgradePrompt('Use @Claude AI in your posts'), 800);
     await renderFeed();
   } catch (err) {
     showToast(err.message || 'Failed to post', 'error', '⚠️');
@@ -1326,7 +1507,7 @@ async function submitModalPost() {
       const data = await r.json();
       if (data.url) image_url = data.url;
     }
-    await api.createPost({
+    const newPost = await api.createPost({
       body: text,
       type: document.getElementById('modal-post-type').value,
       game: document.getElementById('modal-game-tag').value || null,
@@ -1335,6 +1516,9 @@ async function submitModalPost() {
     });
     closePostModal();
     showToast('Post published! 🎮', 'success', '✅');
+    if (newPost._claudeGated) {
+      setTimeout(() => showUpgradePrompt('Use @Claude AI in your posts'), 800);
+    }
     // Stay on current section and refresh it
     if (state.currentSection === 'profile') {
       loadProfile();
@@ -1469,7 +1653,7 @@ async function renderExploreContent(tab) {
           <div style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .2s" onclick="openUserProfile(${u.id})" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
             <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:50px;height:50px;font-size:18px">${u.avatar||'?'}</div>
             <div style="flex:1">
-              <div style="font-weight:800;font-size:15px">${u.username||'Player'}</div>
+              <div style="font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px">${u.username||'Player'} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
               <div style="font-size:13px;color:var(--text-muted)">@${u.handle||u.username} · ${formatNum(u.followers||0)} followers</div>
               <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${u.online ? '🟢 Online' : '⚫ Offline'}</div>
             </div>
@@ -2101,7 +2285,7 @@ async function loadLeaderboard(game) {
           <div class="lb-rank r${pos}">${rankIcons[pos] || pos}</div>
           <div class="lb-avatar" style="background:${row.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${row.avatar||'?'}</div>
           <div class="lb-info">
-            <div class="lb-name">${row.username||row.name||'Player'} ${isMe ? '(You)' : ''}</div>
+            <div class="lb-name">${row.username||row.name||'Player'} ${isMe ? '(You)' : ''} ${planBadge(row.plan)}</div>
             <div class="lb-game">${row.rank||'Unranked'}</div>
           </div>
           <div class="lb-stats">
@@ -2149,7 +2333,7 @@ async function loadPeople() {
       <div class="people-card" onclick="openUserProfile(${u.id})">
         <div class="people-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
         <div class="people-info">
-          <div class="people-name">${escapeHtml(u.username)} ${u.verified?'<span class="verified-badge">✓</span>':''}</div>
+          <div class="people-name">${escapeHtml(u.username)} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
           <div class="people-handle">@${escapeHtml((u.handle||u.username).replace(/^@/,''))}</div>
           <div style="margin-top:4px"><span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
           ${u.bio?`<div class="people-bio">${escapeHtml(u.bio.slice(0,60))}${u.bio.length>60?'...':''}</div>`:''}
@@ -2191,6 +2375,7 @@ function loadSettings() {
         <div class="settings-nav-item" onclick="switchSettingsTab(this,'appearance')">🎨 Appearance</div>
         <div class="settings-nav-item" onclick="switchSettingsTab(this,'notifications')">🔔 Notifications</div>
         <div class="settings-nav-item" onclick="switchSettingsTab(this,'privacy')">🔒 Privacy</div>
+        <div class="settings-nav-item" onclick="navigate('plans')">⚡ Subscription</div>
         <div class="settings-nav-item danger" onclick="switchSettingsTab(this,'danger')">⚠️ Danger Zone</div>
       </nav>
       <div class="settings-content" id="settings-content"></div>
@@ -2469,7 +2654,6 @@ async function renderProfile(userId, container) {
       user = await api.getUser(effectiveId);
     }
 
-    const isFollowing = false; // Will be from API in future
     const gameIcon = GAMES.find(g => (user.games||[])[0] === g.name)?.icon || '🎮';
 
     const bannerGrad = user.is_bot
@@ -2491,7 +2675,7 @@ async function renderProfile(userId, container) {
                  <button class="btn-secondary" onclick="navigate('messages')">💬 Message</button>`}
           </div>
         </div>
-        <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg">✓</span>' : ''} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`}</div>
+        <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg">✓</span>' : ''} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>
         <div class="profile-handle">@${(user.handle||user.username||'player').replace(/^@/,'')} <span class="profile-online-dot" style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'● Online':'● Offline'}</span></div>
         ${user.bio ? `<div class="profile-bio">${user.bio}</div>` : ''}
         <div class="profile-stats-row">
@@ -2703,7 +2887,7 @@ async function openFollowModal(type, userId) {
       <div class="follow-modal-user" onclick="closeFollowModal();openUserProfile(${u.id})">
         <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''};width:42px;height:42px;min-width:42px">${u.avatar_url?'':u.avatar||'?'}</div>
         <div style="flex:1">
-          <div style="font-weight:700;font-size:14px">${u.username} ${u.verified?'<span class="verified-badge">✓</span>':''}</div>
+          <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:5px">${u.username} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
           <div style="color:var(--text-muted);font-size:12px">@${(u.handle||u.username).replace(/^@/,'')} · <span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
         </div>
       </div>`).join('');

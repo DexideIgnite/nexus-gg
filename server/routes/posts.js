@@ -50,9 +50,12 @@ router.post('/', requireAuth, (req, res) => {
   const post = db.createPost({ user_id: req.user.userId, body: body.trim(), type: type||'post', game: game||null, platform: platform||null, image_url: image_url||null, clip_title: clip_title||null, clip_desc: clip_desc||null, achievement_title: achievement_title||null, achievement_game: achievement_game||null, achievement_icon: achievement_icon||null, reactions_gg:0,reactions_fire:0,reactions_rekt:0,reactions_king:0,reactions_epic:0,reactions_lul:0,comments_count:0,reposts_count:0,views:0 });
   const io = req.app.get('io');
   io?.emit('post:new', post);
-  // If post mentions @Claude, reply as a comment (async, non-blocking)
-  maybeAskClaude(post.id, body.trim(), null, io, image_url||null);
-  res.status(201).json(post);
+  // If post mentions @Claude, check subscription before replying
+  const wantsClaude = /@Claude\b/i.test(body.trim());
+  const postUser = db.getUser(req.user.userId);
+  const hasAI = postUser?.plan === 'plus' || postUser?.plan === 'pro';
+  if (wantsClaude && hasAI) maybeAskClaude(post.id, body.trim(), null, io, image_url||null);
+  res.status(201).json({ ...post, _claudeGated: wantsClaude && !hasAI });
 });
 
 // DELETE /api/posts/:id
@@ -103,9 +106,12 @@ router.post('/:id/comments', requireAuth, (req, res) => {
   }
   const io = req.app.get('io');
   io?.emit('post:comment', { postId: req.params.id, comment });
-  // If comment mentions @Claude, reply as another comment (async, non-blocking)
-  maybeAskClaude(req.params.id, body.trim(), post.body, io);
-  res.status(201).json(comment);
+  // If comment mentions @Claude, check subscription before replying
+  const wantsClaude = /@Claude\b/i.test(body.trim());
+  const commentUser = db.getUser(req.user.userId);
+  const hasAI = commentUser?.plan === 'plus' || commentUser?.plan === 'pro';
+  if (wantsClaude && hasAI) maybeAskClaude(req.params.id, body.trim(), post.body, io);
+  res.status(201).json({ ...comment, _claudeGated: wantsClaude && !hasAI });
 });
 
 // POST /api/posts/:id/ask-claude  — inline AI insight (no comment created)
