@@ -2771,3 +2771,226 @@ body {
 
 /* ===== MODAL CLOSE BUTTON ===== */
 .modal-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 20px; line-height: 1; padding: 4px 8px; }
+
+/* ================================================================
+   GOLD VERIFIED BADGE (PRO)
+   ================================================================ */
+.verified-gold {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24) !important;
+  color: #000 !important;
+  box-shadow: 0 0 8px rgba(245,158,11,0.4);
+}
+.verified-gold.verified-lg {
+  box-shadow: 0 0 14px rgba(245,158,11,0.5);
+}
+
+/* ================================================================
+   HOME SEARCH BAR
+   ================================================================ */
+.home-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-bottom: 4px;
+}
+.home-search-bar:hover {
+  border-color: var(--accent);
+  background: var(--bg-card);
+}
+.home-search-bar svg { color: var(--text-muted); flex-shrink: 0; }
+.home-search-bar span { color: var(--text-muted); font-size: 14px; }
+
+/* ================================================================
+   AVATAR CROPPER
+   ================================================================ */
+.avatar-crop-modal {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  width: 420px;
+  max-width: 95vw;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.avatar-crop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.avatar-crop-header h3 { font-size: 16px; font-weight: 700; }
+.avatar-crop-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.avatar-crop-container {
+  width: 100%;
+  height: 300px;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: #000;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.avatar-crop-container:active { cursor: grabbing; }
+.avatar-crop-container img {
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  transform-origin: center;
+  user-select: none;
+}
+.avatar-crop-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  height: 0;
+  padding-bottom: 80%;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.7);
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+  pointer-events: none;
+}
+.avatar-crop-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.avatar-crop-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--border);
+  border-radius: 99px;
+  outline: none;
+}
+.avatar-crop-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.avatar-crop-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* ================================================================
+   CLIPS PAGE
+   ================================================================ */
+.clips-game-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.clips-game-filter .game-select { flex: 1; }
+.clips-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  padding: 16px 20px;
+}
+.clip-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform var(--transition), box-shadow var(--transition);
+  border: 1px solid var(--border);
+}
+.clip-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  border-color: var(--accent);
+}
+.clip-card-thumb {
+  position: relative;
+  aspect-ratio: 16/9;
+  background: #0a0a18;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.clip-card-thumb video { width: 100%; height: 100%; object-fit: cover; }
+.clip-card-placeholder { font-size: 40px; opacity: .3; }
+.clip-card-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  width: 44px;
+  height: 44px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 16px;
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity .2s;
+}
+.clip-card:hover .clip-card-play { opacity: 1; }
+.clip-card-game {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+}
+.clip-card-info {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+}
+.clip-card-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+}
+.clip-card-meta { flex: 1; min-width: 0; }
+.clip-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+.clip-card-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}

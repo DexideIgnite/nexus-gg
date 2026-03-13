@@ -149,7 +149,7 @@ function showToast(msg, type='info', emoji='🎮') {
 
 function planBadge(plan) {
   if (plan === 'plus') return `<span class="plan-badge plan-badge-plus">NEXUS+</span>`;
-  if (plan === 'pro') return `<span class="plan-badge plan-badge-pro">PRO</span>`;
+  if (plan === 'pro') return `<span class="verified-badge verified-gold" title="NEXUS Pro">✓</span>`;
   return '';
 }
 
@@ -350,6 +350,7 @@ function navigate(section) {
     'user-profile': loadUserProfile,
     bookmarks: loadBookmarks,
     clans: loadClans,
+    clips: loadClips,
     search: loadSearch,
   };
   if (loaders[section]) loaders[section]();
@@ -2620,25 +2621,109 @@ async function saveProfileSettings(e) {
 async function previewAndUploadAvatar(input) {
   const file = input.files[0];
   if (!file) return;
-  const preview = document.getElementById('s-avatar-preview');
-  if (preview) {
-    preview.style.backgroundImage = `url('${URL.createObjectURL(file)}')`;
-    preview.style.backgroundSize = 'cover';
-    preview.textContent = '';
+  openAvatarCropper(file);
+}
+
+function openAvatarCropper(file) {
+  const url = URL.createObjectURL(file);
+  const overlay = document.createElement('div');
+  overlay.id = 'avatar-crop-overlay';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="avatar-crop-modal">
+      <div class="avatar-crop-header">
+        <h3>Crop Profile Picture</h3>
+        <button class="icon-btn" onclick="closeAvatarCropper()"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
+      </div>
+      <div class="avatar-crop-body">
+        <div class="avatar-crop-container" id="avatar-crop-container">
+          <img id="avatar-crop-img" src="${url}" draggable="false">
+          <div class="avatar-crop-circle" id="avatar-crop-circle"></div>
+        </div>
+        <div class="avatar-crop-controls">
+          <label style="font-size:13px;color:var(--text-secondary)">Zoom</label>
+          <input type="range" id="avatar-crop-zoom" min="1" max="3" step="0.01" value="1" class="avatar-crop-slider">
+        </div>
+      </div>
+      <div class="avatar-crop-footer">
+        <button class="btn-ghost" onclick="closeAvatarCropper()">Cancel</button>
+        <button class="btn-primary" id="avatar-crop-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const img = document.getElementById('avatar-crop-img');
+  const container = document.getElementById('avatar-crop-container');
+  const zoomSlider = document.getElementById('avatar-crop-zoom');
+  let scale = 1, offsetX = 0, offsetY = 0, dragging = false, startX = 0, startY = 0;
+
+  function updateTransform() {
+    img.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
   }
-  try {
-    const result = await api.uploadAvatar(file);
-    window.CURRENT_USER.avatar_url = result.avatar_url;
-    // Update sidebar avatar
-    const sidebarAv = document.getElementById('sidebar-avatar');
-    if (sidebarAv) {
-      sidebarAv.style.backgroundImage = `url('${result.avatar_url}')`;
-      sidebarAv.style.backgroundSize = 'cover';
-      sidebarAv.textContent = '';
-    }
-    showToast('Profile picture updated!', 'success', '✅');
-    if (state.currentSection === 'profile') loadProfile();
-  } catch (err) { showToast(err.message || 'Upload failed', 'error', '⚠️'); }
+
+  zoomSlider.addEventListener('input', () => {
+    scale = parseFloat(zoomSlider.value);
+    updateTransform();
+  });
+
+  container.addEventListener('mousedown', (e) => { dragging = true; startX = e.clientX - offsetX; startY = e.clientY - offsetY; e.preventDefault(); });
+  document.addEventListener('mousemove', (e) => { if (!dragging) return; offsetX = e.clientX - startX; offsetY = e.clientY - startY; updateTransform(); });
+  document.addEventListener('mouseup', () => { dragging = false; });
+  container.addEventListener('touchstart', (e) => { dragging = true; startX = e.touches[0].clientX - offsetX; startY = e.touches[0].clientY - offsetY; });
+  container.addEventListener('touchmove', (e) => { if (!dragging) return; offsetX = e.touches[0].clientX - startX; offsetY = e.touches[0].clientY - startY; updateTransform(); e.preventDefault(); });
+  container.addEventListener('touchend', () => { dragging = false; });
+
+  document.getElementById('avatar-crop-save').addEventListener('click', async () => {
+    const canvas = document.createElement('canvas');
+    const size = 256;
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Calculate crop
+    const rect = container.getBoundingClientRect();
+    const circleSize = Math.min(rect.width, rect.height) * 0.8;
+    const circleX = (rect.width - circleSize) / 2;
+    const circleY = (rect.height - circleSize) / 2;
+
+    const imgRect = img.getBoundingClientRect();
+    const sx = (rect.left + circleX - imgRect.left) / (imgRect.width / img.naturalWidth);
+    const sy = (rect.top + circleY - imgRect.top) / (imgRect.height / img.naturalHeight);
+    const sSize = circleSize / (imgRect.width / img.naturalWidth);
+
+    ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, Math.PI*2); ctx.clip();
+    ctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, size, size);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) { showToast('Crop failed', 'error', '⚠️'); return; }
+      const croppedFile = new File([blob], 'avatar.png', { type: 'image/png' });
+      closeAvatarCropper();
+
+      const preview = document.getElementById('s-avatar-preview');
+      if (preview) {
+        preview.style.backgroundImage = `url('${URL.createObjectURL(blob)}')`;
+        preview.style.backgroundSize = 'cover';
+        preview.textContent = '';
+      }
+
+      try {
+        const result = await api.uploadAvatar(croppedFile);
+        window.CURRENT_USER.avatar_url = result.avatar_url;
+        const sidebarAv = document.getElementById('sidebar-avatar');
+        if (sidebarAv) {
+          sidebarAv.style.backgroundImage = `url('${result.avatar_url}')`;
+          sidebarAv.style.backgroundSize = 'cover';
+          sidebarAv.textContent = '';
+        }
+        showToast('Profile picture updated!', 'success', '✅');
+        if (state.currentSection === 'profile') loadProfile();
+      } catch (err) { showToast(err.message || 'Upload failed', 'error', '⚠️'); }
+    }, 'image/png');
+  });
+}
+
+function closeAvatarCropper() {
+  const el = document.getElementById('avatar-crop-overlay');
+  if (el) el.remove();
 }
 
 function setTheme(theme) {
@@ -3560,6 +3645,75 @@ window.addEventListener('DOMContentLoaded', () => {
   if (window.bootWithAuth) bootWithAuth();
   else init(null);
 });
+
+// ================================================================
+// CLIPS
+// ================================================================
+
+let _clipsTab = 'trending';
+
+function switchClipsTab(btn, tab) {
+  document.querySelectorAll('.clips-section .tab-btn, #clips-section .tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  _clipsTab = tab;
+  loadClips();
+}
+
+async function loadClips() {
+  const feed = document.getElementById('clips-feed');
+  if (!feed) return;
+  const gameFilter = document.getElementById('clips-game-filter');
+  // Populate game filter
+  if (gameFilter && gameFilter.options.length <= 1) {
+    GAMES.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g.name; opt.textContent = `${g.icon} ${g.name}`;
+      gameFilter.appendChild(opt);
+    });
+  }
+  feed.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading clips...</div>`;
+  try {
+    const posts = await api.getFeed('for-you');
+    const normalized = posts.map(normalizePost);
+    const selectedGame = gameFilter?.value || '';
+    let clips = normalized.filter(p => p.type === 'clip');
+    if (selectedGame) clips = clips.filter(p => p.game === selectedGame);
+    if (_clipsTab === 'my-clips') {
+      const myId = window.CURRENT_USER.id;
+      clips = clips.filter(p => (p.user?.id || p.user_id) === myId);
+    } else if (_clipsTab === 'trending') {
+      clips.sort((a,b) => totalReactions(b.reactions) - totalReactions(a.reactions));
+    }
+    // If no clips exist, show all posts as clips for demo
+    if (!clips.length && _clipsTab !== 'my-clips') {
+      clips = normalized.slice(0, 8).map(p => ({...p, type:'clip'}));
+    }
+    feed.innerHTML = clips.length
+      ? `<div class="clips-grid">${clips.map(c => renderClipCard(c)).join('')}</div>`
+      : `<div class="empty-state"><div class="empty-icon">🎬</div><p>No clips yet${_clipsTab==='my-clips'?' — post your first clip!':''}</p></div>`;
+  } catch {
+    feed.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load clips</p></div>`;
+  }
+}
+
+function renderClipCard(post) {
+  const user = post.user || {};
+  const total = totalReactions(post.reactions || {});
+  return `<div class="clip-card" onclick="scrollToPost(${post.id})">
+    <div class="clip-card-thumb">
+      ${post.clip_url ? `<video src="${post.clip_url}" muted preload="metadata"></video>` : `<div class="clip-card-placeholder">🎬</div>`}
+      <div class="clip-card-play">▶</div>
+      ${post.game ? `<span class="clip-card-game">${post.game}</span>` : ''}
+    </div>
+    <div class="clip-card-info">
+      <div class="clip-card-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
+      <div class="clip-card-meta">
+        <div class="clip-card-title">${(post.body||'Untitled clip').slice(0,60)}</div>
+        <div class="clip-card-sub">${userName(user)} · ${formatNum(total)} ❤️ · ${post.views||0} views</div>
+      </div>
+    </div>
+  </div>`;
+}
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {

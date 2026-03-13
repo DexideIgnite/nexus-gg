@@ -439,6 +439,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span>Clans</span>
         </a>
+        <a class="nav-item" data-section="clips" onclick="navigate('clips')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          <span>Clips</span>
+        </a>
         <a class="nav-item" data-section="search" onclick="navigate('search')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <span>Search</span>
@@ -494,6 +498,10 @@
       <section id="home-section" class="section active">
         <div class="section-header">
           <h2>Home</h2>
+          <div class="home-search-bar" onclick="navigate('search')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span>Search NEXUS GG...</span>
+          </div>
           <div class="header-tabs">
             <button class="tab-btn active" onclick="switchFeedTab(this,'for-you')">For You</button>
             <button class="tab-btn" onclick="switchFeedTab(this,'following')">Following</button>
@@ -768,6 +776,28 @@
         <div id="clans-list"></div>
         <div class="section-header" style="margin-top:16px"><h3>My Clans</h3></div>
         <div id="my-clans-list"></div>
+      </section>
+
+      <!-- CLIPS SECTION -->
+      <section id="clips-section" class="section">
+        <div class="section-header">
+          <h2>🎬 Clips</h2>
+          <div class="header-tabs">
+            <button class="tab-btn active" onclick="switchClipsTab(this,'trending')">🔥 Trending</button>
+            <button class="tab-btn" onclick="switchClipsTab(this,'latest')">Latest</button>
+            <button class="tab-btn" onclick="switchClipsTab(this,'my-clips')">My Clips</button>
+          </div>
+        </div>
+        <div class="clips-game-filter">
+          <select id="clips-game-filter" class="game-select" onchange="loadClips()">
+            <option value="">All Games</option>
+          </select>
+          <button class="btn-primary btn-sm" onclick="openPostModal();document.getElementById('modal-post-type').value='clip'">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+            Upload Clip
+          </button>
+        </div>
+        <div id="clips-feed"></div>
       </section>
 
       <!-- SEARCH SECTION -->
