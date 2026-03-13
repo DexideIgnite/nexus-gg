@@ -22,6 +22,29 @@ const PORT = process.env.PORT || 3000;
 // Reset all users to offline on every server start (only sockets set online:1)
 db.T.users.update(() => true, { online: 0 });
 
+// Ensure Claude bot user exists (id 999)
+if (!db.T.users.findOne(u => u.id === 999)) {
+  db.T.users.data.push({
+    id: 999,
+    created_at: '2026-01-01T00:00:00.000Z',
+    username: 'Claude',
+    handle: 'Claude',
+    email: 'claude@nexus.gg',
+    password_hash: '',
+    avatar: 'C',
+    rank: 'AI',
+    bio: 'AI gaming assistant powered by Anthropic. Mention @Claude in any post or comment!',
+    gradient: 'linear-gradient(135deg,#cc785c,#c97a5e)',
+    online: 1,
+    now_playing: null,
+    platform: 'All',
+    region: 'Global',
+    verified: true,
+    is_bot: true,
+  });
+  db.T.users._save();
+}
+
 // ================================================================
 // MIDDLEWARE
 // ================================================================

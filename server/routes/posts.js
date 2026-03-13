@@ -1,6 +1,16 @@
 const router = require('express').Router();
 const db = require('../db');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
+const { askClaude, CLAUDE_BOT_ID } = require('../services/askClaude');
+
+// Fire-and-forget: if text mentions @Claude, post Claude's reply as a comment
+async function maybeAskClaude(postId, text, contextNote, io) {
+  if (!/@Claude\b/i.test(text)) return;
+  const reply = await askClaude(text, contextNote);
+  if (!reply) return;
+  const comment = db.addComment({ post_id: +postId, user_id: CLAUDE_BOT_ID, body: reply });
+  io?.emit('post:comment', { postId: String(postId), comment });
+}
 
 // GET /api/posts
 router.get('/', optionalAuth, (req, res) => {
@@ -20,7 +30,10 @@ router.post('/', requireAuth, (req, res) => {
   if (!body?.trim()) return res.status(400).json({ error: 'Post body required' });
   if (body.length > 500) return res.status(400).json({ error: 'Max 500 characters' });
   const post = db.createPost({ user_id: req.user.userId, body: body.trim(), type: type||'post', game: game||null, platform: platform||null, clip_title: clip_title||null, clip_desc: clip_desc||null, achievement_title: achievement_title||null, achievement_game: achievement_game||null, achievement_icon: achievement_icon||null, reactions_gg:0,reactions_fire:0,reactions_rekt:0,reactions_king:0,reactions_epic:0,reactions_lul:0,comments_count:0,reposts_count:0,views:0 });
-  req.app.get('io')?.emit('post:new', post);
+  const io = req.app.get('io');
+  io?.emit('post:new', post);
+  // If post mentions @Claude, reply as a comment (async, non-blocking)
+  maybeAskClaude(post.id, body.trim(), null, io);
   res.status(201).json(post);
 });
 
@@ -70,7 +83,10 @@ router.post('/:id/comments', requireAuth, (req, res) => {
     const me = db.getUser(req.user.userId);
     db.addNotif({ user_id: post.user_id, actor_id: req.user.userId, type:'mention', icon:'💬', text:`<strong>${me.username}</strong> commented on your post.`, read:0 });
   }
-  req.app.get('io')?.emit('post:comment', { postId: req.params.id, comment });
+  const io = req.app.get('io');
+  io?.emit('post:comment', { postId: req.params.id, comment });
+  // If comment mentions @Claude, reply as another comment (async, non-blocking)
+  maybeAskClaude(req.params.id, body.trim(), post.body, io);
   res.status(201).json(comment);
 });
 
