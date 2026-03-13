@@ -9,7 +9,7 @@ router.post('/', requireAuth, (req, res) => {
   // Pro-only gate: clan creation
   const user = db.getUser(req.user.userId);
   if (!hasFeature(user, 'clan_create')) {
-    return res.status(403).json({ error: 'Clan creation requires NEXUS Pro', upgrade: true });
+    return res.status(403).json({ error: 'Clan creation requires DXED Pro', upgrade: true });
   }
   const { name, tag, description, game, banner_color } = req.body;
   if (!name?.trim() || !tag?.trim()) return res.status(400).json({ error: 'Name and tag required' });

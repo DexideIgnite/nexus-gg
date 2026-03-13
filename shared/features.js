@@ -1,5 +1,5 @@
 /**
- * NEXUS GG — Subscription feature gate helper
+ * DXED — Subscription feature gate helper
  * Shared between server (Node) and client (browser).
  */
 const FEATURE_GATES = {

@@ -204,7 +204,7 @@ router.post('/:id/ask-claude', async (req, res) => {
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001', max_tokens: 400,
-      system: `You are Claude, an AI gaming assistant on NEXUS GG. Give a helpful insight about the post, then suggest 2 short follow-up questions a gamer might ask. Reply as JSON: {"reply":"...","chips":["...","..."]}. Keep reply under 2 sentences. Be casual and gaming-focused.`,
+      system: `You are Claude, an AI gaming assistant on DXED. Give a helpful insight about the post, then suggest 2 short follow-up questions a gamer might ask. Reply as JSON: {"reply":"...","chips":["...","..."]}. Keep reply under 2 sentences. Be casual and gaming-focused.`,
       messages: [{ role: 'user', content: post.body }],
     });
     const text = msg.content[0]?.text || '{}';

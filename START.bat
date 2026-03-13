@@ -1,7 +1,7 @@
 @echo off
 echo.
 echo  ======================================
-echo    NEXUS GG - Gaming Social Platform
+echo    DXED - Gaming Social Platform
 echo  ======================================
 echo.
 

@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "nexus-gg",
+      "name": "dxed",
       "runtimeExecutable": "node",
       "runtimeArgs": ["server/server.js"],
       "port": 3000

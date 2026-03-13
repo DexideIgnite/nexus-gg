@@ -95,7 +95,7 @@ router.post('/me/password', requireAuth, async (req, res) => {
   const hash = await bcrypt.hash(new_password, 12);
   db.updateUser(req.user.userId, { password_hash: hash });
   const jwt = require('jsonwebtoken');
-  const JWT_SECRET = process.env.JWT_SECRET || 'nexusgg_super_secret_key_change_this_in_production';
+  const JWT_SECRET = process.env.JWT_SECRET || 'dxed_super_secret_key_change_this_in_production';
   const JWT_EXPIRES = process.env.JWT_EXPIRES_IN || '7d';
   const token = jwt.sign({ userId: req.user.userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
   res.json({ success: true, token });

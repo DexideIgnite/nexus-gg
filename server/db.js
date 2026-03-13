@@ -1,5 +1,5 @@
 /**
- * NEXUS GG — Pure JavaScript JSON Database
+ * DXED — Pure JavaScript JSON Database
  * No native compilation required. Works on any Node.js version.
  */
 

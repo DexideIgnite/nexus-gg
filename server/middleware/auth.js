@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'nexusgg_super_secret_key_change_this_in_production';
+const JWT_SECRET = process.env.JWT_SECRET || 'dxed_super_secret_key_change_this_in_production';
 
 function requireAuth(req, res, next) {
   const header = req.headers['authorization'];

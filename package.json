@@ -1,7 +1,7 @@
 {
-  "name": "nexus-gg",
+  "name": "dxed",
   "version": "1.0.0",
-  "description": "NEXUS GG — Full Stack Gaming Social Platform",
+  "description": "DXED — Full Stack Gaming Social Platform",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",

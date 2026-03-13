@@ -1,5 +1,5 @@
 /* ================================================================
-   NEXUS GG — API Client + Auth + Socket.io
+   DXED — API Client + Auth + Socket.io
    ================================================================ */
 
 const API_BASE = '/api';
@@ -448,7 +448,7 @@ function initAuthModal() {
         Auth.setUser(user);
         hideAuthModal();
         bootApp(user, token);
-        if (typeof showToast === 'function') showToast('Welcome to NEXUS GG, ' + user.username + '! 🚀', 'success', '🎮');
+        if (typeof showToast === 'function') showToast('Welcome to DXED, ' + user.username + '! 🚀', 'success', '🎮');
       } catch (err) {
         showAuthError('register', err.message || 'Registration failed');
         btn.textContent = 'Create Account'; btn.disabled = false;

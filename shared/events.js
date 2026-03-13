@@ -1,5 +1,5 @@
 /**
- * NEXUS GG — Socket event name constants
+ * DXED — Socket event name constants
  * Shared between server (Node) and client (browser).
  */
 const EVENTS = {

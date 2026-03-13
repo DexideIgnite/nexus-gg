@@ -17,7 +17,7 @@ const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST', 'PATCH', 'DELETE'] }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'nexusgg_super_secret_key_change_this_in_production';
+const JWT_SECRET = process.env.JWT_SECRET || 'dxed_super_secret_key_change_this_in_production';
 const PORT = process.env.PORT || 3000;
 
 // Reset all users to offline on every server start (only sockets set online:1)
@@ -30,7 +30,7 @@ if (!db.T.users.findOne(u => u.id === 999)) {
     created_at: '2026-01-01T00:00:00.000Z',
     username: 'Claude',
     handle: 'Claude',
-    email: 'claude@nexus.gg',
+    email: 'claude@dxed.gg',
     password_hash: '',
     avatar: 'C',
     avatar_url: '/claude-avatar.svg',
@@ -240,13 +240,13 @@ io.on('connection', (socket) => {
 // ================================================================
 server.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════╗');
-  console.log('║   🎮  NEXUS GG  — Server Started     ║');
+  console.log('║   🎮  DXED  — Server Started            ║');
   console.log(`║   http://localhost:${PORT}               ║`);
   console.log('╚══════════════════════════════════════╝\n');
-  console.log('  Test accounts (password: nexus123)');
-  console.log('  ► pro@nexus.gg      (ProGamer_X)');
-  console.log('  ► night@nexus.gg    (NightWitch_V)');
-  console.log('  ► clip@nexus.gg     (ClipMaster_K)');
+  console.log('  Test accounts (password: dxed123)');
+  console.log('  ► pro@dxed.gg       (ProGamer_X)');
+  console.log('  ► night@dxed.gg     (NightWitch_V)');
+  console.log('  ► clip@dxed.gg      (ClipMaster_K)');
   console.log('\n  Or register a new account!\n');
 
   // Sync trending games on startup, then every hour

@@ -1,5 +1,5 @@
 /* ================================================================
-   NEXUS GG — Full Interactive Gaming Social Platform
+   DXED — Full Interactive Gaming Social Platform
    ================================================================ */
 
 'use strict';
@@ -40,7 +40,7 @@ const GAMES = [
 ];
 
 const TOURNAMENTS = [
-  { id:1, name:'NEXUS GG Open — Valorant', game:'Valorant', icon:'🎯', prize:'$5,000', teams:'128 Teams', format:'Single Elimination', status:'live',     start:'Now', banner:'linear-gradient(135deg,#1a0520,#2d0b4e)' },
+  { id:1, name:'DXED Open — Valorant', game:'Valorant', icon:'🎯', prize:'$5,000', teams:'128 Teams', format:'Single Elimination', status:'live',     start:'Now', banner:'linear-gradient(135deg,#1a0520,#2d0b4e)' },
   { id:2, name:'League of Legends Clash',  game:'League',   icon:'⚔️', prize:'$2,500', teams:'64 Teams',  format:'Double Elimination', status:'live',     start:'Now', banner:'linear-gradient(135deg,#1a1200,#3d2e00)' },
   { id:3, name:'CS2 Pro Series Season 12', game:'CS2',      icon:'💣', prize:'$10,000',teams:'32 Teams',  format:'GSL Groups',         status:'upcoming', start:'In 2h',banner:'linear-gradient(135deg,#001a10,#003320)' },
   { id:4, name:'Rocket League Grand Prix', game:'RL',       icon:'🚀', prize:'$3,000', teams:'16 Teams',  format:'Round Robin',        status:'upcoming', start:'Tomorrow', banner:'linear-gradient(135deg,#001020,#001a40)' },
@@ -157,8 +157,8 @@ function showToast(msg, type='info', emoji='🎮') {
 // ================================================================
 
 function planBadge(plan) {
-  if (plan === 'plus') return `<span class="plan-badge plan-badge-plus">NEXUS+</span>`;
-  if (plan === 'pro') return `<span class="verified-badge verified-gold plan-badge-pro-glow" title="NEXUS Pro">✓</span>`;
+  if (plan === 'plus') return `<span class="plan-badge plan-badge-plus">DXED+</span>`;
+  if (plan === 'pro') return `<span class="verified-badge verified-gold plan-badge-pro-glow" title="DXED Pro">✓</span>`;
   return '';
 }
 
@@ -172,8 +172,8 @@ function showUpgradePrompt(feature) {
     <div class="upgrade-prompt-inner">
       <div class="upgrade-prompt-icon">⚡</div>
       <div class="upgrade-prompt-text">
-        <strong>NEXUS+ Required</strong>
-        <span>${feature} requires a NEXUS+ plan</span>
+        <strong>DXED+ Required</strong>
+        <span>${feature} requires a DXED+ plan</span>
       </div>
       <button class="upgrade-prompt-btn" onclick="navigate('plans');this.closest('#upgrade-prompt-toast').remove()">Upgrade</button>
       <button class="upgrade-prompt-close" onclick="this.closest('#upgrade-prompt-toast').remove()">✕</button>
@@ -191,7 +191,7 @@ function updatePlanUI() {
     sidebarBadge.innerHTML = planBadge(plan);
     sidebarBadge.style.display = plan === 'free' ? 'none' : '';
   }
-  // Nav NEXUS+ item badge
+  // Nav DXED+ item badge
   const navBadge = document.getElementById('nav-plans-badge');
   if (navBadge) {
     if (plan === 'free') { navBadge.textContent = 'Upgrade'; navBadge.style.display = ''; }
@@ -207,7 +207,7 @@ async function upgradePlan(plan) {
   const planOrder = { free: 0, plus: 1, pro: 2 };
   const isDowngrade = (planOrder[plan] || 0) < (planOrder[currentPlan] || 0);
   if (isDowngrade) {
-    const names = { free: 'Free', plus: 'NEXUS+', pro: 'NEXUS Pro' };
+    const names = { free: 'Free', plus: 'DXED+', pro: 'DXED Pro' };
     if (!confirm(`Downgrade from ${names[currentPlan]} to ${names[plan]}? You'll lose access to premium features immediately.`)) return;
   }
   const btn = document.getElementById(`plan-btn-${plan}`);
@@ -220,7 +220,7 @@ async function upgradePlan(plan) {
     loadPlans();
     // Re-fetch user data to refresh all gated UI
     try { const me = await api.me(); Object.assign(window.CURRENT_USER, me); Auth.setUser(me); } catch {}
-    const names = { free: 'Free', plus: 'NEXUS+', pro: 'NEXUS Pro' };
+    const names = { free: 'Free', plus: 'DXED+', pro: 'DXED Pro' };
     showToast(`Switched to ${names[plan] || plan}!`, 'success', plan === 'free' ? '🔄' : '⚡');
   } catch (err) {
     showToast(err.message || 'Failed to update plan', 'error', '⚠️');
@@ -258,7 +258,7 @@ function loadPlans() {
     },
     {
       id: 'plus',
-      name: 'NEXUS+',
+      name: 'DXED+',
       price: '$4.99',
       period: '/month',
       badge: 'POPULAR',
@@ -271,22 +271,22 @@ function loadPlans() {
         { ok: true,  text: 'Animated avatar frame' },
         { ok: true,  text: 'Premium accent colors (12)' },
         { ok: true,  text: 'Priority LFG matchmaking' },
-        { ok: true,  text: 'NEXUS+ profile badge' },
+        { ok: true,  text: 'DXED+ profile badge' },
         { ok: false, text: 'Clan creation & analytics' },
       ],
-      cta: currentPlan === 'plus' ? 'Current Plan' : currentPlan === 'pro' ? 'Downgrade' : 'Upgrade to NEXUS+',
+      cta: currentPlan === 'plus' ? 'Current Plan' : currentPlan === 'pro' ? 'Downgrade' : 'Upgrade to DXED+',
       disabled: currentPlan === 'plus',
     },
     {
       id: 'pro',
-      name: 'NEXUS Pro',
+      name: 'DXED Pro',
       price: '$9.99',
       period: '/month',
       badge: 'BEST VALUE',
       color: '#f59e0b',
       gradient: 'linear-gradient(135deg,#1a0a00,#3d2000)',
       features: [
-        { ok: true,  text: 'Everything in NEXUS+' },
+        { ok: true,  text: 'Everything in DXED+' },
         { ok: true,  text: 'Unlimited post storage' },
         { ok: true,  text: '10 min clip uploads' },
         { ok: true,  text: 'Verified Pro badge ✓ with glow' },
@@ -304,8 +304,8 @@ function loadPlans() {
     <div class="plans-hero">
       <div class="plans-hero-icon">⚡</div>
       <h2 class="plans-hero-title">Level Up Your Gaming Experience</h2>
-      <p class="plans-hero-sub">Unlock AI-powered features, exclusive badges, and more with NEXUS+ plans</p>
-      ${currentPlan !== 'free' ? `<div class="plans-current-banner">You're on <strong>${currentPlan === 'plus' ? 'NEXUS+' : 'NEXUS Pro'}</strong> ${planBadge(currentPlan)}</div>` : ''}
+      <p class="plans-hero-sub">Unlock AI-powered features, exclusive badges, and more with DXED+ plans</p>
+      ${currentPlan !== 'free' ? `<div class="plans-current-banner">You're on <strong>${currentPlan === 'plus' ? 'DXED+' : 'DXED Pro'}</strong> ${planBadge(currentPlan)}</div>` : ''}
     </div>
     <div class="plans-grid">
       ${plans.map(p => `
@@ -328,7 +328,7 @@ function loadPlans() {
         </div>`).join('')}
     </div>
     <div class="plans-footer">
-      <p>All plans include access to the NEXUS GG platform. Plans can be changed or cancelled anytime.</p>
+      <p>All plans include access to the DXED platform. Plans can be changed or cancelled anytime.</p>
       <p style="color:var(--text-muted);font-size:12px;margin-top:8px">This is a demo platform. No real payments are processed.</p>
     </div>`;
 }
@@ -1145,7 +1145,7 @@ function renderCommentSectionInEl(postId, comments, me, section) {
     ${isLoggedIn ? `<div class="comment-input-row">
       <div class="comment-avatar" style="background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${me.avatar_url?`background-image:url('${me.avatar_url}');background-size:cover;background-position:center`:''}">${me.avatar_url?'':me.avatar||'?'}</div>
       <div class="comment-input-wrap">
-        <input class="comment-input" data-post-id="${postId}" placeholder="${(window.CURRENT_USER?.plan==='plus'||window.CURRENT_USER?.plan==='pro')?'Comment… @Claude AI is active':'Comment… @Claude requires NEXUS+'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId},this)}">
+        <input class="comment-input" data-post-id="${postId}" placeholder="${(window.CURRENT_USER?.plan==='plus'||window.CURRENT_USER?.plan==='pro')?'Comment… @Claude AI is active':'Comment… @Claude requires DXED+'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId},this)}">
         <button class="comment-submit-btn" onclick="submitComment(${postId},this)">↑</button>
       </div>
     </div>` : ''}`;
@@ -2171,7 +2171,7 @@ function loadTournaments() {
       </div>
       <p class="maintenance-eta">Expected launch: Q2 2026</p>
       ${!canHost ? `<div style="margin-top:16px;padding:12px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:var(--radius);font-size:13px;text-align:center">
-        🏆 Tournament hosting will be a <strong>NEXUS Pro</strong> exclusive feature.
+        🏆 Tournament hosting will be a <strong>DXED Pro</strong> exclusive feature.
         <button class="btn-primary" style="margin-left:8px;font-size:12px;padding:4px 12px" onclick="navigate('plans')">Upgrade</button>
       </div>` : ''}
     </div>`;
@@ -2589,7 +2589,7 @@ function switchSettingsTab(btn, tab) {
               return allColors.map(([c,n],i)=>{
                 const isPremium = i >= baseColors.length;
                 const locked = isPremium && !canAccent;
-                if (locked) return `<div class="accent-swatch accent-swatch-locked" style="background:${c}" title="${n} (NEXUS+ required)" onclick="showUpgradePrompt('Premium accent colors')"></div>`;
+                if (locked) return `<div class="accent-swatch accent-swatch-locked" style="background:${c}" title="${n} (DXED+ required)" onclick="showUpgradePrompt('Premium accent colors')"></div>`;
                 return `<div class="accent-swatch${accent===c?' active':''}" style="background:${c}" onclick="setAccentColor('${c}',this)" title="${n}"></div>`;
               }).join('');
             })()}
@@ -3951,7 +3951,7 @@ function openCreateClan() {
   if (!Auth.isLoggedIn()) { showToast('Log in to create a clan'); return; }
   const plan = window.CURRENT_USER?.plan || 'free';
   if (plan !== 'pro') {
-    showUpgradePrompt('Clan creation requires NEXUS Pro');
+    showUpgradePrompt('Clan creation requires DXED Pro');
     return;
   }
   const m = document.getElementById('create-clan-modal');
