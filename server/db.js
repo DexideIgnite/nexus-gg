@@ -76,7 +76,7 @@ const db = {
   createUser:(data)=>T.users.insert(data),
   updateUser:(id,changes)=>{T.users.update(u=>u.id===+id,changes);return T.users.findOne(u=>u.id===+id);},
   getOnlineUsers:()=>T.users.findAll(u=>u.online),
-  getAllUsers:(search)=>search?T.users.findAll(u=>u.username.toLowerCase().includes(search.toLowerCase())):T.users.findAll(),
+  getAllUsers:(search)=>search?T.users.findAll(u=>!u.is_bot&&u.username.toLowerCase().includes(search.toLowerCase())):T.users.findAll(u=>!u.is_bot),
   // Posts
   getPosts:(tab,userId,game)=>{
     if(tab==='following'&&userId){
@@ -180,7 +180,7 @@ const db = {
   getGame:(igdbId)=>T.games.findOne(g=>g.igdb_id===+igdbId||g.id===+igdbId),
   clearGames:()=>{T.games.data=[];T.games._save();},
   // Leaderboard
-  getLeaderboard:()=>T.users.findAll().map(u=>{const posts=T.posts.findAll(p=>p.user_id===u.id);const reactions=posts.reduce((s,p)=>s+(p.reactions_gg||0)+(p.reactions_fire||0)+(p.reactions_epic||0)+(p.reactions_king||0)+(p.reactions_rekt||0)+(p.reactions_lul||0),0);const views=posts.reduce((s,p)=>s+(p.views||0),0);const score=reactions+Math.floor(views/10);return{...u,post_count:posts.length,score,total_reactions:reactions,total_views:views};}).sort((a,b)=>b.score-a.score).slice(0,20).map((u,i)=>{const{password_hash,...s}=u;return{...s,rank_position:i+1};}),
+  getLeaderboard:()=>T.users.findAll(u=>!u.is_bot).map(u=>{const posts=T.posts.findAll(p=>p.user_id===u.id);const reactions=posts.reduce((s,p)=>s+(p.reactions_gg||0)+(p.reactions_fire||0)+(p.reactions_epic||0)+(p.reactions_king||0)+(p.reactions_rekt||0)+(p.reactions_lul||0),0);const views=posts.reduce((s,p)=>s+(p.views||0),0);const score=reactions+Math.floor(views/10);return{...u,post_count:posts.length,score,total_reactions:reactions,total_views:views};}).sort((a,b)=>b.score-a.score).slice(0,20).map((u,i)=>{const{password_hash,...s}=u;return{...s,rank_position:i+1};}),
   // Bookmarks
   toggleBookmark(userId, postId) {
     const existing = T.bookmarks.findOne(b => b.user_id === +userId && b.post_id === +postId);

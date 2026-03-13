@@ -61,15 +61,32 @@ async function askClaude(mentionText, context, imageUrl) {
       messages: [{ role: 'user', content: userContent }],
     });
 
-    // Extract the final text response (may follow tool use blocks)
-    const textBlock = message.content.filter(b => b.type === 'text').pop();
-    if (textBlock) return textBlock.text;
+    // Extract all text blocks from the response (may include tool use + text)
+    const textBlocks = message.content.filter(b => b.type === 'text');
+    if (textBlocks.length) {
+      // Combine all text blocks (Claude may split response around tool use)
+      const fullText = textBlocks.map(b => b.text).join('\n').trim();
+      if (fullText) return fullText;
+    }
 
-    // If response stopped for tool use, do a second pass with tool results
+    // If response stopped for tool use with no text yet, do a follow-up call without tools
     if (message.stop_reason === 'tool_use') {
-      const toolUseBlock = message.content.find(b => b.type === 'tool_use');
-      // Return a fallback — in practice Claude handles tool use internally with this tool type
-      return null;
+      try {
+        const followUp = await client.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          messages: [
+            { role: 'user', content: userContent },
+            { role: 'assistant', content: message.content },
+            { role: 'user', content: [{ type: 'text', text: 'Please provide your response as plain text.' }] }
+          ],
+        });
+        const followUpText = followUp.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+        if (followUpText) return followUpText;
+      } catch (e) {
+        console.warn('[askClaude] Follow-up after tool_use failed:', e.message);
+      }
     }
 
     return null;
@@ -80,7 +97,7 @@ async function askClaude(mentionText, context, imageUrl) {
       try {
         const fallback = await client.messages.create({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 300,
+          max_tokens: 1024,
           system: SYSTEM_PROMPT,
           messages: [{ role: 'user', content: userContent }],
         });

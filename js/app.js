@@ -123,10 +123,9 @@ function avatarEl(user, cls='post-avatar') {
 }
 
 function userName(user) { return user.name || user.username || 'Unknown'; }
+function cleanHandle(raw) { return (raw || 'unknown').replace(/^@/, '').replace(/#\d+$/, ''); }
 function userHandle(user) {
-  const raw = user.handle || user.username || 'unknown';
-  const clean = raw.replace(/^@/, '').replace(/#\d+$/, '');
-  return '@' + clean;
+  return '@' + cleanHandle(user.handle || user.username);
 }
 
 function totalReactions(r) { return Object.values(r || {}).reduce((a,b)=>a+(b||0),0); }
@@ -961,7 +960,7 @@ function renderPost(post) {
         <div class="quoted-avatar-sm" style="background:${qu.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${qu.avatar||'?'}</div>
         <span class="quoted-username-sm">${qu.username||'Player'}</span>
         ${qu.verified ? '<span class="verified-badge">✓</span>' : ''}
-        <span class="quoted-handle-sm">@${(qu.handle||qu.username||'player').replace(/^@/,'')}</span>
+        <span class="quoted-handle-sm">@${cleanHandle(qu.handle||qu.username)}</span>
         <span class="quoted-time-sm">${qp.time}</span>
       </div>
       <div class="quoted-body-sm">${qp.body||''}</div>
@@ -1072,30 +1071,38 @@ function injectAIChip(postId, question, btn) {
 }
 
 async function toggleComment(postId, btn) {
-  const postCard = document.getElementById(`post-${postId}`);
+  // Use btn context to find the correct post card (avoids duplicate ID issues across sections)
+  const postCard = btn ? btn.closest('.post-card') : document.getElementById(`post-${postId}`);
   if (!postCard) return;
-  let section = document.getElementById(`comments-${postId}`);
+  let section = postCard.querySelector('.comment-section');
   if (section) {
     section.classList.toggle('hidden');
-    if (!section.classList.contains('hidden')) document.getElementById(`comment-input-${postId}`)?.focus();
+    if (!section.classList.contains('hidden')) section.querySelector('.comment-input')?.focus();
     return;
   }
   section = document.createElement('div');
-  section.id = `comments-${postId}`;
   section.className = 'comment-section';
+  section.dataset.postId = postId;
   section.innerHTML = `<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px">Loading...</div>`;
   postCard.appendChild(section);
-  await loadComments(postId);
+  await loadCommentsInSection(postId, section);
 }
 
 async function loadComments(postId) {
   const section = document.getElementById(`comments-${postId}`);
+  if (section) return loadCommentsInSection(postId, section);
+  // fallback: find any comment section with this post ID
+  const el = document.querySelector(`.comment-section[data-post-id="${postId}"]`);
+  if (el) return loadCommentsInSection(postId, el);
+}
+
+async function loadCommentsInSection(postId, section) {
   if (!section) return;
   try {
     const comments = await api.getComments(postId);
     const me = window.Auth?.getUser() || window.CURRENT_USER;
-    renderCommentSection(postId, comments, me);
-    document.getElementById(`comment-input-${postId}`)?.focus();
+    renderCommentSectionInEl(postId, comments, me, section);
+    section.querySelector('.comment-input')?.focus();
   } catch {
     section.innerHTML = `<div style="padding:12px;text-align:center;color:var(--text-muted)">Could not load comments</div>`;
   }
@@ -1104,21 +1111,27 @@ async function loadComments(postId) {
 const _commentSort = {};
 
 function renderCommentSection(postId, comments, me) {
-  const section = document.getElementById(`comments-${postId}`);
+  const section = document.getElementById(`comments-${postId}`) || document.querySelector(`.comment-section[data-post-id="${postId}"]`);
+  if (!section) return;
+  renderCommentSectionInEl(postId, comments, me, section);
+}
+
+function renderCommentSectionInEl(postId, comments, me, section) {
   if (!section) return;
   const isLoggedIn = !!window.Auth?.getToken();
   section.innerHTML = `
-    <div class="comments-list" id="comments-list-${postId}">
+    <div class="comments-list">
       ${renderSortedComments(postId, comments)}
     </div>
     ${isLoggedIn ? `<div class="comment-input-row">
       <div class="comment-avatar" style="background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${me.avatar_url?`background-image:url('${me.avatar_url}');background-size:cover;background-position:center`:''}">${me.avatar_url?'':me.avatar||'?'}</div>
       <div class="comment-input-wrap">
-        <input class="comment-input" id="comment-input-${postId}" placeholder="${(window.CURRENT_USER?.plan==='plus'||window.CURRENT_USER?.plan==='pro')?'Comment… @Claude AI is active':'Comment… @Claude requires NEXUS+'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId},null)}">
-        <button class="comment-submit-btn" onclick="submitComment(${postId},null)">↑</button>
+        <input class="comment-input" data-post-id="${postId}" placeholder="${(window.CURRENT_USER?.plan==='plus'||window.CURRENT_USER?.plan==='pro')?'Comment… @Claude AI is active':'Comment… @Claude requires NEXUS+'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId},this)}">
+        <button class="comment-submit-btn" onclick="submitComment(${postId},this)">↑</button>
       </div>
     </div>` : ''}`;
   section.dataset.comments = JSON.stringify(comments);
+  section.dataset.postId = postId;
 }
 
 function renderSortedComments(postId, comments) {
@@ -1140,12 +1153,12 @@ function renderCommentNode(c, postId, depth, allReplies) {
 
 function setCommentSort(postId, sort) {
   _commentSort[postId] = sort;
-  const section = document.getElementById(`comments-${postId}`);
+  const section = document.getElementById(`comments-${postId}`) || document.querySelector(`.comment-section[data-post-id="${postId}"]`);
   const raw = section?.dataset.comments;
   if (!raw) return;
   const comments = JSON.parse(raw);
   const me = window.Auth?.getUser() || window.CURRENT_USER;
-  renderCommentSection(postId, comments, me);
+  renderCommentSectionInEl(postId, comments, me, section);
 }
 
 // legacy shim used by socket handler
@@ -1157,7 +1170,7 @@ function renderCommentInner(c, postId, depth) {
   const avatarContent = isBot
     ? `<img src="/claude-avatar.svg" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
     : (c.avatar||'?');
-  const replyHandle = isBot ? 'Claude' : (c.handle||c.username||'Player');
+  const replyHandle = isBot ? 'Claude' : cleanHandle(c.handle||c.username||'Player');
   const threadLine = depth > 0 ? '' : ''; // thread line is handled by CSS on .comment-thread-replies
   return `
     <div class="comment-item${isBot?' comment-claude':''}${depth>0?' comment-nested':''}">
@@ -1230,15 +1243,24 @@ async function submitInlineReply(postId, parentId, inputEl) {
   }
 }
 
-async function submitComment(postId, parentId) {
-  const input = document.getElementById(`comment-input-${postId}`);
+async function submitComment(postId, btnOrParentId) {
+  // btnOrParentId can be a DOM element (button/input clicked) or a parentId number/null
+  let section, input;
+  if (btnOrParentId && typeof btnOrParentId === 'object' && btnOrParentId.nodeType) {
+    section = btnOrParentId.closest('.comment-section');
+    input = section?.querySelector('.comment-input[data-post-id]');
+  } else {
+    section = document.getElementById(`comments-${postId}`) || document.querySelector(`.comment-section[data-post-id="${postId}"]`);
+    input = section?.querySelector('.comment-input[data-post-id]');
+  }
   if (!input?.value.trim()) return;
   const body = input.value.trim();
   input.value = '';
   input.disabled = true;
+  const parentId = (typeof btnOrParentId === 'number') ? btnOrParentId : null;
   try {
-    const comment = await api.addComment(postId, body, parentId||null);
-    const list = document.getElementById(`comments-list-${postId}`);
+    const comment = await api.addComment(postId, body, parentId);
+    const list = section?.querySelector('.comments-list');
     if (list) {
       const empty = list.querySelector('.empty-comments');
       if (empty) empty.remove();
@@ -1248,10 +1270,11 @@ async function submitComment(postId, parentId) {
     if (comment._claudeGated) {
       setTimeout(() => showUpgradePrompt('Reply with @Claude AI in comments'), 600);
     }
-    const countSpan = document.getElementById(`comment-count-${postId}`);
-    if (countSpan) countSpan.textContent = (+countSpan.textContent||0) + 1;
+    // Update all comment count spans for this post (may exist in multiple sections)
+    document.querySelectorAll(`#comment-count-${postId}`).forEach(span => {
+      span.textContent = (+span.textContent||0) + 1;
+    });
     // update cached comments for sort
-    const section = document.getElementById(`comments-${postId}`);
     if (section?.dataset.comments) {
       const arr = JSON.parse(section.dataset.comments);
       arr.push(comment);
@@ -1705,7 +1728,7 @@ async function renderExploreContent(tab) {
             <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:50px;height:50px;font-size:18px">${u.avatar||'?'}</div>
             <div style="flex:1">
               <div style="font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px">${u.username||'Player'} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
-              <div style="font-size:13px;color:var(--text-muted)">@${u.handle||u.username} · ${formatNum(u.followers||0)} followers</div>
+              <div style="font-size:13px;color:var(--text-muted)">@${cleanHandle(u.handle||u.username)} · ${formatNum(u.followers||0)} followers</div>
               <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${u.online ? '🟢 Online' : '⚫ Offline'}</div>
             </div>
             <span class="${rankBadgeClass(u.rank)}">${u.rank||'Bronze'}</span>
@@ -2385,7 +2408,7 @@ async function loadPeople() {
         <div class="people-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
         <div class="people-info">
           <div class="people-name">${escapeHtml(u.username)} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
-          <div class="people-handle">@${escapeHtml((u.handle||u.username).replace(/^@/,''))}</div>
+          <div class="people-handle">@${escapeHtml(cleanHandle(u.handle||u.username))}</div>
           <div style="margin-top:4px"><span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
           ${u.bio?`<div class="people-bio">${escapeHtml(u.bio.slice(0,60))}${u.bio.length>60?'...':''}</div>`:''}
         </div>
@@ -2850,7 +2873,7 @@ async function renderProfile(userId, container) {
           </div>
         </div>
         <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg">✓</span>' : ''} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>
-        <div class="profile-handle">@${(user.handle||user.username||'player').replace(/^@/,'')} <span class="profile-online-dot" style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'● Online':'● Offline'}</span></div>
+        <div class="profile-handle">@${cleanHandle(user.handle||user.username)} <span class="profile-online-dot" style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'● Online':'● Offline'}</span></div>
         ${user.bio ? `<div class="profile-bio">${user.bio}</div>` : ''}
         <div class="profile-stats-row">
           <div class="profile-stat"><span class="stat-val">${user.post_count||user.posts_count||user.posts||0}</span> <span class="stat-label">Posts</span></div>
