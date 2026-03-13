@@ -2433,3 +2433,32 @@ body {
   .settings-nav-item { white-space: nowrap; border-right: none; border-bottom: 2px solid transparent; }
   .settings-nav-item.active { border-right-color: transparent; border-bottom-color: var(--accent); }
 }
+
+/* ================================================================
+   COMMENT SYSTEM
+   ================================================================ */
+.comment-section {
+  border-top: 1px solid var(--border);
+  padding: 12px 16px 0;
+  background: var(--bg-secondary);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.comments-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; max-height: 400px; overflow-y: auto; }
+.empty-comments { color: var(--text-muted); font-size: 13px; padding: 8px 0; text-align: center; }
+.comment-item { display: flex; gap: 10px; align-items: flex-start; }
+.comment-item.comment-claude { background: linear-gradient(135deg,rgba(204,120,92,.08),rgba(168,95,69,.05)); border-radius: 10px; padding: 8px; margin: 0 -4px; }
+.comment-avatar { width: 32px; height: 32px; min-width: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; cursor: pointer; }
+.claude-comment-avatar { background: transparent !important; border: 2px solid #cc785c; }
+.comment-body { flex: 1; min-width: 0; }
+.comment-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 3px; }
+.comment-author { font-weight: 700; font-size: 13px; cursor: pointer; color: var(--text-primary); }
+.comment-author:hover { color: var(--accent); }
+.comment-time { font-size: 11px; color: var(--text-muted); }
+.comment-text { font-size: 14px; color: var(--text-secondary); line-height: 1.5; word-break: break-word; }
+.claude-ai-badge { background: linear-gradient(135deg,#cc785c,#a85f45); color: white; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; letter-spacing: .5px; }
+.comment-input-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
+.comment-input-wrap { flex: 1; display: flex; align-items: center; background: var(--bg-input); border: 1px solid var(--border); border-radius: 20px; padding: 6px 10px; gap: 8px; }
+.comment-input { flex: 1; background: none; border: none; outline: none; color: var(--text-primary); font-size: 13px; }
+.comment-input::placeholder { color: var(--text-muted); }
+.comment-submit-btn { background: var(--accent); border: none; color: white; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity .2s; }
+.comment-submit-btn:hover { opacity: .85; }

@@ -735,6 +735,7 @@ function normalizePost(p) {
 
 // Make renderPost accessible globally for socket updates
 window.renderPost = renderPost;
+window.renderComment = renderComment;
 
 function renderPost(post) {
   const user = post.user || { id: post.user_id || post.userId, username: 'Player', avatar: '?', gradient: 'linear-gradient(135deg,#8b5cf6,#3b82f6)', rank: 'Bronze' };
@@ -844,8 +845,97 @@ async function toggleLike(postId, btn) {
   }
 }
 
-function toggleComment(postId, btn) {
-  showToast('Comments coming soon!', 'info', '💬');
+async function toggleComment(postId, btn) {
+  const postCard = document.getElementById(`post-${postId}`);
+  if (!postCard) return;
+  let section = document.getElementById(`comments-${postId}`);
+  if (section) {
+    section.classList.toggle('hidden');
+    if (!section.classList.contains('hidden')) document.getElementById(`comment-input-${postId}`)?.focus();
+    return;
+  }
+  section = document.createElement('div');
+  section.id = `comments-${postId}`;
+  section.className = 'comment-section';
+  section.innerHTML = `<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px">Loading...</div>`;
+  postCard.appendChild(section);
+  await loadComments(postId);
+}
+
+async function loadComments(postId) {
+  const section = document.getElementById(`comments-${postId}`);
+  if (!section) return;
+  try {
+    const comments = await api.getComments(postId);
+    const me = window.Auth?.getUser() || window.CURRENT_USER;
+    renderCommentSection(postId, comments, me);
+    document.getElementById(`comment-input-${postId}`)?.focus();
+  } catch {
+    section.innerHTML = `<div style="padding:12px;text-align:center;color:var(--text-muted)">Could not load comments</div>`;
+  }
+}
+
+function renderCommentSection(postId, comments, me) {
+  const section = document.getElementById(`comments-${postId}`);
+  if (!section) return;
+  const isLoggedIn = !!window.Auth?.getToken();
+  section.innerHTML = `
+    <div class="comments-list" id="comments-list-${postId}">
+      ${comments.length ? comments.map(renderComment).join('') : '<div class="empty-comments">No comments yet — be first!</div>'}
+    </div>
+    ${isLoggedIn ? `<div class="comment-input-row">
+      <div class="comment-avatar" style="background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${me.avatar_url?`background-image:url('${me.avatar_url}');background-size:cover;background-position:center`:''}">${me.avatar_url?'':me.avatar||'?'}</div>
+      <div class="comment-input-wrap">
+        <input class="comment-input" id="comment-input-${postId}" placeholder="Comment… try @Claude for an AI reply" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId})}">
+        <button class="comment-submit-btn" onclick="submitComment(${postId})">↑</button>
+      </div>
+    </div>` : ''}`;
+}
+
+function renderComment(c) {
+  const isBot = c.user_id === 999;
+  const avatarBg = `background:${c.gradient||'linear-gradient(135deg,#cc785c,#a85f45)'}`;
+  const avatarContent = isBot
+    ? `<img src="/claude-avatar.svg" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : (c.avatar||'?');
+  return `
+    <div class="comment-item${isBot?' comment-claude':''}">
+      <div class="comment-avatar${isBot?' claude-comment-avatar':''}" style="${isBot?'background:transparent':avatarBg};padding:0;overflow:hidden" onclick="openUserProfile(${c.user_id})">${avatarContent}</div>
+      <div class="comment-body">
+        <div class="comment-meta">
+          <span class="comment-author" onclick="openUserProfile(${c.user_id})">${c.username||'Player'}</span>
+          ${isBot ? `<span class="claude-ai-badge">AI</span>` : (c.verified ? '<span class="verified-badge">✓</span>' : '')}
+          <span class="comment-time">${c.time||'just now'}</span>
+        </div>
+        <div class="comment-text">${parseBody(c.body||'')}</div>
+      </div>
+    </div>`;
+}
+
+async function submitComment(postId) {
+  const input = document.getElementById(`comment-input-${postId}`);
+  if (!input?.value.trim()) return;
+  const body = input.value.trim();
+  input.value = '';
+  input.disabled = true;
+  try {
+    const comment = await api.addComment(postId, body);
+    const list = document.getElementById(`comments-list-${postId}`);
+    if (list) {
+      const empty = list.querySelector('.empty-comments');
+      if (empty) empty.remove();
+      list.insertAdjacentHTML('beforeend', renderComment(comment));
+      list.scrollTop = list.scrollHeight;
+    }
+    const countSpan = document.querySelector(`#post-${postId} .post-action-btn:nth-child(2) span`);
+    if (countSpan) countSpan.textContent = (+countSpan.textContent||0) + 1;
+  } catch (err) {
+    showToast(err.message||'Failed to comment','error','⚠️');
+    input.value = body;
+  } finally {
+    input.disabled = false;
+    input.focus();
+  }
 }
 
 // ================================================================
@@ -2312,12 +2402,14 @@ async function switchProfileTab(btn, tab, userId) {
 // ================================================================
 
 function openUserProfile(userId) {
-  const myId = window.Auth?.getUser()?.id || window.CURRENT_USER.id;
-  if (!userId || userId === myId) { navigate('profile'); return; }
+  if (!userId) return;
+  const myId = +(window.Auth?.getUser()?.id || window.CURRENT_USER.id || 0);
+  if (+userId === myId) { navigate('profile'); return; }
   const modal = document.getElementById('profile-modal');
   const content = document.getElementById('profile-modal-content');
+  if (!modal || !content) return;
   modal.classList.remove('hidden');
-  renderProfile(userId, content);
+  renderProfile(+userId, content);
 }
 
 function closeProfileModal() { document.getElementById('profile-modal').classList.add('hidden'); }

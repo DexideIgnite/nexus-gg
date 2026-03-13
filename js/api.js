@@ -154,6 +154,21 @@ function initSocket(token) {
     showToast(`${post.user?.username} just posted!`, 'info', '🎮');
   });
 
+  // Real-time comment (e.g. Claude bot reply)
+  socket.on('post:comment', ({ postId, comment }) => {
+    const list = document.getElementById(`comments-list-${postId}`);
+    if (list && typeof window.renderComment === 'function') {
+      const empty = list.querySelector('.empty-comments');
+      if (empty) empty.remove();
+      list.insertAdjacentHTML('beforeend', window.renderComment(comment));
+      list.scrollTop = list.scrollHeight;
+    }
+    // Update comment count on post card
+    const countSpan = document.querySelector(`#post-${postId} .post-action-btn:nth-child(2) span`);
+    if (countSpan) countSpan.textContent = (+countSpan.textContent||0) + 1;
+    if (comment.user_id === 999) showToast('Claude replied to your post!', 'info', '🤖');
+  });
+
   // Real-time message
   socket.on('message:receive', (msg) => {
     if (window.STATE?.currentSection === 'messages' && window.STATE?.currentConversation === msg.sender_id) {
