@@ -21,9 +21,9 @@ const postImgUpload = multer({
 });
 
 // Fire-and-forget: if text mentions @Claude, post Claude's reply as a comment
-async function maybeAskClaude(postId, text, contextNote, io) {
+async function maybeAskClaude(postId, text, contextNote, io, imageUrl) {
   if (!/@Claude\b/i.test(text)) return;
-  const reply = await askClaude(text, contextNote);
+  const reply = await askClaude(text, contextNote, imageUrl);
   if (!reply) return;
   const comment = db.addComment({ post_id: +postId, user_id: CLAUDE_BOT_ID, body: reply });
   io?.emit('post:comment', { postId: String(postId), comment });
@@ -51,7 +51,7 @@ router.post('/', requireAuth, (req, res) => {
   const io = req.app.get('io');
   io?.emit('post:new', post);
   // If post mentions @Claude, reply as a comment (async, non-blocking)
-  maybeAskClaude(post.id, body.trim(), null, io);
+  maybeAskClaude(post.id, body.trim(), null, io, image_url||null);
   res.status(201).json(post);
 });
 
