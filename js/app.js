@@ -807,7 +807,7 @@ function renderPost(post) {
       </button>
       <button class="post-action-btn" onclick="toggleComment(${post.id},this)">
         <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        <span>${post.comments}</span>
+        <span id="comment-count-${post.id}">${post.comments}</span>
       </button>
       <div class="post-share-wrap">
         <button class="post-action-btn" onclick="toggleShareMenu(${post.id},this)">
@@ -928,7 +928,7 @@ async function submitComment(postId) {
       list.insertAdjacentHTML('beforeend', renderComment(comment));
       list.scrollTop = list.scrollHeight;
     }
-    const countSpan = document.querySelector(`#post-${postId} .post-action-btn:nth-child(2) span`);
+    const countSpan = document.getElementById(`comment-count-${postId}`);
     if (countSpan) countSpan.textContent = (+countSpan.textContent||0) + 1;
   } catch (err) {
     showToast(err.message||'Failed to comment','error','⚠️');
@@ -2330,14 +2330,16 @@ async function renderProfile(userId, container) {
         </div>
       </div>
       <div class="profile-tabs">
-        <div class="profile-tab active" onclick="switchProfileTab(this,'posts',${effectiveId})">Posts</div>
+        ${user.is_bot
+          ? `<div class="profile-tab active" onclick="switchProfileTab(this,'replies',${effectiveId})">Replies</div>`
+          : `<div class="profile-tab active" onclick="switchProfileTab(this,'posts',${effectiveId})">Posts</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'clips',${effectiveId})">Clips</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'games',${effectiveId})">Games</div>
-        <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>
+        <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>`}
       </div>
       <div id="profile-tab-content"></div>`;
 
-    switchProfileTab(container.querySelector('.profile-tab.active'), 'posts', effectiveId);
+    switchProfileTab(container.querySelector('.profile-tab.active'), user.is_bot ? 'replies' : 'posts', effectiveId);
   } catch (err) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load profile</p></div>`;
   }
@@ -2380,6 +2382,25 @@ async function switchProfileTab(btn, tab, userId) {
       }).join('')}</div>`;
     } catch {
       content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load games</p></div>`;
+    }
+    return;
+  }
+
+  if (tab === 'replies') {
+    content.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading...</div>`;
+    try {
+      const replies = await api.getUserComments(userId);
+      content.innerHTML = replies.length
+        ? replies.map(c => `
+          <div class="claude-reply-card" onclick="openUserProfile(${c.user_id})">
+            <div class="claude-reply-context">Replying to a post by <strong>${c.post_author}</strong></div>
+            <div class="claude-reply-quote">${parseBody(c.post_body.slice(0, 100))}${c.post_body.length > 100 ? '…' : ''}</div>
+            <div class="claude-reply-body">${parseBody(c.body)}</div>
+            <div class="claude-reply-time">${c.time}</div>
+          </div>`).join('')
+        : `<div class="empty-state"><div class="empty-icon">🤖</div><p>No replies yet — mention @Claude in a post!</p></div>`;
+    } catch {
+      content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load replies</p></div>`;
     }
     return;
   }

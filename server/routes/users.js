@@ -116,6 +116,10 @@ router.get('/:id/game-follows', optionalAuth, (req, res) => {
 });
 
 // GET /api/users/:id
+router.get('/:id/comments', optionalAuth, (req, res) => {
+  res.json(db.getUserComments(req.params.id));
+});
+
 router.get('/:id', optionalAuth, (req, res) => {
   const user = db.getUser(req.params.id);
   if (!user) return res.status(404).json({ error: 'Not found' });

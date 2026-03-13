@@ -75,6 +75,7 @@ const api = {
   getFollowers:      (id)      => api.get(`/users/${id}/followers`),
   getFollowing:      (id)      => api.get(`/users/${id}/following`),
   getUserGameFollows:(id)      => api.get(`/users/${id}/game-follows`),
+  getUserComments:   (id)      => api.get(`/users/${id}/comments`),
   uploadAvatar:      (file)    => {
     const form = new FormData();
     form.append('avatar', file);
@@ -156,6 +157,10 @@ function initSocket(token) {
 
   // Real-time comment (e.g. Claude bot reply)
   socket.on('post:comment', ({ postId, comment }) => {
+    // Skip if it's the current user's own comment — already inserted locally by submitComment
+    const myId = window.Auth?.getUser()?.id || window.CURRENT_USER?.id;
+    if (myId && comment.user_id === +myId) return;
+
     const list = document.getElementById(`comments-list-${postId}`);
     if (list && typeof window.renderComment === 'function') {
       const empty = list.querySelector('.empty-comments');
@@ -164,9 +169,9 @@ function initSocket(token) {
       list.scrollTop = list.scrollHeight;
     }
     // Update comment count on post card
-    const countSpan = document.querySelector(`#post-${postId} .post-action-btn:nth-child(2) span`);
+    const countSpan = document.getElementById(`comment-count-${postId}`);
     if (countSpan) countSpan.textContent = (+countSpan.textContent||0) + 1;
-    if (comment.user_id === 999) showToast('Claude replied to your post!', 'info', '🤖');
+    if (comment.user_id === 999) showToast('Claude replied!', 'info', '🤖');
   });
 
   // Real-time message

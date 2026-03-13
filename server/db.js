@@ -110,6 +110,7 @@ const db = {
   // Comments
   getComments:(postId)=>T.comments.findAll(c=>c.post_id===+postId).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).map(c=>{const u=T.users.findOne(x=>x.id===c.user_id);return{...c,username:u?.username,avatar:u?.avatar,gradient:u?.gradient,rank:u?.rank,time:timeAgo(c.created_at)};}),
   addComment:(data)=>{const c=T.comments.insert(data);T.posts.update(p=>p.id===+data.post_id,p=>{return{...p,comments_count:(p.comments_count||0)+1};});const u=T.users.findOne(x=>x.id===c.user_id);return{...c,username:u?.username,avatar:u?.avatar,gradient:u?.gradient,rank:u?.rank,time:'just now'};},
+  getUserComments:(userId)=>T.comments.findAll(c=>c.user_id===+userId).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50).map(c=>{const p=T.posts.findOne(x=>x.id===c.post_id);const author=p?T.users.findOne(x=>x.id===p.user_id):null;return{...c,time:timeAgo(c.created_at),post_body:p?.body||'',post_author:author?.username||'Unknown'};}),
   // Follows
   follow:(ferId,ingId)=>{if(T.follows.findOne(f=>f.follower_id===+ferId&&f.following_id===+ingId)){T.follows.delete(f=>f.follower_id===+ferId&&f.following_id===+ingId);return{action:'unfollowed',followers:T.follows.count(f=>f.following_id===+ingId)};}T.follows.insert({follower_id:+ferId,following_id:+ingId});return{action:'followed',followers:T.follows.count(f=>f.following_id===+ingId)};},
   // Messages
