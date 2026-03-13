@@ -3357,30 +3357,88 @@ async function doSearch(q) {
   if (!recents.includes(q)) { recents.unshift(q); localStorage.setItem('searchRecent', JSON.stringify(recents.slice(0,8))); }
   if (recentEl) recentEl.innerHTML = '';
   container.innerHTML = '<div class="loading-spinner" style="margin:30px auto"></div>';
+
   try {
+    // Backend search
     const res = await api.search(q);
+    const ql = q.toLowerCase();
+
+    // Also search local GAMES catalog as a fallback
+    let localGames = GAMES.filter(g =>
+      g.name.toLowerCase().includes(ql) ||
+      g.category?.toLowerCase().includes(ql) ||
+      g.genre?.toLowerCase().includes(ql)
+    );
+
+    // Merge server games with local games (deduplicate by name)
+    const serverGameNames = new Set((res.games || []).map(g => g.name.toLowerCase()));
+    const allGames = [...(res.games || [])];
+    localGames.forEach(g => {
+      if (!serverGameNames.has(g.name.toLowerCase())) allGames.push(g);
+    });
+
     let html = '';
+
+    // Games section
+    if (allGames.length) {
+      html += `<div class="search-section-title">🎮 Games</div><div class="search-games-grid">`;
+      html += allGames.slice(0, 12).map(g => {
+        const icon = g.icon || g._icon || '🎮';
+        const color = g.color || '#6c63ff';
+        const cover = g.cover_url
+          ? `<img src="${g.cover_url}" class="search-game-cover" onerror="this.style.display='none'">`
+          : `<div class="search-game-cover-placeholder" style="background:${color}">${icon}</div>`;
+        return `<div class="search-game-card" onclick="navigate('games')">
+          ${cover}
+          <div class="search-game-card-info">
+            <div class="search-game-card-name">${escapeHtml(g.name)}</div>
+            <div class="search-game-card-meta">${g.category || g.genre || 'Game'}${g.players ? ` · ${g.players} players` : ''}</div>
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    // Players section
+    if (res.users && res.users.length) {
+      html += `<div class="search-section-title">👥 Players</div><div class="search-players-list">`;
+      html += res.users.map(u => {
+        const av = u.avatar_url
+          ? `<div class="search-player-avatar" style="background-image:url('${u.avatar_url}');background-size:cover;background-position:center"></div>`
+          : `<div class="search-player-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${u.avatar||u.username?.[0]?.toUpperCase()||'?'}</div>`;
+        return `<div class="search-player-card" onclick="openUserProfile(${u.id})">
+          ${av}
+          <div class="search-player-info">
+            <div class="search-player-name">${escapeHtml(u.username)} ${u.verified ? '<span class="verified-badge">✓</span>' : ''} ${planBadge(u.plan)}</div>
+            <div class="search-player-handle">@${escapeHtml((u.handle||u.username||'').replace(/^@/,''))}</div>
+            ${u.bio ? `<div class="search-player-bio">${escapeHtml(u.bio).slice(0,80)}</div>` : ''}
+          </div>
+          <span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||''}</span>
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    // Posts section
     if (res.posts && res.posts.length) {
-      html += `<div class="search-section-title">Posts</div>`;
+      html += `<div class="search-section-title">📝 Posts</div>`;
       html += res.posts.map(p => renderPost(normalizePost(p))).join('');
     }
-    if (res.users && res.users.length) {
-      html += `<div class="search-section-title">Players</div>`;
-      html += res.users.map(u => `<div class="search-user-row" onclick="openUserProfile(${u.id})">
-        <div class="avatar-circle" style="background:${u.gradient||'#6c63ff'};width:38px;height:38px;font-size:14px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700">${u.avatar||u.username?.[0]?.toUpperCase()||'?'}</div>
-        <div style="flex:1;min-width:0"><div style="font-weight:600">${escapeHtml(u.username)} ${planBadge(u.plan)}</div><div style="font-size:12px;opacity:.5">@${escapeHtml(u.handle||u.username)}</div></div>
-      </div>`).join('');
-    }
-    if (res.games && res.games.length) {
-      html += `<div class="search-section-title">Games</div>`;
-      html += res.games.map(g => `<div class="search-game-row" onclick="navigate('games')">
-        ${g.cover_url ? `<img src="${g.cover_url}" class="search-game-img" onerror="this.style.display='none'">` : ''}
-        <div><div style="font-weight:600">${escapeHtml(g.name)}</div><div style="font-size:12px;opacity:.5">${g.category||'Game'}</div></div>
-      </div>`).join('');
-    }
-    if (!html) html = '<div style="text-align:center;padding:40px;opacity:.5">No results found</div>';
+
+    if (!html) html = `<div class="empty-state" style="padding:50px 20px"><div class="empty-icon">🔍</div><p>No results for "${escapeHtml(q)}"</p><span style="color:var(--text-muted)">Try searching for a game, player, or hashtag</span></div>`;
     container.innerHTML = html;
-  } catch(e) { container.innerHTML = '<div style="text-align:center;padding:40px;opacity:.5">Search failed</div>'; }
+  } catch(e) {
+    // Fallback: client-side game search still works
+    const ql = q.toLowerCase();
+    const localGames = GAMES.filter(g => g.name.toLowerCase().includes(ql) || g.genre?.toLowerCase().includes(ql));
+    if (localGames.length) {
+      container.innerHTML = `<div class="search-section-title">🎮 Games</div><div class="search-games-grid">${localGames.map(g =>
+        `<div class="search-game-card" onclick="navigate('games')">
+          <div class="search-game-cover-placeholder" style="background:${g.color||'#6c63ff'}">${g.icon||'🎮'}</div>
+          <div class="search-game-card-info"><div class="search-game-card-name">${g.name}</div><div class="search-game-card-meta">${g.category||g.genre||'Game'}</div></div>
+        </div>`).join('')}</div>`;
+    } else {
+      container.innerHTML = '<div style="text-align:center;padding:40px;opacity:.5">Search failed — try again</div>';
+    }
+  }
 }
 
 function loadSearchRecent(el) {
@@ -3647,13 +3705,14 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ================================================================
-// CLIPS
+// CLIPS (Video-only)
 // ================================================================
 
 let _clipsTab = 'trending';
+let _clipVideoFile = null;
 
 function switchClipsTab(btn, tab) {
-  document.querySelectorAll('.clips-section .tab-btn, #clips-section .tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#clips-section .tab-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   _clipsTab = tab;
   loadClips();
@@ -3676,7 +3735,8 @@ async function loadClips() {
     const posts = await api.getFeed('for-you');
     const normalized = posts.map(normalizePost);
     const selectedGame = gameFilter?.value || '';
-    let clips = normalized.filter(p => p.type === 'clip');
+    // Only show posts with actual video clips
+    let clips = normalized.filter(p => p.type === 'clip' && p.clip_url);
     if (selectedGame) clips = clips.filter(p => p.game === selectedGame);
     if (_clipsTab === 'my-clips') {
       const myId = window.CURRENT_USER.id;
@@ -3684,13 +3744,10 @@ async function loadClips() {
     } else if (_clipsTab === 'trending') {
       clips.sort((a,b) => totalReactions(b.reactions) - totalReactions(a.reactions));
     }
-    // If no clips exist, show all posts as clips for demo
-    if (!clips.length && _clipsTab !== 'my-clips') {
-      clips = normalized.slice(0, 8).map(p => ({...p, type:'clip'}));
-    }
     feed.innerHTML = clips.length
       ? `<div class="clips-grid">${clips.map(c => renderClipCard(c)).join('')}</div>`
-      : `<div class="empty-state"><div class="empty-icon">🎬</div><p>No clips yet${_clipsTab==='my-clips'?' — post your first clip!':''}</p></div>`;
+      : `<div class="empty-state"><div class="empty-icon">🎬</div><p>No video clips yet${_clipsTab==='my-clips'?' — upload your first clip!':''}</p>
+         <button class="btn-primary" style="margin-top:12px" onclick="openClipUpload()">Upload Clip</button></div>`;
   } catch {
     feed.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load clips</p></div>`;
   }
@@ -3699,20 +3756,140 @@ async function loadClips() {
 function renderClipCard(post) {
   const user = post.user || {};
   const total = totalReactions(post.reactions || {});
-  return `<div class="clip-card" onclick="scrollToPost(${post.id})">
+  return `<div class="clip-card" onclick="playClipInline(this, '${post.clip_url}', ${post.id})">
     <div class="clip-card-thumb">
-      ${post.clip_url ? `<video src="${post.clip_url}" muted preload="metadata"></video>` : `<div class="clip-card-placeholder">🎬</div>`}
+      <video src="${post.clip_url}" muted preload="metadata"></video>
       <div class="clip-card-play">▶</div>
+      <div class="clip-card-duration" id="dur-${post.id}"></div>
       ${post.game ? `<span class="clip-card-game">${post.game}</span>` : ''}
     </div>
     <div class="clip-card-info">
       <div class="clip-card-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
       <div class="clip-card-meta">
-        <div class="clip-card-title">${(post.body||'Untitled clip').slice(0,60)}</div>
+        <div class="clip-card-title">${escapeHtml((post.body||'Untitled clip').slice(0,60))}</div>
         <div class="clip-card-sub">${userName(user)} · ${formatNum(total)} ❤️ · ${post.views||0} views</div>
       </div>
     </div>
   </div>`;
+}
+
+function playClipInline(card, url, postId) {
+  const vid = card.querySelector('video');
+  const playBtn = card.querySelector('.clip-card-play');
+  if (!vid) return;
+  if (vid.paused) {
+    // Pause all other clips
+    document.querySelectorAll('.clip-card video').forEach(v => { if (v !== vid) { v.pause(); v.muted = true; } });
+    document.querySelectorAll('.clip-card-play').forEach(p => p.textContent = '▶');
+    vid.muted = false;
+    vid.play();
+    if (playBtn) playBtn.textContent = '⏸';
+  } else {
+    vid.pause();
+    if (playBtn) playBtn.textContent = '▶';
+  }
+}
+
+// Clip upload modal
+function openClipUpload() {
+  _clipVideoFile = null;
+  document.getElementById('clip-upload-modal').classList.remove('hidden');
+  document.getElementById('clip-upload-placeholder').style.display = '';
+  document.getElementById('clip-video-preview-wrap').style.display = 'none';
+  document.getElementById('clip-title-input').value = '';
+  document.getElementById('clip-desc-input').value = '';
+  // Populate game select
+  const sel = document.getElementById('clip-game-select');
+  if (sel && sel.options.length <= 1) {
+    GAMES.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g.name; opt.textContent = `${g.icon} ${g.name}`;
+      sel.appendChild(opt);
+    });
+  }
+}
+
+function closeClipUpload() {
+  document.getElementById('clip-upload-modal').classList.add('hidden');
+  _clipVideoFile = null;
+}
+
+function handleClipVideoSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('video/')) {
+    showToast('Only video files are allowed for clips', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  if (file.size > 100 * 1024 * 1024) {
+    showToast('Video must be under 100MB', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  _clipVideoFile = file;
+  const url = URL.createObjectURL(file);
+  document.getElementById('clip-upload-placeholder').style.display = 'none';
+  document.getElementById('clip-video-preview-wrap').style.display = '';
+  const vid = document.getElementById('clip-video-preview');
+  vid.src = url;
+  // Check duration
+  vid.onloadedmetadata = () => {
+    if (vid.duration > 60) {
+      showToast('Clip must be 60 seconds or shorter', 'error', '⚠️');
+      clearClipVideo();
+    }
+  };
+}
+
+function clearClipVideo(e) {
+  if (e) e.stopPropagation();
+  _clipVideoFile = null;
+  document.getElementById('clip-upload-placeholder').style.display = '';
+  document.getElementById('clip-video-preview-wrap').style.display = 'none';
+  document.getElementById('clip-video-input').value = '';
+}
+
+async function submitClipUpload() {
+  if (!_clipVideoFile) {
+    showToast('Select a video clip first', 'error', '⚠️');
+    return;
+  }
+  const title = document.getElementById('clip-title-input').value.trim();
+  const desc = document.getElementById('clip-desc-input').value.trim();
+  const game = document.getElementById('clip-game-select').value;
+  const platform = document.getElementById('clip-platform-select').value;
+  const body = title ? (desc ? `${title}\n\n${desc}` : title) : (desc || '🎬 New clip');
+
+  const btn = document.getElementById('clip-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+
+  try {
+    // Upload video as a clip post using the existing post + image upload API
+    const fd = new FormData();
+    fd.append('body', body);
+    fd.append('type', 'clip');
+    if (game) fd.append('game', game);
+    if (platform) fd.append('platform', platform);
+    fd.append('image', _clipVideoFile);
+
+    const token = Auth.getToken();
+    const res = await fetch('/api/posts', {
+      method: 'POST',
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+      body: fd,
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    showToast('Clip uploaded! 🎬', 'success', '🎬');
+    closeClipUpload();
+    loadClips();
+  } catch (err) {
+    showToast(err.message || 'Failed to upload clip', 'error', '⚠️');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16"><polygon points="23 7 16 12 23 17 23 7" stroke="currentColor" stroke-width="2" fill="none"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke="currentColor" stroke-width="2" fill="none"/></svg> Post Clip`;
+  }
 }
 
 // Keyboard shortcuts
