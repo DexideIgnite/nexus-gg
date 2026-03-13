@@ -173,6 +173,7 @@ function navigate(section) {
     profile: loadProfile,
     people: loadPeople,
     settings: loadSettings,
+    'user-profile': loadUserProfile,
   };
   if (loaders[section]) loaders[section]();
 }
@@ -2405,11 +2406,29 @@ function openUserProfile(userId) {
   if (!userId) return;
   const myId = +(window.Auth?.getUser()?.id || window.CURRENT_USER.id || 0);
   if (+userId === myId) { navigate('profile'); return; }
-  const modal = document.getElementById('profile-modal');
-  const content = document.getElementById('profile-modal-content');
-  if (!modal || !content) return;
-  modal.classList.remove('hidden');
-  renderProfile(+userId, content);
+  state._profileUserId = +userId;
+  state._profileBack = state.currentSection;
+  navigate('user-profile');
+}
+
+function loadUserProfile() {
+  const userId = state._profileUserId;
+  const container = document.getElementById('user-profile-container');
+  if (!container) return;
+  container.innerHTML = '';
+  // Back button
+  const backSection = state._profileBack || 'home';
+  const backLabel = backSection.charAt(0).toUpperCase() + backSection.slice(1);
+  const backBar = document.createElement('div');
+  backBar.className = 'profile-back-bar';
+  backBar.innerHTML = `<button class="profile-back-btn" onclick="navigate('${backSection}')">
+    <svg viewBox="0 0 24 24" width="18" height="18"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to ${backLabel}
+  </button>`;
+  container.appendChild(backBar);
+  const profileDiv = document.createElement('div');
+  container.appendChild(profileDiv);
+  renderProfile(userId, profileDiv);
 }
 
 function closeProfileModal() { document.getElementById('profile-modal').classList.add('hidden'); }

@@ -2462,3 +2462,8 @@ body {
 .comment-input::placeholder { color: var(--text-muted); }
 .comment-submit-btn { background: var(--accent); border: none; color: white; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity .2s; }
 .comment-submit-btn:hover { opacity: .85; }
+
+/* Profile back bar */
+.profile-back-bar { padding: 12px 0 4px; }
+.profile-back-btn { display: flex; align-items: center; gap: 6px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 6px 10px; border-radius: 8px; transition: all .2s; }
+.profile-back-btn:hover { color: var(--text-primary); background: var(--bg-card); }
