@@ -73,8 +73,17 @@ const T = {
 };
 
 // ================================================================
-// SEED DATA
+// SYNC: fix comments_count from actual comment data
 // ================================================================
+(function syncCommentCounts() {
+  const posts = T.posts.findAll();
+  posts.forEach(p => {
+    const actual = T.comments.findAll(c => c.post_id === p.id && !c.parent_id).length;
+    if ((p.comments_count || 0) !== actual) {
+      T.posts.update(x => x.id === p.id, { comments_count: actual });
+    }
+  });
+})();
 
 // ================================================================
 // DB API
@@ -134,7 +143,7 @@ const db = {
   repost:(userId,postId)=>{const ex=T.post_reposts.findOne(r=>r.user_id===+userId&&r.post_id===+postId);const p=T.posts.findOne(x=>x.id===+postId);if(ex){T.post_reposts.delete(r=>r.user_id===+userId&&r.post_id===+postId);if(p)T.posts.update(x=>x.id===+postId,{reposts_count:Math.max(0,(p.reposts_count||0)-1)});return{action:'removed',reposts:(p?.reposts_count||1)-1};}T.post_reposts.insert({user_id:+userId,post_id:+postId});if(p)T.posts.update(x=>x.id===+postId,{reposts_count:(p.reposts_count||0)+1});return{action:'added',reposts:(p?.reposts_count||0)+1};},
   // Comments
   getComments:(postId)=>T.comments.findAll(c=>c.post_id===+postId).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).map(c=>{const u=T.users.findOne(x=>x.id===c.user_id);return{...c,username:u?.username,handle:u?.handle||u?.username,avatar:u?.avatar,gradient:u?.gradient,rank:u?.rank,verified:u?.verified||false,plan:u?.plan||'free',time:timeAgo(c.created_at),likes:c.likes||0,aiHighlighted:c.user_id===999};}),
-  addComment:(data)=>{const c=T.comments.insert(data);if(!data.parent_id)T.posts.update(p=>p.id===+data.post_id,p=>{return{...p,comments_count:(p.comments_count||0)+1};});const u=T.users.findOne(x=>x.id===c.user_id);return{...c,username:u?.username,handle:u?.handle||u?.username,avatar:u?.avatar,gradient:u?.gradient,rank:u?.rank,verified:u?.verified||false,plan:u?.plan||'free',time:'just now',likes:0,aiHighlighted:c.user_id===999};},
+  addComment:(data)=>{const c=T.comments.insert(data);if(!data.parent_id){const post=T.posts.findOne(p=>p.id===+data.post_id);if(post)T.posts.update(p=>p.id===+data.post_id,{comments_count:(post.comments_count||0)+1});}const u=T.users.findOne(x=>x.id===c.user_id);return{...c,username:u?.username,handle:u?.handle||u?.username,avatar:u?.avatar,gradient:u?.gradient,rank:u?.rank,verified:u?.verified||false,plan:u?.plan||'free',time:'just now',likes:0,aiHighlighted:c.user_id===999};},
   getUserComments:(userId)=>T.comments.findAll(c=>c.user_id===+userId).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50).map(c=>{const p=T.posts.findOne(x=>x.id===c.post_id);const author=p?T.users.findOne(x=>x.id===p.user_id):null;return{...c,time:timeAgo(c.created_at),post_body:p?.body||'',post_author:author?.username||'Unknown'};}),
   // Follows
   follow:(ferId,ingId)=>{if(T.follows.findOne(f=>f.follower_id===+ferId&&f.following_id===+ingId)){T.follows.delete(f=>f.follower_id===+ferId&&f.following_id===+ingId);return{action:'unfollowed',followers:T.follows.count(f=>f.following_id===+ingId)};}T.follows.insert({follower_id:+ferId,following_id:+ingId});return{action:'followed',followers:T.follows.count(f=>f.following_id===+ingId)};},
