@@ -466,13 +466,15 @@ async function bootWithAuth() {
   const token = Auth.getToken();
   if (!token || isTokenExpired(token)) {
     if (token) Auth.logout(); // clear expired token
-    else showAuthModal('login');
+    // Auth modal is visible by default in HTML; just make sure correct tab shows
+    switchAuthTab('login');
     return;
   }
 
   try {
     const { user } = await api.me();
     Auth.setUser(user);
+    hideAuthModal();
     bootApp(user, token);
   } catch {
     Auth.logout();
