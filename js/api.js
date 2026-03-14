@@ -121,6 +121,7 @@ const api = {
   getLFG:   (game, region)     => api.get(`/lfg${game?'?game='+encodeURIComponent(game):''}${region?'&region='+region:''}`),
   createLFG:(data)             => api.post('/lfg', data),
   joinLFG:  (id)               => api.post(`/lfg/${id}/join`),
+  deleteLFG:(id)               => api.delete(`/lfg/${id}`),
 
   // Messages
   getConversations: ()         => api.get('/messages/conversations'),

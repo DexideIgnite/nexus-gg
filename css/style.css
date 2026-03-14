@@ -23,11 +23,11 @@
   --text-muted:       #4d4d6e;
   --border:           #1c1c38;
   --border-accent:    #2a1f50;
-  --radius:           14px;
-  --radius-sm:        8px;
+  --radius:           10px;
+  --radius-sm:        6px;
   --radius-full:      999px;
   --shadow-card:      0 4px 24px rgba(0,0,0,0.5);
-  --shadow-glow:      0 0 30px rgba(139,92,246,0.25);
+  --shadow-glow:      0 0 16px rgba(139,92,246,0.15);
   --sidebar-w:        260px;
   --right-w:          290px;
   --transition:       0.2s ease;
@@ -171,11 +171,9 @@ body {
   cursor: pointer;
   margin: 12px 0;
   transition: all var(--transition);
-  box-shadow: 0 4px 20px var(--accent-glow);
 }
 .btn-post:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 28px var(--accent-glow);
+  opacity: 0.9;
 }
 .btn-post svg { width: 18px; height: 18px; stroke: white; fill: none; stroke-width: 2.5; stroke-linecap: round; }
 
@@ -206,7 +204,6 @@ body {
   width: 8px; height: 8px;
   border-radius: 50%;
   background: var(--accent-green);
-  box-shadow: 0 0 6px var(--accent-green);
   flex-shrink: 0;
 }
 
@@ -410,7 +407,7 @@ body {
   flex-shrink: 0;
   cursor: pointer;
 }
-.post-avatar:hover { box-shadow: 0 0 12px var(--accent-glow); }
+.post-avatar:hover { opacity: 0.85; }
 
 .post-user-info { flex: 1; }
 .post-user-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -453,6 +450,19 @@ body {
   cursor: pointer;
 }
 .post-game-tag:hover { background: rgba(59,130,246,0.2); }
+
+.post-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  margin-left: auto;
+}
+.post-delete-btn:hover { color: var(--accent-red); background: rgba(239,68,68,0.1); }
 
 .post-type-badge {
   font-size: 10px;
@@ -609,7 +619,7 @@ body {
   cursor: pointer;
   transition: transform var(--transition);
 }
-.trending-item:hover { transform: translateX(4px); }
+.trending-item:hover { background: rgba(255,255,255,0.03); }
 .trending-rank { font-size: 24px; font-weight: 900; color: var(--text-muted); width: 36px; text-align: center; }
 .trending-game-icon {
   width: 52px; height: 52px;
@@ -662,8 +672,8 @@ body {
 }
 .game-card:hover {
   border-color: var(--accent);
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4), var(--shadow-glow);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
 }
 .game-cover {
   height: 110px;
@@ -751,7 +761,7 @@ body {
   transition: all var(--transition);
   cursor: pointer;
 }
-.lfg-card:hover { border-color: var(--accent-green); box-shadow: 0 4px 20px rgba(34,197,94,0.1); }
+.lfg-card:hover { border-color: var(--accent-green); }
 .lfg-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .lfg-user-info { display: flex; align-items: center; gap: 10px; }
 .lfg-avatar {
@@ -804,8 +814,20 @@ body {
   cursor: pointer;
   transition: all var(--transition);
 }
-.lfg-join-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(34,197,94,0.4); }
+.lfg-join-btn:hover { opacity: 0.85; }
 .lfg-join-btn:disabled { background: var(--bg-card-hover); color: var(--text-muted); transform: none; box-shadow: none; cursor: default; }
+.lfg-delete-btn {
+  background: none;
+  border: 1px solid rgba(239,68,68,0.3);
+  color: var(--accent-red);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.lfg-delete-btn:hover { background: rgba(239,68,68,0.1); }
 
 /* ================================================================
    TOURNAMENTS
@@ -820,7 +842,7 @@ body {
   cursor: pointer;
   transition: all var(--transition);
 }
-.tournament-card:hover { border-color: var(--accent-gold); box-shadow: 0 4px 24px rgba(245,158,11,0.15); }
+.tournament-card:hover { border-color: var(--accent-gold); }
 .tournament-banner {
   height: 100px;
   display: flex;
@@ -1241,8 +1263,6 @@ body {
   width: 8px; height: 8px;
   background: var(--accent-green);
   border-radius: 50%;
-  box-shadow: 0 0 6px var(--accent-green);
-  animation: pulse 2s infinite;
 }
 
 .friends-list { display: flex; flex-direction: column; gap: 8px; }
@@ -1350,9 +1370,8 @@ body {
   font-weight: 700;
   cursor: pointer;
   transition: all var(--transition);
-  box-shadow: 0 4px 14px var(--accent-glow);
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px var(--accent-glow); }
+.btn-primary:hover { opacity: 0.9; }
 .btn-primary svg { width: 16px; height: 16px; stroke: white; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .btn-primary.btn-sm { padding: 7px 14px; font-size: 13px; }
 

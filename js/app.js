@@ -958,7 +958,7 @@ function renderPost(post) {
 
   let extra = '';
   // Now playing badge
-  const nowPlayingBadge = user.now_playing ? `<span class="now-playing-badge">🎮 ${escapeHtml(user.now_playing)}</span>` : '';
+  const nowPlayingBadge = user.now_playing ? `<span class="now-playing-badge">Playing ${escapeHtml(user.now_playing)}</span>` : '';
 
   if (post.type === 'clip' && post.clip_url) {
     extra = `<div class="clip-video-wrapper">
@@ -1009,14 +1009,15 @@ function renderPost(post) {
           ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
           ${planBadge(user.plan)}
           <span class="${rankBadgeClass(user.rank)}">${user.rank||'Bronze'}</span>
-          ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? '🎬 Clip' : post.type === 'achievement' ? '🏆 Achievement' : '👥 LFG'}</span>` : ''}
-          ${post.game ? `<span class="post-game-tag" onclick="navigate('games')">🎮 ${post.game}</span>` : ''}
+          ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? 'Clip' : post.type === 'achievement' ? 'Achievement' : 'LFG'}</span>` : ''}
+          ${post.game ? `<span class="post-game-tag" onclick="navigate('games')">${post.game}</span>` : ''}
           ${post.platform ? `<span class="post-platform-badge">${post.platform}</span>` : ''}
           ${nowPlayingBadge}
         </div>
         <span class="post-tag">${userHandle(user)}</span>
       </div>
       <span class="post-time">${post.time}</span>
+      ${post.user_id === (window.Auth?.getUser()?.id || window.CURRENT_USER?.id) ? `<button class="post-delete-btn" title="Delete post" onclick="event.stopPropagation();deletePostReal(${post.id},this)">✕</button>` : ''}
     </div>
     <div class="post-body">${parseBody(post.body)}</div>
     ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox('${post.image_url}')"></div>` : ''}
@@ -1037,9 +1038,9 @@ function renderPost(post) {
           <span>${post.reposts || 0}</span>
         </button>
         <div class="share-dropdown hidden" id="share-menu-${post.id}">
-          <div class="share-option" onclick="openQuoteModal(${post.id});closeAllShareMenus()">💬 Quote Post</div>
-          <div class="share-option" onclick="boostPost(${post.id},this);closeAllShareMenus()">📢 Boost</div>
-          <div class="share-option" onclick="copyPostLink(${post.id});closeAllShareMenus()">🔗 Copy Link</div>
+          <div class="share-option" onclick="openQuoteModal(${post.id});closeAllShareMenus()">Quote Post</div>
+          <div class="share-option" onclick="boostPost(${post.id},this);closeAllShareMenus()">Boost</div>
+          <div class="share-option" onclick="copyPostLink(${post.id});closeAllShareMenus()">Copy Link</div>
         </div>
       </div>
       <button class="post-action-btn views-btn">
@@ -1068,6 +1069,19 @@ async function toggleLike(postId, btn) {
     if (span && post) span.textContent = formatNum(totalReactions(post.reactions));
   } catch {
     showToast('Failed to like', 'error', '⚠️');
+  }
+}
+
+async function deletePostReal(postId, btn) {
+  if (!confirm('Delete this post?')) return;
+  try {
+    await api.deletePost(postId);
+    const el = document.getElementById(`post-${postId}`);
+    if (el) el.remove();
+    state.posts = state.posts.filter(p => p.id !== postId);
+    showToast('Post deleted', 'success');
+  } catch (err) {
+    showToast(err.message || 'Failed to delete', 'error');
   }
 }
 
@@ -2039,9 +2053,9 @@ async function _loadGameTab(tab, game) {
               <div class="lfg-avatar" style="background:${user.gradient}">${user.avatar}</div>
               <div><div class="lfg-username">${user.username}</div><div class="lfg-rank-region">${user.rank} · ${p.region||'NA'}</div></div>
             </div>
-            <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'🔴 Full':p.status==='filling'?'🟡 Filling':'🟢 Open'}</div>
+            <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'Full':p.status==='filling'?'Filling':'Open'}</div>
           </div>
-          <div class="lfg-game-row"><span class="lfg-game-name">🎮 ${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
+          <div class="lfg-game-row"><span class="lfg-game-name">${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
           <div class="lfg-description">${p.description||''}</div>
           <div class="lfg-footer">
             <div class="lfg-slots"><div class="slot-dots">${slotsHtml}</div><span style="font-size:12px;color:var(--text-muted)">${filled}/${slots} filled</span></div>
@@ -2085,7 +2099,7 @@ function _populateGameDropdowns() {
     const sel = document.getElementById(id);
     if (!sel) return;
     const cur = sel.value;
-    sel.innerHTML = `<option value="">🎮 Tag a game...</option>` +
+    sel.innerHTML = `<option value="">Tag a game...</option>` +
       names.map(n => `<option value="${n}">${n}</option>`).join('');
     if (cur) sel.value = cur;
   });
@@ -2142,7 +2156,7 @@ function renderLFGCards(posts) {
       `<div class="slot-dot ${i < filled ? 'filled' : ''}"></div>`
     ).join('');
     const userPlan = user.plan || 'free';
-    const priorityStar = (userPlan === 'pro' || userPlan === 'plus') ? '<span class="lfg-priority-star" title="Priority listing">⭐</span>' : '';
+    const priorityStar = (userPlan === 'pro' || userPlan === 'plus') ? '<span class="lfg-priority-star" title="Priority listing">★</span>' : '';
     return `<div class="lfg-card">
       <div class="lfg-header">
         <div class="lfg-user-info">
@@ -2152,18 +2166,28 @@ function renderLFGCards(posts) {
             <div class="lfg-rank-region">${user.rank||'?'} · ${p.region||'NA'}</div>
           </div>
         </div>
-        <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'🔴 Full':p.status==='filling'?'🟡 Filling':'🟢 Open'}</div>
+        <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'Full':p.status==='filling'?'Filling':'Open'}</div>
       </div>
-      <div class="lfg-game-row"><span class="lfg-game-name">🎮 ${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
+      <div class="lfg-game-row"><span class="lfg-game-name">${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
       <div class="lfg-description">${p.description||p.desc||''}</div>
       <div class="lfg-footer">
         <div class="lfg-slots"><div class="slot-dots">${slotsHtml}</div><span style="font-size:12px;color:var(--text-muted)">${filled}/${slots} filled</span></div>
-        <button class="lfg-join-btn" ${p.status==='full'?'disabled':''} onclick="joinLFGReal(${p.id},this)">
-          ${p.isMember?'✓ Joined':p.status==='full'?'Full':'⚡ Join Party'}
+        ${p.isHost ? `<button class="lfg-delete-btn" onclick="deleteLFGReal(${p.id})">Delete</button>` : ''}
+        <button class="lfg-join-btn" ${p.status==='full'||p.isHost?'disabled':''} onclick="joinLFGReal(${p.id},this)">
+          ${p.isHost?'Your Party':p.isMember?'Joined':p.status==='full'?'Full':'Join'}
         </button>
       </div>
     </div>`;
   }).join('');
+}
+
+async function deleteLFGReal(id) {
+  if (!confirm('Delete this LFG post?')) return;
+  try {
+    await api.deleteLFG(id);
+    showToast('LFG post deleted', 'success');
+    loadLFG();
+  } catch (err) { showToast(err.message || 'Failed to delete', 'error'); }
 }
 
 async function joinLFGReal(id, btn) {
@@ -3490,7 +3514,7 @@ async function loadWidgets() {
           </div>
           <div class="friend-info">
             <div class="friend-name">${u.username||'Player'}</div>
-            <div class="friend-game" data-uid="${u.id}">${u.now_playing ? '🎮 '+u.now_playing : 'In lobby'}</div>
+            <div class="friend-game" data-uid="${u.id}">${u.now_playing ? 'Playing '+u.now_playing : 'Online'}</div>
           </div>
         </div>`).join('')
       : `<div style="padding:12px;color:var(--text-muted);font-size:13px">No one online yet</div>`;
@@ -3512,7 +3536,7 @@ async function loadWidgets() {
         <div class="trend-icon">${icon}</div>
         <div class="trend-info">
           <div class="trend-name">${name}</div>
-          <div class="trend-players">🟢 ${viewers}</div>
+          <div class="trend-players">${viewers}</div>
         </div>
         <div class="trend-rank">#${i+1}</div>
       </div>`;
@@ -3523,7 +3547,7 @@ async function loadWidgets() {
         <div class="trend-icon">${g.icon}</div>
         <div class="trend-info">
           <div class="trend-name">${g.name}</div>
-          <div class="trend-players">🟢 ${g.players}</div>
+          <div class="trend-players">${g.players}</div>
         </div>
         <div class="trend-rank">#${i+1}</div>
       </div>`).join('');
