@@ -331,16 +331,16 @@ body {
    ================================================================ */
 .compose-box {
   display: flex;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: 10px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--border);
 }
 .compose-avatar {
-  width: 44px; height: 44px;
+  width: 34px; height: 34px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent), var(--accent-blue));
   display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 16px; color: white;
+  font-weight: 800; font-size: 13px; color: white;
   flex-shrink: 0;
 }
 .compose-right { flex: 1; }
@@ -351,10 +351,10 @@ body {
   outline: none;
   resize: none;
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: 14px;
   font-family: inherit;
-  min-height: 48px;
-  padding: 8px 0;
+  min-height: 36px;
+  padding: 6px 0;
 }
 .compose-right textarea::placeholder { color: var(--text-muted); }
 .compose-footer {
@@ -559,6 +559,7 @@ body {
 }
 .post-action-btn:hover { background: rgba(139,92,246,0.08); color: var(--accent); }
 .post-action-btn.liked { color: var(--accent-red); }
+.post-action-btn.liked svg path { fill: var(--accent-red); }
 .post-action-btn.reposted { color: var(--accent-green); }
 .post-action-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -2209,6 +2210,16 @@ body {
   color: rgba(255,255,255,0.85); font-size: 12px; font-weight: 700;
   background: rgba(0,0,0,0.4); border-radius: 12px; padding: 3px 8px;
 }
+.sv-delete-btn {
+  background: rgba(239,68,68,0.2);
+  border: 1px solid rgba(239,68,68,0.4);
+  color: #f87171;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
 /* Media */
 .story-viewer-media {
   flex: 1; display: flex; align-items: center; justify-content: center;
@@ -2646,7 +2657,7 @@ body {
 /* ── Profile page tweaks ── */
 .profile-banner-icon { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); opacity: .3; font-size: 72px; }
 .profile-banner { position: relative; }
-.profile-avatar-lg { width: 110px; height: 110px; min-width: 110px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 38px; color: white; border: 5px solid var(--bg-primary); box-shadow: 0 0 30px rgba(139,92,246,.35), 0 0 0 2px rgba(139,92,246,.2); }
+.profile-avatar-lg { width: 110px; height: 110px; min-width: 110px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 38px; color: white; border: 4px solid var(--bg-primary); overflow: hidden; }
 .profile-online-dot { font-size: 11px; margin-left: 6px; }
 .profile-edit-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 
@@ -3212,7 +3223,8 @@ body {
 .avatar-frame-animated > .conv-avatar,
 .avatar-frame-animated > .story-avatar,
 .avatar-frame-animated > .search-player-avatar {
-  border: 2px solid var(--bg-primary);
+  border: 3px solid var(--bg-primary);
+  overflow: hidden;
 }
 
 /* Plan badge styles */

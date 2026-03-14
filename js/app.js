@@ -784,13 +784,35 @@ function _svRender() {
   overlayEl.textContent = story.text_overlay || '';
   overlayEl.style.display = story.text_overlay ? 'block' : 'none';
 
-  // View count (own stories only)
+  // View count + delete button (own stories only)
   const vcEl = document.getElementById('sv-view-count');
-  if (story.user_id === me?.id || u.id === me?.id) {
+  const isOwn = story.user_id === me?.id || u.id === me?.id;
+  let delBtn = document.getElementById('sv-delete-btn');
+  if (isOwn) {
     vcEl.classList.remove('hidden');
-    api.getStoryViewCount(story.id).then(({ count }) => { vcEl.textContent = '👁 ' + count; }).catch(() => {});
+    api.getStoryViewCount(story.id).then(({ count }) => { vcEl.textContent = count + ' views'; }).catch(() => {});
+    if (!delBtn) {
+      delBtn = document.createElement('button');
+      delBtn.id = 'sv-delete-btn';
+      delBtn.className = 'sv-delete-btn';
+      delBtn.textContent = 'Delete';
+      vcEl.parentElement.insertBefore(delBtn, vcEl);
+    }
+    delBtn.style.display = '';
+    delBtn.onclick = async () => {
+      if (!confirm('Delete this story?')) return;
+      try {
+        await api.deleteStory(story.id);
+        group.stories.splice(SV.sIdx, 1);
+        if (!group.stories.length) { closeStoryViewer(); loadStories(); return; }
+        if (SV.sIdx >= group.stories.length) SV.sIdx = group.stories.length - 1;
+        _svRender();
+        loadStories();
+      } catch { showToast('Failed to delete story', 'error'); }
+    };
   } else {
     vcEl.classList.add('hidden');
+    if (delBtn) delBtn.style.display = 'none';
   }
 
   // Progress bars
@@ -924,9 +946,56 @@ async function renderFeed() {
       return;
     }
     container.innerHTML = normalized.map(renderPost).join('');
+    observePostViews(container);
   } catch (err) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load feed</p><span>Make sure the server is running</span></div>`;
   }
+}
+
+// ================================================================
+// VIEW COUNTING — IntersectionObserver + batching
+// ================================================================
+const _viewState = { pending: new Set(), timers: {}, sent: new Set(), flushTimer: null };
+
+const _viewObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    const postId = +entry.target.dataset.postId;
+    if (!postId) return;
+    if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+      if (_viewState.sent.has(postId)) return;
+      _viewState.timers[postId] = setTimeout(() => {
+        _viewState.pending.add(postId);
+        _viewState.sent.add(postId);
+        if (!_viewState.flushTimer) {
+          _viewState.flushTimer = setTimeout(flushViews, 3000);
+        }
+      }, 300);
+    } else {
+      clearTimeout(_viewState.timers[postId]);
+      delete _viewState.timers[postId];
+    }
+  });
+}, { threshold: 0.5 });
+
+function flushViews() {
+  _viewState.flushTimer = null;
+  if (!_viewState.pending.size) return;
+  const ids = [..._viewState.pending];
+  _viewState.pending.clear();
+  apiRequest('POST', '/posts/batch-views', { postIds: ids }).catch(() => {});
+  // Update displayed counts
+  ids.forEach(id => {
+    const el = document.querySelector(`#post-${id} .views-btn span`);
+    if (el) el.textContent = +el.textContent + 1;
+  });
+}
+
+function observePostViews(container) {
+  if (!container) return;
+  container.querySelectorAll('.post-card').forEach(card => {
+    const id = card.id?.replace('post-', '');
+    if (id) { card.dataset.postId = id; _viewObserver.observe(card); }
+  });
 }
 
 function normalizePost(p) {
@@ -2229,6 +2298,20 @@ function loadTournaments() {
 // MESSAGES
 // ================================================================
 
+async function openDirectMessage(userId) {
+  navigate('messages');
+  // Wait for DOM to be ready, then open the conversation
+  setTimeout(async () => {
+    try {
+      const user = await api.getUser(userId);
+      state.currentConversation = userId;
+      await selectConversationAPI(userId, user);
+    } catch {
+      showToast('Could not open conversation', 'error');
+    }
+  }, 100);
+}
+
 async function loadMessages() {
   const list = document.getElementById('conversations-list');
   const header = document.getElementById('chat-header');
@@ -3008,7 +3091,7 @@ async function renderProfile(userId, container) {
             ${isMe
               ? `<button class="btn-secondary profile-edit-btn" onclick="openEditProfile()"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Profile</button>`
               : `<button class="btn-primary" id="follow-btn-${user.id}" onclick="toggleFollow(${user.id},this)">${user.isFollowing?'Following':'+ Follow'}</button>
-                 <button class="btn-secondary" onclick="navigate('messages')">💬 Message</button>`}
+                 <button class="btn-secondary" onclick="openDirectMessage(${user.id})">Message</button>`}
           </div>
         </div>
         <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg">✓</span>' : ''} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>

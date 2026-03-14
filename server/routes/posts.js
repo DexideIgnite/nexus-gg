@@ -60,9 +60,15 @@ async function maybeAskClaude(postId, text, contextNote, io, imageUrl, authorId)
 
 // GET /api/posts
 router.get('/', optionalAuth, (req, res) => {
-  const { tab = 'for-you', game } = req.query;
+  const { tab = 'for-you', game, after } = req.query;
   const uid = req.user?.userId;
-  res.json(db.getPosts(tab, uid, game));
+  let posts = db.getPosts(tab, uid, game);
+  // Cursor-based pagination: ?after=postId returns posts after that ID
+  if (after) {
+    const idx = posts.findIndex(p => p.id === +after);
+    if (idx >= 0) posts = posts.slice(idx + 1);
+  }
+  res.json(posts);
 });
 
 // GET /api/posts/user/:id
@@ -245,6 +251,18 @@ router.post('/upload-clip', requireAuth, clipUpload.single('clip'), (req, res) =
   const maxSec = limits.max_clip_seconds || 60;
   // Return the URL + max duration so client can enforce; server trusts the upload but tags the limit
   res.json({ url: `/uploads/clips/${req.file.filename}`, max_clip_seconds: maxSec });
+});
+
+// POST /api/posts/batch-views — increment view counts for multiple posts
+router.post('/batch-views', optionalAuth, (req, res) => {
+  const { postIds } = req.body;
+  if (!Array.isArray(postIds)) return res.status(400).json({ error: 'postIds required' });
+  const userId = req.user?.userId;
+  postIds.forEach(id => {
+    const p = db.getPost(id);
+    if (p) db.updatePost(id, { views: (p.views || 0) + 1 });
+  });
+  res.json({ success: true });
 });
 
 module.exports = router;
