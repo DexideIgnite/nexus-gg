@@ -17,6 +17,20 @@ router.get('/search', (req, res) => {
   res.json(db.searchGames(q));
 });
 
+// GET /api/games/status — diagnostic endpoint to check sync health
+router.get('/status', (req, res) => {
+  const total = db.getTrendingGames(9999).length;
+  const withCovers = db.getTrendingGames(9999).filter(g => g.cover_url).length;
+  const withViewers = db.getTrendingGames(9999).filter(g => g.twitch_viewers > 0).length;
+  res.json({
+    total_games: total,
+    with_covers: withCovers,
+    with_twitch_viewers: withViewers,
+    twitch_client_id_set: !!process.env.TWITCH_CLIENT_ID,
+    twitch_secret_set: !!process.env.TWITCH_CLIENT_SECRET,
+  });
+});
+
 // POST /api/games/sync  (manual trigger, dev use)
 router.post('/sync', async (req, res) => {
   try {

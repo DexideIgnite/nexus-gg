@@ -1810,17 +1810,27 @@ async function loadGames() {
   const grid = document.getElementById('games-grid');
   if (grid) grid.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading games...</div>`;
   try {
-    _liveGames = await api.getTrendingGames(500);
+    const result = await api.getTrendingGames(500);
+    if (result && result.length > 0) {
+      _liveGames = result;
+    } else {
+      // API returned empty — use static catalog
+      _liveGames = _staticFallbackGames();
+    }
   } catch {
-    // Fallback to static list if API fails or no data yet
-    _liveGames = GAMES.map(g => ({
-      igdb_id: g.id, name: g.name, genres: g.category,
-      cover_url: null, igdb_rating: Math.round(parseFloat(g.rating)*10),
-      twitch_viewers: 0, trending_score: 0, _icon: g.icon, _color: g.color,
-    }));
+    // Network/API error — use static catalog
+    _liveGames = _staticFallbackGames();
   }
   renderGamesGrid(state.gamesFilter);
   _populateGameDropdowns();
+}
+
+function _staticFallbackGames() {
+  return GAMES.map(g => ({
+    igdb_id: g.id, name: g.name, genres: g.category,
+    cover_url: null, igdb_rating: Math.round(parseFloat(g.rating)*10),
+    twitch_viewers: 0, trending_score: 0, _icon: g.icon, _color: g.color,
+  }));
 }
 
 function _gameCard(g) {
