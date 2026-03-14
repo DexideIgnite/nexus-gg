@@ -3633,6 +3633,8 @@ function openVideoPlayer(postId) {
   const total = totalReactions(post.reactions || {});
   const liked = post._liked || false;
   const isLoggedIn = !!window.Auth?.getToken();
+  const commentCount = post.comment_count || post.comments_count || 0;
+  const viewCount = post.views || 0;
 
   const overlay = document.createElement('div');
   overlay.className = 'vp-overlay';
@@ -3641,67 +3643,128 @@ function openVideoPlayer(postId) {
   overlay.innerHTML = `
     <div class="vp-container">
       <div class="vp-video-area">
-        <video class="vp-video" src="${post.clip_url}" playsinline preload="auto"></video>
+        <video class="vp-video" src="${post.clip_url}" playsinline preload="auto" loop></video>
+
+        <!-- Gradient overlays for readability -->
+        <div class="vp-gradient-top"></div>
+        <div class="vp-gradient-bottom"></div>
+
+        <!-- Tap zones -->
         <div class="vp-tap-zone vp-tap-left"></div>
         <div class="vp-tap-zone vp-tap-center"></div>
         <div class="vp-tap-zone vp-tap-right"></div>
-        <div class="vp-heart-anim" id="vp-heart-anim">
-          <svg viewBox="0 0 24 24" width="80" height="80"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill="#ef4444" stroke="#ef4444" stroke-width="1"/></svg>
+
+        <!-- Double-tap heart burst -->
+        <div class="vp-heart-burst" id="vp-heart-burst"></div>
+
+        <!-- Play/pause indicator -->
+        <div class="vp-state-icon" id="vp-state-icon">
+          <div class="vp-state-play"><svg viewBox="0 0 24 24" width="44" height="44" fill="white"><polygon points="6,3 20,12 6,21"/></svg></div>
+          <div class="vp-state-pause"><svg viewBox="0 0 24 24" width="44" height="44" fill="white"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg></div>
         </div>
-        <div class="vp-play-icon" id="vp-play-icon">
-          <svg viewBox="0 0 24 24" width="56" height="56" fill="white"><polygon points="5,3 19,12 5,21"/></svg>
+
+        <!-- Skip ripple indicators -->
+        <div class="vp-skip-ripple vp-skip-ripple-left" id="vp-skip-back">
+          <div class="vp-skip-ripple-bg"></div>
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+          <span>10</span>
         </div>
-        <div class="vp-skip-indicator vp-skip-back" id="vp-skip-back">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 105.64-8.36L1 10"/></svg>
-          <span>-10s</span>
+        <div class="vp-skip-ripple vp-skip-ripple-right" id="vp-skip-fwd">
+          <div class="vp-skip-ripple-bg"></div>
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+          <span>10</span>
         </div>
-        <div class="vp-skip-indicator vp-skip-fwd" id="vp-skip-fwd">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-5.64-8.36L23 10"/></svg>
-          <span>+10s</span>
-        </div>
-        <div class="vp-top-bar">
+
+        <!-- Top bar -->
+        <div class="vp-top-bar" id="vp-top-bar">
           <button class="vp-close-btn" id="vp-close-btn">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 5 12 12 19"/></svg>
           </button>
-          <div class="vp-top-info">
+          <div class="vp-top-info" onclick="closeVideoPlayer();openProfileById(${user.id || 0})">
             <div class="vp-user-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
             <div class="vp-user-meta">
               <span class="vp-username">${userName(user)}</span>
-              ${post.game ? `<span class="vp-game-tag">${post.game}</span>` : ''}
+              <span class="vp-handle">@${user.handle || user.username || 'player'}</span>
             </div>
           </div>
+          ${post.game ? `<span class="vp-game-pill">${post.game}</span>` : ''}
+          <div class="vp-top-spacer"></div>
+          <button class="vp-more-btn" id="vp-more-btn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          </button>
         </div>
-        <div class="vp-bottom-bar">
-          <div class="vp-post-body">${escapeHtml(post.body || '')}</div>
-          <div class="vp-progress-row">
-            <span class="vp-time" id="vp-time-current">0:00</span>
-            <div class="vp-progress-track" id="vp-progress-track">
-              <div class="vp-progress-fill" id="vp-progress-fill"></div>
-              <div class="vp-progress-thumb" id="vp-progress-thumb"></div>
-            </div>
-            <span class="vp-time" id="vp-time-total">0:00</span>
+
+        <!-- Side action rail (TikTok-style) -->
+        <div class="vp-rail" id="vp-rail">
+          <div class="vp-rail-avatar" onclick="closeVideoPlayer();openProfileById(${user.id || 0})">
+            <div class="vp-rail-avatar-img" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
           </div>
-        </div>
-        <div class="vp-side-actions">
-          <button class="vp-action-btn ${liked?'liked':''}" id="vp-like-btn" data-post-id="${postId}">
-            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" ${liked?'fill="currentColor"':''}/></svg>
+          <button class="vp-rail-btn ${liked ? 'active' : ''}" id="vp-like-btn">
+            <div class="vp-rail-icon">
+              <svg viewBox="0 0 24 24" width="28" height="28"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" ${liked ? 'fill="currentColor"' : ''}/></svg>
+            </div>
             <span id="vp-like-count">${formatNum(total)}</span>
           </button>
-          <button class="vp-action-btn" id="vp-comment-btn">
-            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-            <span>Reply</span>
+          <button class="vp-rail-btn" id="vp-comment-btn">
+            <div class="vp-rail-icon">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            </div>
+            <span id="vp-comment-count">${formatNum(commentCount)}</span>
           </button>
-          <button class="vp-action-btn" id="vp-share-btn">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          <button class="vp-rail-btn" id="vp-bookmark-btn">
+            <div class="vp-rail-icon">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </div>
+            <span>Save</span>
+          </button>
+          <button class="vp-rail-btn" id="vp-share-btn">
+            <div class="vp-rail-icon">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </div>
             <span>Share</span>
           </button>
         </div>
+
+        <!-- Bottom info + controls -->
+        <div class="vp-bottom" id="vp-bottom">
+          <div class="vp-desc-area">
+            <div class="vp-desc-text" id="vp-desc-text">${escapeHtml(post.body || '')}</div>
+            ${post.body && post.body.length > 80 ? '<button class="vp-desc-more" id="vp-desc-more">more</button>' : ''}
+          </div>
+          <div class="vp-views-row">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span>${formatNum(viewCount)} views</span>
+          </div>
+        </div>
+
+        <!-- YouTube-style progress bar (full width at bottom) -->
+        <div class="vp-controls" id="vp-controls">
+          <div class="vp-progress-bar" id="vp-progress-bar">
+            <div class="vp-progress-buffer" id="vp-progress-buffer"></div>
+            <div class="vp-progress-fill" id="vp-progress-fill"></div>
+            <div class="vp-progress-thumb" id="vp-progress-thumb"></div>
+            <div class="vp-progress-hover-time" id="vp-hover-time">0:00</div>
+          </div>
+          <div class="vp-controls-row">
+            <button class="vp-ctrl-btn" id="vp-play-btn">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="white" id="vp-play-svg"><polygon points="6,3 20,12 6,21"/></svg>
+            </button>
+            <span class="vp-time-display"><span id="vp-time-current">0:00</span> / <span id="vp-time-total">0:00</span></span>
+            <div class="vp-ctrl-spacer"></div>
+            <button class="vp-ctrl-btn" id="vp-mute-btn">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" id="vp-vol-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
+
+      <!-- Comments panel -->
       <div class="vp-comments-panel hidden" id="vp-comments-panel">
+        <div class="vp-comments-drag-handle"></div>
         <div class="vp-comments-header">
-          <span>Comments</span>
+          <span id="vp-comments-title">Comments</span>
           <button class="vp-comments-close" id="vp-comments-close">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
         <div class="vp-comments-body comment-section" id="vp-comments-body" data-post-id="${postId}"></div>
@@ -3712,21 +3775,32 @@ function openVideoPlayer(postId) {
   document.body.style.overflow = 'hidden';
   requestAnimationFrame(() => overlay.classList.add('visible'));
 
+  // ── Element refs ──
   const video = overlay.querySelector('.vp-video');
-  const playIcon = overlay.querySelector('#vp-play-icon');
+  const stateIcon = overlay.querySelector('#vp-state-icon');
   const progressFill = overlay.querySelector('#vp-progress-fill');
+  const progressBuffer = overlay.querySelector('#vp-progress-buffer');
   const progressThumb = overlay.querySelector('#vp-progress-thumb');
-  const progressTrack = overlay.querySelector('#vp-progress-track');
+  const progressBar = overlay.querySelector('#vp-progress-bar');
+  const hoverTime = overlay.querySelector('#vp-hover-time');
   const timeCurrent = overlay.querySelector('#vp-time-current');
   const timeTotal = overlay.querySelector('#vp-time-total');
-  const heartAnim = overlay.querySelector('#vp-heart-anim');
+  const heartBurst = overlay.querySelector('#vp-heart-burst');
   const likeBtn = overlay.querySelector('#vp-like-btn');
   const commentBtn = overlay.querySelector('#vp-comment-btn');
   const commentsPanel = overlay.querySelector('#vp-comments-panel');
   const commentsClose = overlay.querySelector('#vp-comments-close');
   const shareBtn = overlay.querySelector('#vp-share-btn');
+  const bookmarkBtn = overlay.querySelector('#vp-bookmark-btn');
   const skipBack = overlay.querySelector('#vp-skip-back');
   const skipFwd = overlay.querySelector('#vp-skip-fwd');
+  const playBtn = overlay.querySelector('#vp-play-btn');
+  const playSvg = overlay.querySelector('#vp-play-svg');
+  const muteBtn = overlay.querySelector('#vp-mute-btn');
+  const volIcon = overlay.querySelector('#vp-vol-icon');
+  const descText = overlay.querySelector('#vp-desc-text');
+  const descMore = overlay.querySelector('#vp-desc-more');
+  const controls = overlay.querySelector('#vp-controls');
 
   function fmtTime(s) {
     if (isNaN(s)) return '0:00';
@@ -3735,21 +3809,38 @@ function openVideoPlayer(postId) {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   }
 
-  // Play/pause
+  // ── Play / Pause ──
+  let stateTimeout;
+  function showStateIcon(playing) {
+    stateIcon.className = 'vp-state-icon show ' + (playing ? 'playing' : 'paused');
+    clearTimeout(stateTimeout);
+    stateTimeout = setTimeout(() => stateIcon.classList.remove('show'), 500);
+  }
+
   function togglePlay() {
     if (video.paused) {
       video.play();
-      playIcon.classList.remove('show');
+      showStateIcon(true);
     } else {
       video.pause();
-      playIcon.classList.add('show');
+      showStateIcon(false);
+    }
+    updatePlayBtn();
+  }
+
+  function updatePlayBtn() {
+    if (video.paused) {
+      playSvg.innerHTML = '<polygon points="6,3 20,12 6,21"/>';
+    } else {
+      playSvg.innerHTML = '<rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/>';
     }
   }
 
-  // Center tap = play/pause
+  // Center tap toggles play
   overlay.querySelector('.vp-tap-center').addEventListener('click', togglePlay);
+  playBtn.addEventListener('click', togglePlay);
 
-  // Double-tap detection for like and skip
+  // ── Double-tap detection ──
   let lastTapTime = { left: 0, center: 0, right: 0 };
 
   function handleDoubleTap(zone, action) {
@@ -3759,131 +3850,230 @@ function openVideoPlayer(postId) {
                 : zone.classList.contains('vp-tap-right') ? 'right' : 'center';
       if (now - lastTapTime[key] < 300) {
         e.stopPropagation();
-        action();
+        action(e);
       }
       lastTapTime[key] = now;
     });
   }
 
-  // Double-tap center = like
-  handleDoubleTap(overlay.querySelector('.vp-tap-center'), () => {
-    heartAnim.classList.add('show');
-    setTimeout(() => heartAnim.classList.remove('show'), 800);
-    if (!post._liked && isLoggedIn) {
-      vpToggleLike();
-    }
+  // Double-tap center = like with particle burst
+  handleDoubleTap(overlay.querySelector('.vp-tap-center'), (e) => {
+    spawnHeartBurst(e);
+    if (!post._liked && isLoggedIn) vpToggleLike();
   });
 
-  // Double-tap left = skip back 10s
+  // Double-tap left = rewind 10s
   handleDoubleTap(overlay.querySelector('.vp-tap-left'), () => {
     video.currentTime = Math.max(0, video.currentTime - 10);
+    skipBack.classList.remove('show');
+    void skipBack.offsetWidth;
     skipBack.classList.add('show');
-    setTimeout(() => skipBack.classList.remove('show'), 600);
+    setTimeout(() => skipBack.classList.remove('show'), 700);
   });
 
-  // Double-tap right = skip forward 10s
+  // Double-tap right = forward 10s
   handleDoubleTap(overlay.querySelector('.vp-tap-right'), () => {
-    video.currentTime = Math.min(video.duration, video.currentTime + 10);
+    video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+    skipFwd.classList.remove('show');
+    void skipFwd.offsetWidth;
     skipFwd.classList.add('show');
-    setTimeout(() => skipFwd.classList.remove('show'), 600);
+    setTimeout(() => skipFwd.classList.remove('show'), 700);
   });
 
-  // Progress bar
+  // ── Heart particle burst ──
+  function spawnHeartBurst(e) {
+    const rect = overlay.querySelector('.vp-video-area').getBoundingClientRect();
+    const x = (e.clientX || rect.width / 2) - rect.left;
+    const y = (e.clientY || rect.height / 2) - rect.top;
+    for (let i = 0; i < 7; i++) {
+      const heart = document.createElement('div');
+      heart.className = 'vp-heart-particle';
+      heart.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill="#ef4444"/></svg>';
+      heart.style.left = x + 'px';
+      heart.style.top = y + 'px';
+      heart.style.setProperty('--dx', (Math.random() - 0.5) * 120 + 'px');
+      heart.style.setProperty('--dy', -(Math.random() * 140 + 60) + 'px');
+      heart.style.setProperty('--rot', (Math.random() - 0.5) * 90 + 'deg');
+      heart.style.setProperty('--scale', (0.6 + Math.random() * 0.8));
+      heart.style.animationDelay = (i * 0.04) + 's';
+      heartBurst.appendChild(heart);
+      setTimeout(() => heart.remove(), 1000);
+    }
+  }
+
+  // ── Progress bar (YouTube-style) ──
   video.addEventListener('loadedmetadata', () => {
     timeTotal.textContent = fmtTime(video.duration);
   });
   video.addEventListener('timeupdate', () => {
-    if (!video.duration) return;
+    if (!video.duration || isSeeking) return;
     const pct = (video.currentTime / video.duration) * 100;
     progressFill.style.width = pct + '%';
     progressThumb.style.left = pct + '%';
     timeCurrent.textContent = fmtTime(video.currentTime);
   });
-  video.addEventListener('ended', () => {
-    playIcon.classList.add('show');
+  video.addEventListener('progress', () => {
+    if (video.buffered.length > 0) {
+      const buffered = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
+      progressBuffer.style.width = buffered + '%';
+    }
+  });
+  video.addEventListener('play', updatePlayBtn);
+  video.addEventListener('pause', updatePlayBtn);
+
+  // Seekable progress
+  let isSeeking = false;
+  function seekTo(clientX) {
+    const rect = progressBar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    video.currentTime = pct * (video.duration || 0);
+    progressFill.style.width = (pct * 100) + '%';
+    progressThumb.style.left = (pct * 100) + '%';
+    timeCurrent.textContent = fmtTime(video.currentTime);
+  }
+  progressBar.addEventListener('mousedown', (e) => { isSeeking = true; seekTo(e.clientX); progressBar.classList.add('seeking'); });
+  progressBar.addEventListener('touchstart', (e) => { isSeeking = true; seekTo(e.touches[0].clientX); progressBar.classList.add('seeking'); }, { passive: true });
+  document.addEventListener('mousemove', (e) => { if (isSeeking) seekTo(e.clientX); });
+  document.addEventListener('touchmove', (e) => { if (isSeeking) seekTo(e.touches[0].clientX); }, { passive: true });
+  document.addEventListener('mouseup', () => { if (isSeeking) { isSeeking = false; progressBar.classList.remove('seeking'); } });
+  document.addEventListener('touchend', () => { if (isSeeking) { isSeeking = false; progressBar.classList.remove('seeking'); } });
+
+  // Hover time preview
+  progressBar.addEventListener('mousemove', (e) => {
+    const rect = progressBar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    hoverTime.textContent = fmtTime(pct * (video.duration || 0));
+    hoverTime.style.left = (pct * 100) + '%';
+    hoverTime.classList.add('show');
+  });
+  progressBar.addEventListener('mouseleave', () => { hoverTime.classList.remove('show'); });
+
+  // ── Mute / volume ──
+  muteBtn.addEventListener('click', () => {
+    video.muted = !video.muted;
+    volIcon.innerHTML = video.muted
+      ? '<line x1="23" y1="1" x2="1" y2="23"/><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>'
+      : '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/>';
   });
 
-  // Seekable progress bar
-  let isSeeking = false;
-  function seekTo(e) {
-    const rect = progressTrack.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    video.currentTime = pct * video.duration;
+  // ── Auto-hide controls ──
+  let hideTimer;
+  function showControls() {
+    overlay.classList.add('controls-visible');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (!video.paused && !isSeeking) overlay.classList.remove('controls-visible');
+    }, 3000);
   }
-  progressTrack.addEventListener('mousedown', (e) => { isSeeking = true; seekTo(e); });
-  progressTrack.addEventListener('touchstart', (e) => { isSeeking = true; seekTo(e.touches[0]); }, { passive: true });
-  document.addEventListener('mousemove', (e) => { if (isSeeking) seekTo(e); });
-  document.addEventListener('touchmove', (e) => { if (isSeeking) seekTo(e.touches[0]); }, { passive: true });
-  document.addEventListener('mouseup', () => { isSeeking = false; });
-  document.addEventListener('touchend', () => { isSeeking = false; });
+  overlay.addEventListener('mousemove', showControls);
+  overlay.addEventListener('touchstart', showControls, { passive: true });
+  showControls();
+  video.addEventListener('pause', () => overlay.classList.add('controls-visible'));
+  video.addEventListener('play', () => {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => overlay.classList.remove('controls-visible'), 3000);
+  });
 
-  // Like
+  // ── Like ──
   async function vpToggleLike() {
     if (!isLoggedIn) { showToast('Sign in to like', 'info'); return; }
+    likeBtn.classList.add('vp-btn-pop');
+    setTimeout(() => likeBtn.classList.remove('vp-btn-pop'), 300);
     try {
       const result = await api.reactToPost(postId, 'gg');
       if (result.action === 'added') {
         post._liked = true;
         post.reactions.gg = (post.reactions.gg || 0) + 1;
-        likeBtn.classList.add('liked');
+        likeBtn.classList.add('active');
         likeBtn.querySelector('path').setAttribute('fill', 'currentColor');
       } else {
         post._liked = false;
         post.reactions.gg = Math.max(0, (post.reactions.gg || 0) - 1);
-        likeBtn.classList.remove('liked');
+        likeBtn.classList.remove('active');
         likeBtn.querySelector('path').removeAttribute('fill');
       }
-      const total = totalReactions(post.reactions);
-      overlay.querySelector('#vp-like-count').textContent = formatNum(total);
-      // Sync feed like button
+      const tot = totalReactions(post.reactions);
+      overlay.querySelector('#vp-like-count').textContent = formatNum(tot);
+      // Sync feed
       const feedBtn = document.querySelector(`#post-${postId} .like-btn`);
       if (feedBtn) {
         feedBtn.classList.toggle('liked', post._liked);
-        const feedCount = document.getElementById(`like-count-${postId}`);
-        if (feedCount) feedCount.textContent = formatNum(total);
+        const fc = document.getElementById(`like-count-${postId}`);
+        if (fc) fc.textContent = formatNum(tot);
       }
-    } catch {
-      showToast('Failed to like', 'error', '⚠️');
-    }
+    } catch { showToast('Failed to like', 'error'); }
   }
   likeBtn.addEventListener('click', vpToggleLike);
 
-  // Comments panel
+  // ── Comments ──
   commentBtn.addEventListener('click', () => {
     commentsPanel.classList.toggle('hidden');
     if (!commentsPanel.classList.contains('hidden')) {
       loadCommentsInSection(postId, overlay.querySelector('#vp-comments-body'));
     }
   });
-  commentsClose.addEventListener('click', () => {
-    commentsPanel.classList.add('hidden');
+  commentsClose.addEventListener('click', () => commentsPanel.classList.add('hidden'));
+
+  // ── Bookmark ──
+  bookmarkBtn.addEventListener('click', async () => {
+    bookmarkBtn.classList.add('vp-btn-pop');
+    setTimeout(() => bookmarkBtn.classList.remove('vp-btn-pop'), 300);
+    if (!isLoggedIn) { showToast('Sign in to bookmark', 'info'); return; }
+    try {
+      await api.toggleBookmark(postId);
+      bookmarkBtn.classList.toggle('active');
+      showToast(bookmarkBtn.classList.contains('active') ? 'Saved!' : 'Removed', 'success');
+    } catch { showToast('Failed', 'error'); }
   });
 
-  // Share
+  // ── Share ──
   shareBtn.addEventListener('click', () => {
     if (navigator.share) {
       navigator.share({ title: post.body || 'Check out this clip', url: window.location.href });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      showToast('Link copied!', 'success', '📋');
+      showToast('Link copied!', 'success');
     }
   });
 
-  // Close
-  function closePlayer() {
+  // ── Description expand ──
+  if (descMore) {
+    descMore.addEventListener('click', () => {
+      descText.classList.toggle('expanded');
+      descMore.textContent = descText.classList.contains('expanded') ? 'less' : 'more';
+    });
+  }
+
+  // ── More menu ──
+  overlay.querySelector('#vp-more-btn').addEventListener('click', () => {
+    showToast('More options coming soon', 'info');
+  });
+
+  // ── Close ──
+  function closeVideoPlayer() {
     video.pause();
     overlay.classList.remove('visible');
     document.body.style.overflow = '';
-    setTimeout(() => overlay.remove(), 200);
+    clearTimeout(hideTimer);
+    setTimeout(() => overlay.remove(), 250);
   }
-  overlay.querySelector('#vp-close-btn').addEventListener('click', closePlayer);
+  window.closeVideoPlayer = closeVideoPlayer;
+  overlay.querySelector('#vp-close-btn').addEventListener('click', closeVideoPlayer);
+
+  // ── Keyboard shortcuts ──
+  function handleKeydown(e) {
+    if (e.key === 'Escape') { closeVideoPlayer(); document.removeEventListener('keydown', handleKeydown); }
+    if (e.key === ' ' || e.key === 'k') { e.preventDefault(); togglePlay(); }
+    if (e.key === 'ArrowLeft' || e.key === 'j') { video.currentTime = Math.max(0, video.currentTime - 10); }
+    if (e.key === 'ArrowRight' || e.key === 'l') { video.currentTime = Math.min(video.duration || 0, video.currentTime + 10); }
+    if (e.key === 'm') { video.muted = !video.muted; muteBtn.click(); }
+    if (e.key === 'f') { video.requestFullscreen?.(); }
+  }
+  document.addEventListener('keydown', handleKeydown);
 
   // Auto play
-  video.play().then(() => {
-    playIcon.classList.remove('show');
-  }).catch(() => {
-    playIcon.classList.add('show');
-  });
+  video.play().then(() => updatePlayBtn()).catch(() => updatePlayBtn());
+  showControls();
 }
 
 function switchAnalyticsChart(btn, type) {
