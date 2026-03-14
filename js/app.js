@@ -3484,8 +3484,8 @@ async function loadWidgets() {
     document.getElementById('online-friends').innerHTML = onlineUsers.length
       ? onlineUsers.map(u => `
         <div class="friend-item" onclick="openUserProfile(${u.id})">
-          <div class="friend-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">
-            ${u.avatar||'?'}
+          <div class="friend-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}${u.avatar_url?`;background-image:url('${u.avatar_url}');background-size:cover;background-position:center`:''}">
+            ${u.avatar_url?'':u.avatar||'?'}
             <div class="friend-status-dot" style="background:var(--accent-green)"></div>
           </div>
           <div class="friend-info">
