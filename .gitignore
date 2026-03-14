@@ -7,22 +7,8 @@ node_modules/
 # Uploaded user files
 server/uploads/
 
-# Data files — start fresh on each deploy
-server/data/users.json
-server/data/posts.json
-server/data/post_reactions.json
-server/data/post_reposts.json
-server/data/follows.json
-server/data/messages.json
-server/data/lfg_posts.json
-server/data/lfg_members.json
-server/data/notifications.json
-server/data/game_follows.json
-server/data/stories.json
-server/data/story_views.json
-
-# games.json is auto-synced from IGDB on startup — no need to commit it
-server/data/games.json
+# Data files — only used in local JSON mode (ignored for safety)
+server/data/*.json
 
 # OS junk
 .DS_Store
