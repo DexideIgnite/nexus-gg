@@ -373,6 +373,13 @@ router.get('/:id/game-follows', optionalAuth, (req, res) => {
   res.json(db.getGameFollows(req.params.id));
 });
 
+// GET /api/users/by-handle/:handle
+router.get('/by-handle/:handle', optionalAuth, (req, res) => {
+  const user = db.getUserByHandle(req.params.handle);
+  if (!user) return res.status(404).json({ error: 'Not found' });
+  res.json(db.safeUser(user, req.user?.userId));
+});
+
 // GET /api/users/:id
 router.get('/:id/comments', optionalAuth, (req, res) => {
   res.json(db.getUserComments(req.params.id));

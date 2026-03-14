@@ -337,7 +337,7 @@ function loadPlans() {
 // NAVIGATION
 // ================================================================
 
-function navigate(section) {
+function navigate(section, skipHash) {
   // Close any open game community page when leaving games section
   if (section !== 'games') closeCommunity();
 
@@ -356,6 +356,15 @@ function navigate(section) {
   if (mobileNavEl) mobileNavEl.classList.add('active');
 
   state.currentSection = section;
+
+  // Update URL hash (skip for user-profile since openUserProfile handles that)
+  if (!skipHash && section !== 'user-profile') {
+    const hashName = section === 'home' ? '' : section;
+    const newHash = hashName ? '#' + hashName : '';
+    if (window.location.hash !== newHash) {
+      history.pushState(null, '', newHash || window.location.pathname);
+    }
+  }
 
   const loaders = {
     home: loadHome,
@@ -2923,7 +2932,15 @@ async function confirmDeleteAccount() {
 // PROFILE
 // ================================================================
 
-function loadProfile() { renderProfile(window.CURRENT_USER.id, document.getElementById('profile-container')); }
+function loadProfile() {
+  const u = window.CURRENT_USER;
+  const handle = cleanHandle(u.handle || u.name || u.username);
+  if (handle) {
+    const newHash = '#@' + handle;
+    if (window.location.hash !== newHash) history.pushState(null, '', newHash);
+  }
+  renderProfile(u.id, document.getElementById('profile-container'));
+}
 
 async function renderProfile(userId, container) {
   container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading profile...</div>`;
@@ -3362,13 +3379,19 @@ function scrollToPost(postId) {
   }, 300);
 }
 
-function openUserProfile(userId) {
+async function openUserProfile(userId) {
   if (!userId) return;
   const myId = +(window.Auth?.getUser()?.id || window.CURRENT_USER.id || 0);
   if (+userId === myId) { navigate('profile'); return; }
   state._profileUserId = +userId;
   state._profileBack = state.currentSection;
-  navigate('user-profile');
+  // Resolve handle for URL
+  try {
+    const user = await api.getUser(userId);
+    const handle = cleanHandle(user.handle || user.username);
+    history.pushState(null, '', '#@' + handle);
+  } catch { /* fall back without hash */ }
+  navigate('user-profile', true);
 }
 
 function loadUserProfile() {
@@ -4080,6 +4103,52 @@ async function loadTrendingHashtags() {
 // BOOT — Real API version
 // ================================================================
 
+// ================================================================
+// HASH-BASED ROUTING
+// ================================================================
+
+const VALID_SECTIONS = ['home','explore','games','lfg','tournaments','messages','notifications','leaderboard','profile','people','plans','settings','bookmarks','clans','clips','search'];
+
+async function handleHashRoute() {
+  const hash = window.location.hash.slice(1); // remove '#'
+  if (!hash) return false;
+
+  // User profile: #@handle
+  if (hash.startsWith('@')) {
+    const handle = hash.slice(1); // remove '@'
+    if (!handle) return false;
+    try {
+      const user = await api.getUserByHandle(handle);
+      if (user) {
+        const myId = +(window.Auth?.getUser()?.id || window.CURRENT_USER.id || 0);
+        if (+user.id === myId) {
+          navigate('profile', true);
+        } else {
+          state._profileUserId = +user.id;
+          state._profileBack = 'home';
+          navigate('user-profile', true);
+        }
+        return true;
+      }
+    } catch { /* user not found, fall through */ }
+    return false;
+  }
+
+  // Section routes: #explore, #games, #settings, etc.
+  if (VALID_SECTIONS.includes(hash)) {
+    navigate(hash, true);
+    return true;
+  }
+
+  return false;
+}
+
+window.addEventListener('popstate', () => {
+  handleHashRoute().then(handled => {
+    if (!handled) navigate('home', true);
+  });
+});
+
 async function init(user) {
   if (user) {
     const u = window.CURRENT_USER;
@@ -4101,7 +4170,9 @@ async function init(user) {
   }
   updateSidebarUser();
   await loadWidgets();
-  navigate('home');
+  // Route based on initial URL hash, or default to home
+  const handled = await handleHashRoute();
+  if (!handled) navigate('home');
   await updateNotifBadge();
   loadChallengesWidget();
   loadTrendingHashtags();

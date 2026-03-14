@@ -250,6 +250,7 @@ const db = {
   T, safeUser, formatPost, formatLFG, timeAgo, initDb, syncCommentCounts,
   // Users
   getUser:(id)=>T.users.findOne(u=>u.id===+id),
+  getUserByHandle:(handle)=>T.users.findOne(u=>(u.handle||u.username).toLowerCase()===handle.toLowerCase()),
   getUserByLogin:(login)=>T.users.findOne(u=>u.email===login||u.username===login),
   getUserByOAuth:(provider,providerId)=>T.users.findOne(u=>u.oauth_provider===provider&&u.oauth_id===providerId),
   createUser:(data)=>T.users.insert(data),

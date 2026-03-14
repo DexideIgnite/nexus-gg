@@ -93,6 +93,7 @@ const api = {
   // Users
   getUsers:          (search)  => api.get(`/users${search?'?search='+encodeURIComponent(search):''}`),
   getUser:           (id)      => api.get(`/users/${id}`),
+  getUserByHandle:   (handle)  => api.get(`/users/by-handle/${encodeURIComponent(handle)}`),
   getOnline:         ()        => api.get('/users/online'),
   updateMe:          (data)    => api.patch('/users/me', data),
   upgradePlan:       (plan)    => api.patch('/users/me/plan', { plan }),
