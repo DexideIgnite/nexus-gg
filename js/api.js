@@ -495,6 +495,39 @@ function bootApp(user, token) {
   if (typeof window.init === 'function') window.init(user);
 }
 
+// ================================================================
+// OAUTH POPUP FLOW
+// ================================================================
+function oauthLogin(provider) {
+  const width = 500, height = 650;
+  const left = window.screenX + (window.outerWidth - width) / 2;
+  const top = window.screenY + (window.outerHeight - height) / 2;
+  const popup = window.open(
+    `/api/oauth/${provider}`,
+    `oauth_${provider}`,
+    `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`
+  );
+  if (!popup) {
+    showAuthError('login', 'Popup blocked. Please allow popups for this site.');
+    return;
+  }
+}
+
+// Listen for OAuth callback messages from popup
+window.addEventListener('message', (e) => {
+  if (e.origin !== window.location.origin) return;
+  if (e.data?.type === 'oauth_success') {
+    const { token, user } = e.data;
+    Auth.setToken(token);
+    Auth.setUser(user);
+    hideAuthModal();
+    bootApp(user, token);
+    if (typeof showToast === 'function') showToast('Welcome, ' + user.username + '!', 'success', '👋');
+  } else if (e.data?.type === 'oauth_error') {
+    showAuthError('login', e.data.error || 'OAuth login failed');
+  }
+});
+
 // Export
 window.Auth = Auth;
 window.api = api;
@@ -503,3 +536,4 @@ window.showAuthModal = showAuthModal;
 window.switchAuthTab = switchAuthTab;
 window.initSocket = initSocket;
 window.fetchWithAuth = fetchWithAuth;
+window.oauthLogin = oauthLogin;

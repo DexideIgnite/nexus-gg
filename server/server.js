@@ -62,6 +62,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // ================================================================
 app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 app.use('/api/auth',          require('./routes/auth'));
+app.use('/api/oauth',         require('./routes/oauth'));
 app.use('/api/posts',         require('./routes/posts'));
 app.use('/api/users',         require('./routes/users'));
 app.use('/api/lfg',           require('./routes/lfg'));

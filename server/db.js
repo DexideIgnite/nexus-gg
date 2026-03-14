@@ -99,6 +99,7 @@ const db = {
   // Users
   getUser:(id)=>T.users.findOne(u=>u.id===+id),
   getUserByLogin:(login)=>T.users.findOne(u=>u.email===login||u.username===login),
+  getUserByOAuth:(provider,providerId)=>T.users.findOne(u=>u.oauth_provider===provider&&u.oauth_id===providerId),
   createUser:(data)=>T.users.insert(data),
   updateUser:(id,changes)=>{T.users.update(u=>u.id===+id,changes);return T.users.findOne(u=>u.id===+id);},
   getOnlineUsers:()=>T.users.findAll(u=>u.online),

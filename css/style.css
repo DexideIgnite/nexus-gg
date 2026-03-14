@@ -1709,6 +1709,56 @@ body {
 }
 .auth-optional { color: var(--text-muted); font-weight: 400; text-transform: none; }
 
+/* OAuth Buttons */
+.oauth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.oauth-btn:hover {
+  border-color: var(--border-accent);
+  background: var(--bg-card-hover);
+}
+.oauth-btn svg { flex-shrink: 0; }
+.oauth-google:hover { border-color: #4285F4; box-shadow: 0 0 0 3px rgba(66,133,244,0.12); }
+.oauth-discord:hover { border-color: #5865F2; box-shadow: 0 0 0 3px rgba(88,101,242,0.12); }
+.oauth-apple:hover { border-color: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.08); }
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 /* ================================================================
    SIDEBAR USER MENU
    ================================================================ */
