@@ -152,6 +152,32 @@ function showToast(msg, type='info', emoji='🎮') {
   }, 3200);
 }
 
+// Custom confirm dialog (replaces browser confirm())
+function showConfirm(message, { confirmText = 'Delete', cancelText = 'Cancel', danger = true } = {}) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-box">
+        <p class="confirm-message">${message}</p>
+        <div class="confirm-actions">
+          <button class="confirm-cancel-btn">${cancelText}</button>
+          <button class="confirm-ok-btn${danger ? ' confirm-danger' : ''}">${confirmText}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+    const close = (result) => {
+      overlay.classList.remove('visible');
+      setTimeout(() => overlay.remove(), 200);
+      resolve(result);
+    };
+    overlay.querySelector('.confirm-cancel-btn').onclick = () => close(false);
+    overlay.querySelector('.confirm-ok-btn').onclick = () => close(true);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+  });
+}
+
 // ================================================================
 // PLANS / SUBSCRIPTION
 // ================================================================
@@ -208,7 +234,7 @@ async function upgradePlan(plan) {
   const isDowngrade = (planOrder[plan] || 0) < (planOrder[currentPlan] || 0);
   if (isDowngrade) {
     const names = { free: 'Free', plus: 'DXED+', pro: 'DXED Pro' };
-    if (!confirm(`Downgrade from ${names[currentPlan]} to ${names[plan]}? You'll lose access to premium features immediately.`)) return;
+    if (!await showConfirm(`Downgrade from ${names[currentPlan]} to ${names[plan]}? You'll lose access to premium features immediately.`, { confirmText: 'Downgrade', danger: true })) return;
   }
   const btn = document.getElementById(`plan-btn-${plan}`);
   if (btn) { btn.disabled = true; btn.textContent = 'Processing...'; }
@@ -800,7 +826,7 @@ function _svRender() {
     }
     delBtn.style.display = '';
     delBtn.onclick = async () => {
-      if (!confirm('Delete this story?')) return;
+      if (!await showConfirm('Delete this story?')) return;
       try {
         await api.deleteStory(story.id);
         group.stories.splice(SV.sIdx, 1);
@@ -1142,7 +1168,7 @@ async function toggleLike(postId, btn) {
 }
 
 async function deletePostReal(postId, btn) {
-  if (!confirm('Delete this post?')) return;
+  if (!await showConfirm('Delete this post?')) return;
   try {
     await api.deletePost(postId);
     const el = document.getElementById(`post-${postId}`);
@@ -2385,7 +2411,7 @@ function renderLFGCards(posts) {
 }
 
 async function deleteLFGReal(id) {
-  if (!confirm('Delete this LFG post?')) return;
+  if (!await showConfirm('Delete this LFG post?')) return;
   try {
     await api.deleteLFG(id);
     showToast('LFG post deleted', 'success');

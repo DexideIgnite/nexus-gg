@@ -2818,6 +2818,70 @@ body {
 .post-media-remove { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.75); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.15); color: white; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: background .15s, transform .15s; z-index: 2; }
 .post-media-remove:hover { background: rgba(220,50,50,.8); transform: scale(1.1); }
 
+/* ── Custom confirm dialog ── */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.confirm-overlay.visible { opacity: 1; }
+.confirm-box {
+  background: #1a1a2e;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 340px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.confirm-message {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+}
+.confirm-cancel-btn,
+.confirm-ok-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s, transform 0.1s;
+  font-family: inherit;
+}
+.confirm-cancel-btn {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-secondary);
+}
+.confirm-cancel-btn:hover { background: rgba(255,255,255,0.12); }
+.confirm-ok-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-blue));
+  color: white;
+}
+.confirm-ok-btn:hover { opacity: 0.9; }
+.confirm-ok-btn.confirm-danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+.confirm-ok-btn:active, .confirm-cancel-btn:active { transform: scale(0.97); }
+
 /* ── Post image in feed ── */
 .post-image-container { margin: 10px 0; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); }
 .post-image { width: 100%; max-height: 420px; object-fit: cover; cursor: zoom-in; display: block; border-radius: 14px; transition: transform .25s ease, opacity .2s; }
