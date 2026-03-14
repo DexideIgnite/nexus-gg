@@ -1564,6 +1564,7 @@ function collapseComposeBox() {
   const sel = document.getElementById('compose-game-tag');
   if (sel) sel.value = '';
   _inlinePostType = 'post';
+  removeInlineVideo();
 }
 
 function setPostType(type) {
@@ -1579,26 +1580,48 @@ async function submitInlinePost() {
   if (btn) { btn.disabled = true; btn.textContent = 'Posting...'; }
   try {
     let image_url = null;
+    let clip_url = null;
+    const token = Auth.getToken();
     if (window._pendingInlineFile) {
       const form = new FormData();
       form.append('image', window._pendingInlineFile);
       const r = await fetch('/api/posts/upload-image', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
+        headers: { 'Authorization': 'Bearer ' + token },
         body: form,
       });
       const data = await r.json();
       if (data.url) image_url = data.url;
     }
+    // Upload video clip if attached
+    if (window._pendingInlineVideoFile) {
+      btn.textContent = 'Uploading video...';
+      const fd = new FormData();
+      fd.append('clip', window._pendingInlineVideoFile);
+      const uploadRes = await fetch('/api/posts/upload-clip', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: fd,
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Video upload failed');
+      }
+      const uploadData = await uploadRes.json();
+      clip_url = uploadData.url;
+    }
+    const postType = window._pendingInlineVideoFile ? 'clip' : _inlinePostType;
     const newPost = await api.createPost({
       body: text,
-      type: _inlinePostType,
+      type: postType,
       game: document.getElementById('compose-game-tag')?.value || null,
       image_url,
+      clip_url,
     });
+    removeInlineVideo();
     collapseComposeBox();
     removeInlineImage();
-    showToast('Post published! 🎮', 'success', '✅');
+    showToast(clip_url ? 'Clip posted! 🎬' : 'Post published! 🎮', 'success', clip_url ? '🎬' : '✅');
     if (newPost._claudeGated) setTimeout(() => showUpgradePrompt('Use @Claude AI in your posts'), 800);
     await renderFeed();
   } catch (err) {
@@ -1621,6 +1644,7 @@ function closePostModal() {
   const preview = document.getElementById('post-image-preview');
   preview.innerHTML = ''; preview.classList.add('hidden');
   window._pendingPostImageUrl = null;
+  removeModalVideo();
 }
 
 function handlePostImageSelect(input) {
@@ -1663,6 +1687,94 @@ function removeInlineImage() {
   window._pendingInlineFile = null;
 }
 
+// Video clip handlers for compose areas
+function handleModalVideoSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('video/')) {
+    showToast('Only video files are allowed', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  if (file.size > 100 * 1024 * 1024) {
+    showToast('Video must be under 100MB', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  // Remove any pending image since we're attaching video
+  removePostImage();
+  window._pendingModalVideoFile = file;
+  const url = URL.createObjectURL(file);
+  const preview = document.getElementById('modal-video-preview');
+  const video = document.getElementById('modal-video-el');
+  video.src = url;
+  preview.classList.remove('hidden');
+  // Auto-set post type to clip
+  const typeSelect = document.getElementById('modal-post-type');
+  if (typeSelect) typeSelect.value = 'clip';
+  // Check duration
+  video.onloadedmetadata = () => {
+    if (video.duration > 60) {
+      showToast('Clip must be 60 seconds or shorter', 'error', '⚠️');
+      removeModalVideo();
+    }
+  };
+  showToast('Video clip attached! 🎬', 'success', '🎬');
+}
+
+function removeModalVideo() {
+  const input = document.getElementById('modal-video-input');
+  if (input) input.value = '';
+  const preview = document.getElementById('modal-video-preview');
+  if (preview) { preview.classList.add('hidden'); }
+  const video = document.getElementById('modal-video-el');
+  if (video) video.src = '';
+  window._pendingModalVideoFile = null;
+}
+
+function handleInlineVideoSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('video/')) {
+    showToast('Only video files are allowed', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  if (file.size > 100 * 1024 * 1024) {
+    showToast('Video must be under 100MB', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  // Remove any pending image since we're attaching video
+  removeInlineImage();
+  window._pendingInlineVideoFile = file;
+  const url = URL.createObjectURL(file);
+  const preview = document.getElementById('inline-video-preview');
+  const video = document.getElementById('inline-video-el');
+  video.src = url;
+  preview.classList.remove('hidden');
+  _inlinePostType = 'clip';
+  // Check duration
+  video.onloadedmetadata = () => {
+    if (video.duration > 60) {
+      showToast('Clip must be 60 seconds or shorter', 'error', '⚠️');
+      removeInlineVideo();
+    }
+  };
+  showToast('Video clip attached! 🎬', 'success', '🎬');
+}
+
+function removeInlineVideo() {
+  const input = document.getElementById('inline-video-input');
+  if (input) input.value = '';
+  const preview = document.getElementById('inline-video-preview');
+  if (preview) { preview.classList.add('hidden'); }
+  const video = document.getElementById('inline-video-el');
+  if (video) video.src = '';
+  window._pendingInlineVideoFile = null;
+  _inlinePostType = 'post';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const textarea = document.getElementById('modal-post-text');
   if (textarea) {
@@ -1686,26 +1798,48 @@ async function submitModalPost() {
 
   try {
     let image_url = null;
+    let clip_url = null;
+    const token = Auth.getToken();
     if (window._pendingPostFile) {
       const form = new FormData();
       form.append('image', window._pendingPostFile);
       const r = await fetch('/api/posts/upload-image', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
+        headers: { 'Authorization': 'Bearer ' + token },
         body: form,
       });
       const data = await r.json();
       if (data.url) image_url = data.url;
     }
+    // Upload video clip if attached
+    if (window._pendingModalVideoFile) {
+      btn.textContent = 'Uploading video...';
+      const fd = new FormData();
+      fd.append('clip', window._pendingModalVideoFile);
+      const uploadRes = await fetch('/api/posts/upload-clip', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: fd,
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Video upload failed');
+      }
+      const uploadData = await uploadRes.json();
+      clip_url = uploadData.url;
+    }
+    const postType = window._pendingModalVideoFile ? 'clip' : document.getElementById('modal-post-type').value;
     const newPost = await api.createPost({
       body: text,
-      type: document.getElementById('modal-post-type').value,
+      type: postType,
       game: document.getElementById('modal-game-tag').value || null,
       platform: document.getElementById('modal-platform').value || null,
       image_url,
+      clip_url,
     });
+    removeModalVideo();
     closePostModal();
-    showToast('Post published! 🎮', 'success', '✅');
+    showToast(clip_url ? 'Clip posted! 🎬' : 'Post published! 🎮', 'success', clip_url ? '🎬' : '✅');
     if (newPost._claudeGated) {
       setTimeout(() => showUpgradePrompt('Use @Claude AI in your posts'), 800);
     }

@@ -2813,6 +2813,10 @@ body {
 .post-img-thumb { max-width: 100%; max-height: 260px; border-radius: 14px; object-fit: cover; display: block; }
 .post-img-remove { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.75); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.15); color: white; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: background .15s, transform .15s; }
 .post-img-remove:hover { background: rgba(220,50,50,.8); transform: scale(1.1); }
+.post-video-preview { position: relative; margin-top: 8px; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,.1); }
+.post-video-preview video { display: block; }
+.post-media-remove { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.75); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.15); color: white; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: background .15s, transform .15s; z-index: 2; }
+.post-media-remove:hover { background: rgba(220,50,50,.8); transform: scale(1.1); }
 
 /* ── Post image in feed ── */
 .post-image-container { margin: 10px 0; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); }
