@@ -350,6 +350,11 @@ function navigate(section) {
   const navEl = document.querySelector(`.nav-item[data-section="${section}"]`);
   if (navEl) navEl.classList.add('active');
 
+  // Update mobile bottom nav
+  document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
+  const mobileNavEl = document.querySelector(`.mobile-nav-item[data-section="${section}"]`);
+  if (mobileNavEl) mobileNavEl.classList.add('active');
+
   state.currentSection = section;
 
   const loaders = {
@@ -2185,6 +2190,11 @@ async function loadMessages() {
   const list = document.getElementById('conversations-list');
   const header = document.getElementById('chat-header');
   list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted)">Loading...</div>`;
+  // Mobile: reset to show list, hide chat
+  if (window.innerWidth <= 560) {
+    document.querySelector('.messages-sidebar')?.classList.remove('msg-sidebar-hidden');
+    document.querySelector('.messages-chat')?.classList.add('msg-chat-hidden');
+  }
   try {
     const conversations = await api.getConversations();
     renderConversationsFromAPI(conversations);
@@ -2233,6 +2243,10 @@ async function selectConversationAPI(userId, userObj) {
     try { user = await api.getUser(userId); } catch { user = { username:'User', avatar:'?', gradient:'linear-gradient(135deg,#8b5cf6,#3b82f6)', online:false }; }
   }
   document.getElementById('chat-header').innerHTML = `
+    <button class="msg-back-btn" onclick="msgShowList()">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
     <div class="conv-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:40px;height:40px">${user.avatar||'?'}</div>
     <div>
       <div style="font-weight:800;font-size:14px">${user.username||'User'}</div>
@@ -2240,6 +2254,11 @@ async function selectConversationAPI(userId, userObj) {
         ${user.online ? '🟢 Online' : '⚫ Offline'}
       </div>
     </div>`;
+  // Mobile: show chat, hide conversation list
+  if (window.innerWidth <= 560) {
+    document.querySelector('.messages-sidebar')?.classList.add('msg-sidebar-hidden');
+    document.querySelector('.messages-chat')?.classList.remove('msg-chat-hidden');
+  }
   // Update active conversation in list
   document.querySelectorAll('.conv-item').forEach(el => {
     el.classList.toggle('active', +el.dataset.uid === userId);
@@ -2289,6 +2308,12 @@ async function sendMessage(e) {
       appendChatMessage(msg, true);
     } catch { showToast('Failed to send message', 'error', '⚠️'); }
   }
+}
+
+// Mobile messages: show conversation list, hide chat
+function msgShowList() {
+  document.querySelector('.messages-sidebar')?.classList.remove('msg-sidebar-hidden');
+  document.querySelector('.messages-chat')?.classList.add('msg-chat-hidden');
 }
 
 // ================================================================
