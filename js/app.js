@@ -158,7 +158,7 @@ function showToast(msg, type='info', emoji='🎮') {
 
 function planBadge(plan) {
   if (plan === 'plus') return `<span class="plan-badge plan-badge-plus">DXED+</span>`;
-  if (plan === 'pro') return `<span class="verified-badge verified-gold plan-badge-pro-glow" title="DXED Pro">✓</span>`;
+  if (plan === 'pro') return `<span class="verified-badge verified-gold plan-badge-pro-glow" title="DXED Pro"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
   return '';
 }
 
@@ -1035,16 +1035,16 @@ function renderPost(post) {
     </div>`;
   } else if (post.type === 'clip' && post.clip) {
     extra = `<div class="post-clip-preview">
-      <div class="clip-icon">🎬</div>
+      <div class="clip-icon"><svg viewBox="0 0 24 24"><polygon points="23,7 16,12 23,17"/><rect x="1" y="5" width="15" height="14" rx="3"/></svg></div>
       <div class="clip-info">
         <div class="clip-title">${post.clip.title}</div>
         <div class="clip-desc">${post.clip.desc}</div>
       </div>
-      <button class="clip-play-btn" onclick="showToast('Playing clip!','success','🎬')">▶ Watch</button>
+      <button class="clip-play-btn" onclick="showToast('Playing clip!','success')">▶ Watch</button>
     </div>`;
   } else if (post.type === 'achievement' && post.achievement) {
     extra = `<div class="post-achievement">
-      <div class="achievement-icon">${post.achievement.icon}</div>
+      <div class="achievement-icon"><svg viewBox="0 0 24 24"><path d="M6 9H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2"/><path d="M18 9h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-2"/><path d="M8 21h8M12 17v4M6 3h12v10a6 6 0 0 1-12 0V3Z"/></svg></div>
       <div class="achievement-info">
         <div class="ach-title">${post.achievement.title}</div>
         <div class="ach-game">${post.achievement.game}</div>
@@ -1061,7 +1061,7 @@ function renderPost(post) {
       <div class="quoted-post-header">
         <div class="quoted-avatar-sm" style="background:${qu.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${qu.avatar||'?'}</div>
         <span class="quoted-username-sm">${qu.username||'Player'}</span>
-        ${qu.verified ? '<span class="verified-badge">✓</span>' : ''}
+        ${qu.verified ? '<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''}
         <span class="quoted-handle-sm">@${cleanHandle(qu.handle||qu.username)}</span>
         <span class="quoted-time-sm">${qp.time}</span>
       </div>
@@ -1075,10 +1075,10 @@ function renderPost(post) {
       <div class="post-user-info">
         <div class="post-user-row">
           <span class="post-username" onclick="openUserProfile(${user.id})">${userName(user)}</span>
-          ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
+          ${user.verified ? '<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''}
           ${planBadge(user.plan)}
           <span class="${rankBadgeClass(user.rank)}">${user.rank||'Bronze'}</span>
-          ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? 'Clip' : post.type === 'achievement' ? 'Achievement' : 'LFG'}</span>` : ''}
+          ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23,7 16,12 23,17"/><rect x="1" y="5" width="15" height="14" rx="3"/></svg> Clip' : post.type === 'achievement' ? '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 21h8M12 17v4M6 3h12v10a6 6 0 0 1-12 0V3Z"/></svg> Achievement' : '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> LFG'}</span>` : ''}
           ${post.game ? `<span class="post-game-tag" onclick="navigate('games')">${post.game}</span>` : ''}
           ${post.platform ? `<span class="post-platform-badge">${post.platform}</span>` : ''}
           ${nowPlayingBadge}
@@ -1086,38 +1086,38 @@ function renderPost(post) {
         <span class="post-tag">${userHandle(user)}</span>
       </div>
       <span class="post-time">${post.time}</span>
-      ${post.user_id === (window.Auth?.getUser()?.id || window.CURRENT_USER?.id) ? `<button class="post-delete-btn" title="Delete post" onclick="event.stopPropagation();deletePostReal(${post.id},this)">✕</button>` : ''}
+      ${post.user_id === (window.Auth?.getUser()?.id || window.CURRENT_USER?.id) ? `<button class="post-delete-btn" title="Delete post" onclick="event.stopPropagation();deletePostReal(${post.id},this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12"/></svg></button>` : ''}
     </div>
     <div class="post-body">${parseBody(post.body)}</div>
     ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox('${post.image_url}')"></div>` : ''}
     ${extra}
     ${post.poll ? renderPollCard(post.poll, post.id) : ''}
     <div class="post-actions">
-      <button class="post-action-btn ${liked ? 'liked' : ''}" onclick="toggleLike(${post.id},this)">
+      <button class="post-action-btn like-btn ${liked ? 'liked' : ''}" onclick="toggleLike(${post.id},this)">
         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" ${liked?'fill="currentColor"':''}/></svg>
         <span id="like-count-${post.id}">${formatNum(total)}</span>
       </button>
-      <button class="post-action-btn" onclick="toggleComment(${post.id},this)">
-        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <button class="post-action-btn comment-btn" onclick="toggleComment(${post.id},this)">
+        <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
         <span id="comment-count-${post.id}">${post.comments}</span>
       </button>
       <div class="post-share-wrap">
-        <button class="post-action-btn" onclick="toggleShareMenu(${post.id},this)">
+        <button class="post-action-btn share-btn" onclick="toggleShareMenu(${post.id},this)">
           <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
           <span>${post.reposts || 0}</span>
         </button>
         <div class="share-dropdown hidden" id="share-menu-${post.id}">
-          <div class="share-option" onclick="openQuoteModal(${post.id});closeAllShareMenus()">Quote Post</div>
-          <div class="share-option" onclick="boostPost(${post.id},this);closeAllShareMenus()">Boost</div>
-          <div class="share-option" onclick="copyPostLink(${post.id});closeAllShareMenus()">Copy Link</div>
+          <div class="share-option" onclick="openQuoteModal(${post.id});closeAllShareMenus()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg> Quote</div>
+          <div class="share-option" onclick="boostPost(${post.id},this);closeAllShareMenus()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> Boost</div>
+          <div class="share-option" onclick="copyPostLink(${post.id});closeAllShareMenus()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Copy Link</div>
         </div>
       </div>
       <button class="post-action-btn views-btn">
         <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>${post.views}</span>
       </button>
-      <button class="post-action-btn ${post.bookmarked ? 'active' : ''}" title="${post.bookmarked ? 'Remove bookmark' : 'Bookmark'}" onclick="toggleBookmark(${post.id},this)">
-        <svg viewBox="0 0 24 24" fill="${post.bookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      <button class="post-action-btn bookmark-btn ${post.bookmarked ? 'active' : ''}" title="${post.bookmarked ? 'Remove bookmark' : 'Bookmark'}" onclick="toggleBookmark(${post.id},this)">
+        <svg viewBox="0 0 24 24" fill="${post.bookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
       </button>
     </div>
   </div>`;
@@ -1243,7 +1243,7 @@ function renderCommentSectionInEl(postId, comments, me, section) {
       <div class="comment-avatar" style="background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${me.avatar_url?`background-image:url('${me.avatar_url}');background-size:cover;background-position:center`:''}">${me.avatar_url?'':me.avatar||'?'}</div>
       <div class="comment-input-wrap">
         <input class="comment-input" data-post-id="${postId}" placeholder="${(window.CURRENT_USER?.plan==='plus'||window.CURRENT_USER?.plan==='pro')?'Comment… @Claude AI is active':'Comment… @Claude requires DXED+'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId},this)}">
-        <button class="comment-submit-btn" onclick="submitComment(${postId},this)">↑</button>
+        <button class="comment-submit-btn" onclick="submitComment(${postId},this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
       </div>
     </div>` : ''}`;
   section.dataset.comments = JSON.stringify(comments);
@@ -1297,7 +1297,7 @@ function renderCommentInner(c, postId, depth) {
       <div class="comment-body">
         <div class="comment-meta">
           <span class="comment-author" onclick="openUserProfile(${c.user_id})">${c.username||'Player'}</span>
-          ${isBot ? `<span class="claude-ai-badge">AI</span>` : (c.verified ? '<span class="verified-badge">✓</span>' : '')}
+          ${isBot ? `<span class="claude-ai-badge">AI</span>` : (c.verified ? '<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : '')}
           ${isBot ? '' : planBadge(c.plan)}
           <span class="comment-time">${c.time||'just now'}</span>
         </div>
@@ -1325,7 +1325,7 @@ function openInlineReply(postId, commentId, handle) {
         <input class="comment-input" id="inline-input-${commentId}" placeholder="Reply to @${handle}…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitInlineReply(${postId},${commentId},this)}"
           value="@${handle} ">
-        <button class="comment-submit-btn" onclick="submitInlineReply(${postId},${commentId},document.getElementById('inline-input-${commentId}'))">↑</button>
+        <button class="comment-submit-btn" onclick="submitInlineReply(${postId},${commentId},document.getElementById('inline-input-${commentId}'))"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
       </div>
     </div>`;
   const input = wrap.querySelector('input');
@@ -1843,7 +1843,7 @@ async function renderExploreContent(tab) {
           <div style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .2s" onclick="openUserProfile(${u.id})" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
             <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:50px;height:50px;font-size:18px">${u.avatar||'?'}</div>
             <div style="flex:1">
-              <div style="font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px">${u.username||'Player'} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
+              <div style="font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px">${u.username||'Player'} ${u.verified?'<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>':''} ${planBadge(u.plan)}</div>
               <div style="font-size:13px;color:var(--text-muted)">@${cleanHandle(u.handle||u.username)} · ${formatNum(u.followers||0)} followers</div>
               <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${u.online ? '🟢 Online' : '⚫ Offline'}</div>
             </div>
@@ -2594,7 +2594,7 @@ async function loadPeople() {
       <div class="people-card" onclick="openUserProfile(${u.id})">
         <div class="people-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
         <div class="people-info">
-          <div class="people-name">${escapeHtml(u.username)} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
+          <div class="people-name">${escapeHtml(u.username)} ${u.verified?'<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>':''} ${planBadge(u.plan)}</div>
           <div class="people-handle">@${escapeHtml(cleanHandle(u.handle||u.username))}</div>
           <div style="margin-top:4px"><span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
           ${u.bio?`<div class="people-bio">${escapeHtml(u.bio.slice(0,60))}${u.bio.length>60?'...':''}</div>`:''}
@@ -3094,7 +3094,7 @@ async function renderProfile(userId, container) {
                  <button class="btn-secondary" onclick="openDirectMessage(${user.id})">Message</button>`}
           </div>
         </div>
-        <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg">✓</span>' : ''} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>
+        <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>
         <div class="profile-handle">@${cleanHandle(user.handle||user.username)} <span class="profile-online-dot" style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'● Online':'● Offline'}</span></div>
         ${user.bio ? `<div class="profile-bio">${user.bio}</div>` : ''}
         <div class="profile-stats-row">
@@ -3566,7 +3566,7 @@ async function openFollowModal(type, userId) {
       <div class="follow-modal-user" onclick="closeFollowModal();openUserProfile(${u.id})">
         <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''};width:42px;height:42px;min-width:42px">${u.avatar_url?'':u.avatar||'?'}</div>
         <div style="flex:1">
-          <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:5px">${u.username} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
+          <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:5px">${u.username} ${u.verified?'<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>':''} ${planBadge(u.plan)}</div>
           <div style="color:var(--text-muted);font-size:12px">@${(u.handle||u.username).replace(/^@/,'')} · <span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
         </div>
       </div>`).join('');
@@ -3955,7 +3955,7 @@ async function doSearch(q) {
         return `<div class="search-player-card" onclick="openUserProfile(${u.id})">
           ${av}
           <div class="search-player-info">
-            <div class="search-player-name">${escapeHtml(u.username)} ${u.verified ? '<span class="verified-badge">✓</span>' : ''} ${planBadge(u.plan)}</div>
+            <div class="search-player-name">${escapeHtml(u.username)} ${u.verified ? '<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''} ${planBadge(u.plan)}</div>
             <div class="search-player-handle">@${escapeHtml((u.handle||u.username||'').replace(/^@/,''))}</div>
             ${u.bio ? `<div class="search-player-bio">${escapeHtml(u.bio).slice(0,80)}</div>` : ''}
           </div>
