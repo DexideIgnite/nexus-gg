@@ -3497,6 +3497,91 @@ body {
 }
 
 /* ================================================================
+   MOBILE MORE MENU
+   ================================================================ */
+.mobile-more-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.mobile-more-overlay.hidden {
+  display: none !important;
+}
+.mobile-more-sheet {
+  background: var(--bg-card);
+  border: 1px solid var(--border-accent);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+.mobile-more-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  font-size: 17px;
+  font-weight: 800;
+  border-bottom: 1px solid var(--border);
+}
+.mobile-more-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 16px 12px;
+}
+.mobile-more-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 8px;
+  border-radius: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-more-item:hover,
+.mobile-more-item:active {
+  background: rgba(139,92,246,0.1);
+  color: var(--text-primary);
+}
+.mobile-more-item svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mobile-more-item span {
+  font-size: 12px;
+  font-weight: 600;
+}
+.mobile-more-plans {
+  color: var(--accent-gold);
+}
+.mobile-more-plans:hover,
+.mobile-more-plans:active {
+  background: rgba(245,158,11,0.12);
+  color: var(--accent-gold);
+}
+.mobile-more-logout {
+  padding: 8px 20px 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* ================================================================
    MOBILE RESPONSIVE OVERHAUL
    ================================================================ */
 @media (max-width: 560px) {

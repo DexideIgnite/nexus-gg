@@ -2310,6 +2310,15 @@ async function sendMessage(e) {
   }
 }
 
+// Mobile More menu
+function toggleMobileMore(e) {
+  e?.preventDefault();
+  document.getElementById('mobile-more-menu')?.classList.remove('hidden');
+}
+function closeMobileMore() {
+  document.getElementById('mobile-more-menu')?.classList.add('hidden');
+}
+
 // Mobile messages: show conversation list, hide chat
 function msgShowList() {
   document.querySelector('.messages-sidebar')?.classList.remove('msg-sidebar-hidden');
