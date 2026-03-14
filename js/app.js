@@ -1056,8 +1056,9 @@ function renderPost(post) {
   const nowPlayingBadge = user.now_playing ? `<span class="now-playing-badge">Playing ${escapeHtml(user.now_playing)}</span>` : '';
 
   if (post.type === 'clip' && post.clip_url) {
-    extra = `<div class="clip-video-wrapper">
-      <video class="post-clip-video" controls preload="metadata" src="${post.clip_url}"></video>
+    extra = `<div class="clip-video-wrapper" onclick="event.stopPropagation();openVideoPlayer(${post.id})">
+      <video class="post-clip-video" preload="metadata" src="${post.clip_url}" muted></video>
+      <div class="clip-video-play-overlay"><svg viewBox="0 0 24 24" width="48" height="48" fill="white" opacity="0.9"><polygon points="5,3 19,12 5,21"/></svg></div>
     </div>`;
   } else if (post.type === 'clip' && post.clip) {
     extra = `<div class="post-clip-preview">
@@ -3621,6 +3622,270 @@ function openImageLightbox(url) {
   document.body.appendChild(el);
 }
 
+// ================================================================
+// CUSTOM VIDEO PLAYER
+// ================================================================
+function openVideoPlayer(postId) {
+  const post = state.posts.find(p => p.id === postId);
+  if (!post || !post.clip_url) return;
+  const user = post.user || {};
+  const me = window.Auth?.getUser() || window.CURRENT_USER;
+  const total = totalReactions(post.reactions || {});
+  const liked = post._liked || false;
+  const isLoggedIn = !!window.Auth?.getToken();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'vp-overlay';
+  overlay.id = 'video-player-overlay';
+
+  overlay.innerHTML = `
+    <div class="vp-container">
+      <div class="vp-video-area">
+        <video class="vp-video" src="${post.clip_url}" playsinline preload="auto"></video>
+        <div class="vp-tap-zone vp-tap-left"></div>
+        <div class="vp-tap-zone vp-tap-center"></div>
+        <div class="vp-tap-zone vp-tap-right"></div>
+        <div class="vp-heart-anim" id="vp-heart-anim">
+          <svg viewBox="0 0 24 24" width="80" height="80"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill="#ef4444" stroke="#ef4444" stroke-width="1"/></svg>
+        </div>
+        <div class="vp-play-icon" id="vp-play-icon">
+          <svg viewBox="0 0 24 24" width="56" height="56" fill="white"><polygon points="5,3 19,12 5,21"/></svg>
+        </div>
+        <div class="vp-skip-indicator vp-skip-back" id="vp-skip-back">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 105.64-8.36L1 10"/></svg>
+          <span>-10s</span>
+        </div>
+        <div class="vp-skip-indicator vp-skip-fwd" id="vp-skip-fwd">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 11-5.64-8.36L23 10"/></svg>
+          <span>+10s</span>
+        </div>
+        <div class="vp-top-bar">
+          <button class="vp-close-btn" id="vp-close-btn">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+          </button>
+          <div class="vp-top-info">
+            <div class="vp-user-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
+            <div class="vp-user-meta">
+              <span class="vp-username">${userName(user)}</span>
+              ${post.game ? `<span class="vp-game-tag">${post.game}</span>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="vp-bottom-bar">
+          <div class="vp-post-body">${escapeHtml(post.body || '')}</div>
+          <div class="vp-progress-row">
+            <span class="vp-time" id="vp-time-current">0:00</span>
+            <div class="vp-progress-track" id="vp-progress-track">
+              <div class="vp-progress-fill" id="vp-progress-fill"></div>
+              <div class="vp-progress-thumb" id="vp-progress-thumb"></div>
+            </div>
+            <span class="vp-time" id="vp-time-total">0:00</span>
+          </div>
+        </div>
+        <div class="vp-side-actions">
+          <button class="vp-action-btn ${liked?'liked':''}" id="vp-like-btn" data-post-id="${postId}">
+            <svg viewBox="0 0 24 24" width="28" height="28"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" ${liked?'fill="currentColor"':''}/></svg>
+            <span id="vp-like-count">${formatNum(total)}</span>
+          </button>
+          <button class="vp-action-btn" id="vp-comment-btn">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <span>Reply</span>
+          </button>
+          <button class="vp-action-btn" id="vp-share-btn">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            <span>Share</span>
+          </button>
+        </div>
+      </div>
+      <div class="vp-comments-panel hidden" id="vp-comments-panel">
+        <div class="vp-comments-header">
+          <span>Comments</span>
+          <button class="vp-comments-close" id="vp-comments-close">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="vp-comments-body comment-section" id="vp-comments-body" data-post-id="${postId}"></div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => overlay.classList.add('visible'));
+
+  const video = overlay.querySelector('.vp-video');
+  const playIcon = overlay.querySelector('#vp-play-icon');
+  const progressFill = overlay.querySelector('#vp-progress-fill');
+  const progressThumb = overlay.querySelector('#vp-progress-thumb');
+  const progressTrack = overlay.querySelector('#vp-progress-track');
+  const timeCurrent = overlay.querySelector('#vp-time-current');
+  const timeTotal = overlay.querySelector('#vp-time-total');
+  const heartAnim = overlay.querySelector('#vp-heart-anim');
+  const likeBtn = overlay.querySelector('#vp-like-btn');
+  const commentBtn = overlay.querySelector('#vp-comment-btn');
+  const commentsPanel = overlay.querySelector('#vp-comments-panel');
+  const commentsClose = overlay.querySelector('#vp-comments-close');
+  const shareBtn = overlay.querySelector('#vp-share-btn');
+  const skipBack = overlay.querySelector('#vp-skip-back');
+  const skipFwd = overlay.querySelector('#vp-skip-fwd');
+
+  function fmtTime(s) {
+    if (isNaN(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  }
+
+  // Play/pause
+  function togglePlay() {
+    if (video.paused) {
+      video.play();
+      playIcon.classList.remove('show');
+    } else {
+      video.pause();
+      playIcon.classList.add('show');
+    }
+  }
+
+  // Center tap = play/pause
+  overlay.querySelector('.vp-tap-center').addEventListener('click', togglePlay);
+
+  // Double-tap detection for like and skip
+  let lastTapTime = { left: 0, center: 0, right: 0 };
+
+  function handleDoubleTap(zone, action) {
+    zone.addEventListener('click', (e) => {
+      const now = Date.now();
+      const key = zone.classList.contains('vp-tap-left') ? 'left'
+                : zone.classList.contains('vp-tap-right') ? 'right' : 'center';
+      if (now - lastTapTime[key] < 300) {
+        e.stopPropagation();
+        action();
+      }
+      lastTapTime[key] = now;
+    });
+  }
+
+  // Double-tap center = like
+  handleDoubleTap(overlay.querySelector('.vp-tap-center'), () => {
+    heartAnim.classList.add('show');
+    setTimeout(() => heartAnim.classList.remove('show'), 800);
+    if (!post._liked && isLoggedIn) {
+      vpToggleLike();
+    }
+  });
+
+  // Double-tap left = skip back 10s
+  handleDoubleTap(overlay.querySelector('.vp-tap-left'), () => {
+    video.currentTime = Math.max(0, video.currentTime - 10);
+    skipBack.classList.add('show');
+    setTimeout(() => skipBack.classList.remove('show'), 600);
+  });
+
+  // Double-tap right = skip forward 10s
+  handleDoubleTap(overlay.querySelector('.vp-tap-right'), () => {
+    video.currentTime = Math.min(video.duration, video.currentTime + 10);
+    skipFwd.classList.add('show');
+    setTimeout(() => skipFwd.classList.remove('show'), 600);
+  });
+
+  // Progress bar
+  video.addEventListener('loadedmetadata', () => {
+    timeTotal.textContent = fmtTime(video.duration);
+  });
+  video.addEventListener('timeupdate', () => {
+    if (!video.duration) return;
+    const pct = (video.currentTime / video.duration) * 100;
+    progressFill.style.width = pct + '%';
+    progressThumb.style.left = pct + '%';
+    timeCurrent.textContent = fmtTime(video.currentTime);
+  });
+  video.addEventListener('ended', () => {
+    playIcon.classList.add('show');
+  });
+
+  // Seekable progress bar
+  let isSeeking = false;
+  function seekTo(e) {
+    const rect = progressTrack.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    video.currentTime = pct * video.duration;
+  }
+  progressTrack.addEventListener('mousedown', (e) => { isSeeking = true; seekTo(e); });
+  progressTrack.addEventListener('touchstart', (e) => { isSeeking = true; seekTo(e.touches[0]); }, { passive: true });
+  document.addEventListener('mousemove', (e) => { if (isSeeking) seekTo(e); });
+  document.addEventListener('touchmove', (e) => { if (isSeeking) seekTo(e.touches[0]); }, { passive: true });
+  document.addEventListener('mouseup', () => { isSeeking = false; });
+  document.addEventListener('touchend', () => { isSeeking = false; });
+
+  // Like
+  async function vpToggleLike() {
+    if (!isLoggedIn) { showToast('Sign in to like', 'info'); return; }
+    try {
+      const result = await api.reactToPost(postId, 'gg');
+      if (result.action === 'added') {
+        post._liked = true;
+        post.reactions.gg = (post.reactions.gg || 0) + 1;
+        likeBtn.classList.add('liked');
+        likeBtn.querySelector('path').setAttribute('fill', 'currentColor');
+      } else {
+        post._liked = false;
+        post.reactions.gg = Math.max(0, (post.reactions.gg || 0) - 1);
+        likeBtn.classList.remove('liked');
+        likeBtn.querySelector('path').removeAttribute('fill');
+      }
+      const total = totalReactions(post.reactions);
+      overlay.querySelector('#vp-like-count').textContent = formatNum(total);
+      // Sync feed like button
+      const feedBtn = document.querySelector(`#post-${postId} .like-btn`);
+      if (feedBtn) {
+        feedBtn.classList.toggle('liked', post._liked);
+        const feedCount = document.getElementById(`like-count-${postId}`);
+        if (feedCount) feedCount.textContent = formatNum(total);
+      }
+    } catch {
+      showToast('Failed to like', 'error', '⚠️');
+    }
+  }
+  likeBtn.addEventListener('click', vpToggleLike);
+
+  // Comments panel
+  commentBtn.addEventListener('click', () => {
+    commentsPanel.classList.toggle('hidden');
+    if (!commentsPanel.classList.contains('hidden')) {
+      loadCommentsInSection(postId, overlay.querySelector('#vp-comments-body'));
+    }
+  });
+  commentsClose.addEventListener('click', () => {
+    commentsPanel.classList.add('hidden');
+  });
+
+  // Share
+  shareBtn.addEventListener('click', () => {
+    if (navigator.share) {
+      navigator.share({ title: post.body || 'Check out this clip', url: window.location.href });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      showToast('Link copied!', 'success', '📋');
+    }
+  });
+
+  // Close
+  function closePlayer() {
+    video.pause();
+    overlay.classList.remove('visible');
+    document.body.style.overflow = '';
+    setTimeout(() => overlay.remove(), 200);
+  }
+  overlay.querySelector('#vp-close-btn').addEventListener('click', closePlayer);
+
+  // Auto play
+  video.play().then(() => {
+    playIcon.classList.remove('show');
+  }).catch(() => {
+    playIcon.classList.add('show');
+  });
+}
+
 function switchAnalyticsChart(btn, type) {
   btn.closest('.analytics-chart-tabs').querySelectorAll('.analytics-chart-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -4524,7 +4789,7 @@ async function loadClips() {
 function renderClipCard(post) {
   const user = post.user || {};
   const total = totalReactions(post.reactions || {});
-  return `<div class="clip-card" onclick="playClipInline(this, '${post.clip_url}', ${post.id})">
+  return `<div class="clip-card" onclick="openVideoPlayer(${post.id})">
     <div class="clip-card-thumb">
       <video src="${post.clip_url}" muted preload="metadata"></video>
       <div class="clip-card-play">▶</div>
