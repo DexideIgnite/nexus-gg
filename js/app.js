@@ -3103,6 +3103,14 @@ async function renderProfile(userId, container) {
           <div class="profile-stat clickable-stat" onclick="openFollowModal('following',${effectiveId})"><span class="stat-val">${formatNum(user.following||0)}</span> <span class="stat-label">Following</span></div>
         </div>
       </div>
+      ${isMe ? `<div class="profile-compose-box">
+        <div class="compose-box" style="border-bottom:none;border-top:1px solid rgba(255,255,255,0.04)">
+          <div class="compose-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''};width:32px;height:32px;font-size:12px">${user.avatar_url?'':user.avatar||'?'}</div>
+          <div class="compose-right" style="flex:1">
+            <div class="profile-compose-trigger" onclick="openPostModal()" style="cursor:pointer;padding:8px 12px;border:1px solid rgba(255,255,255,0.06);border-radius:10px;color:rgba(255,255,255,0.3);font-size:13px;transition:border-color 0.15s">What's on your mind?</div>
+          </div>
+        </div>
+      </div>` : ''}
       <div class="profile-tabs">
         ${user.is_bot
           ? `<div class="profile-tab active" onclick="switchProfileTab(this,'replies',${effectiveId})">Replies</div>`
@@ -3111,7 +3119,7 @@ async function renderProfile(userId, container) {
         <div class="profile-tab" onclick="switchProfileTab(this,'clips',${effectiveId})">Clips</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'games',${effectiveId})">Games</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>
-        ${(user.plan === 'pro' && isMe) ? `<div class="profile-tab" onclick="switchProfileTab(this,'analytics',${effectiveId})">📊 Analytics</div>` : ''}`}
+        ${(user.plan === 'pro' && isMe) ? `<div class="profile-tab" onclick="switchProfileTab(this,'analytics',${effectiveId})">Analytics</div>` : ''}`}
       </div>
       <div id="profile-tab-content"></div>`;
 

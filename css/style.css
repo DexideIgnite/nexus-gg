@@ -232,6 +232,9 @@ body {
   gap: 10px;
 }
 .section-header h2 { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+.section-header-top { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.mobile-menu-btn { display: none; background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; padding: 6px; border-radius: 8px; transition: all 0.12s; }
+.mobile-menu-btn:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); }
 
 .header-tabs { display: flex; gap: 4px; }
 .tab-btn {
@@ -3694,39 +3697,65 @@ body {
   left: 0;
   right: 0;
   z-index: 1000;
-  background: rgba(8,8,17,0.95);
-  backdrop-filter: blur(16px);
-  border-top: 1px solid var(--border);
-  padding: 6px 0;
-  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  background: rgba(8,8,17,0.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255,255,255,0.04);
+  padding: 4px 0 0;
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
 }
 .mobile-nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 0;
-  color: var(--text-muted);
+  gap: 1px;
+  padding: 6px 0 4px;
+  color: rgba(255,255,255,0.35);
   text-decoration: none;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: color 0.12s;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
 .mobile-nav-item svg {
   width: 22px;
   height: 22px;
   stroke: currentColor;
   fill: none;
-  stroke-width: 2;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .mobile-nav-item span {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 .mobile-nav-item.active {
-  color: var(--accent);
+  color: #a78bfa;
+}
+/* Floating compose button in nav */
+.mobile-post-btn {
+  padding: 0 !important;
+}
+.mobile-fab {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -14px;
+  box-shadow: 0 4px 16px rgba(139,92,246,0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.mobile-fab:active {
+  transform: scale(0.93);
+}
+.mobile-fab svg {
+  stroke: white;
+  stroke-width: 2.5;
 }
 
 /* ================================================================
@@ -3736,8 +3765,9 @@ body {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -3746,29 +3776,37 @@ body {
   display: none !important;
 }
 .mobile-more-sheet {
-  background: var(--bg-card);
-  border: 1px solid var(--border-accent);
+  background: #0e0e20;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-bottom: none;
   border-radius: 20px 20px 0 0;
   width: 100%;
   max-width: 480px;
-  max-height: 85vh;
+  max-height: 80vh;
   overflow-y: auto;
   padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+.mobile-more-handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+  margin: 10px auto 0;
 }
 .mobile-more-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px 12px;
-  font-size: 17px;
-  font-weight: 800;
-  border-bottom: 1px solid var(--border);
+  padding: 14px 20px 12px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 .mobile-more-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  padding: 16px 12px;
+  gap: 2px;
+  padding: 8px 8px;
 }
 .mobile-more-item {
   display: flex;
@@ -3776,42 +3814,43 @@ body {
   align-items: center;
   gap: 6px;
   padding: 16px 8px;
-  border-radius: 12px;
-  color: var(--text-secondary);
+  border-radius: 14px;
+  color: rgba(255,255,255,0.5);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.12s, color 0.12s;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
 .mobile-more-item:hover,
 .mobile-more-item:active {
-  background: rgba(139,92,246,0.1);
-  color: var(--text-primary);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.85);
 }
 .mobile-more-item svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   stroke: currentColor;
   fill: none;
-  stroke-width: 2;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .mobile-more-item span {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
 }
 .mobile-more-plans {
   color: var(--accent-gold);
 }
 .mobile-more-plans:hover,
 .mobile-more-plans:active {
-  background: rgba(245,158,11,0.12);
+  background: rgba(245,158,11,0.06);
   color: var(--accent-gold);
 }
 .mobile-more-logout {
-  padding: 8px 20px 12px;
-  border-top: 1px solid var(--border);
+  padding: 8px 16px 12px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  margin-top: 4px;
 }
 
 /* ================================================================
@@ -3822,9 +3861,18 @@ body {
   .mobile-nav {
     display: flex;
     justify-content: space-around;
+    align-items: flex-start;
+  }
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .home-search-bar {
+    display: none;
   }
   #main-content {
-    padding-bottom: 64px;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     border-left: none;
     border-right: none;
   }
@@ -3832,6 +3880,9 @@ body {
   /* Section header */
   .section-header {
     padding: 12px 14px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
   .section-header h2 {
     font-size: 17px;
@@ -3849,6 +3900,8 @@ body {
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
     flex-wrap: nowrap;
+    padding-left: 12px;
+    padding-right: 12px;
   }
   .header-tabs::-webkit-scrollbar,
   .explore-tabs::-webkit-scrollbar,
@@ -3863,59 +3916,135 @@ body {
   .filter-btn {
     white-space: nowrap;
     flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 12px;
   }
   .profile-tab {
     white-space: nowrap;
     flex-shrink: 0;
     flex: none;
-    padding: 12px 16px;
+    padding: 10px 14px;
+    font-size: 12px;
   }
 
-  /* Stories */
+  /* Stories - compact */
   .stories-container {
-    padding: 10px 12px;
+    padding: 8px 10px;
   }
-  .story-ring {
-    width: 56px;
-    height: 56px;
-  }
-  .story-item {
-    width: 56px;
-  }
-  .story-item span {
-    max-width: 56px;
-    font-size: 10px;
-  }
-
-  /* Compose box */
-  .compose-box {
-    padding: 12px 14px;
+  .stories-scroll {
     gap: 10px;
   }
+  .story-ring {
+    width: 52px;
+    height: 52px;
+  }
+  .story-item {
+    width: 52px;
+    gap: 3px;
+  }
+  .story-item span {
+    max-width: 52px;
+    font-size: 9px;
+  }
+
+  /* Compose box - more compact */
+  .compose-box {
+    padding: 10px 12px;
+    gap: 8px;
+  }
   .compose-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+  .compose-right textarea {
+    font-size: 13px;
+    min-height: 28px;
+  }
+  .compose-footer {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .compose-actions-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .compose-toolbar-pill {
+    width: 100%;
+    justify-content: center;
+  }
+  .toolbar-icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Posts - compact */
+  .post-card {
+    padding: 12px;
+  }
+  .post-avatar {
     width: 36px;
     height: 36px;
     font-size: 13px;
   }
-
-  /* Posts */
-  .post-card {
-    padding: 12px 14px;
-  }
-  .post-avatar {
-    width: 38px;
-    height: 38px;
-    font-size: 14px;
-  }
   .post-header {
     gap: 8px;
+    margin-bottom: 8px;
+  }
+  .post-user-row {
+    gap: 4px;
+  }
+  .post-username {
+    font-size: 13px;
+  }
+  .post-tag {
+    font-size: 12px;
+  }
+  .post-time {
+    font-size: 11px;
   }
   .post-body {
     font-size: 14px;
+    line-height: 1.55;
+    margin-bottom: 8px;
+  }
+  .post-actions {
+    margin-left: -6px;
+    gap: 0;
   }
   .post-action-btn {
-    padding: 6px 8px;
-    font-size: 12px;
+    padding: 6px 6px;
+    font-size: 11px;
+    gap: 4px;
+  }
+  .post-action-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+  .post-delete-btn {
+    opacity: 1;
+  }
+
+  /* Badges - smaller on mobile */
+  .rank-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
+  .post-type-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
+  .post-game-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+  }
+  .post-platform-badge {
+    display: none;
+  }
+  .plan-badge {
+    font-size: 8px;
+    padding: 1px 5px;
   }
 
   /* Explore */
@@ -3923,25 +4052,38 @@ body {
     max-width: none;
     padding: 8px 12px;
   }
+  .trending-section {
+    padding: 0 12px;
+  }
   .trending-game-icon {
-    width: 42px;
-    height: 42px;
-    font-size: 22px;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    border-radius: 8px;
   }
   .trending-rank {
-    font-size: 18px;
-    width: 28px;
+    font-size: 16px;
+    width: 24px;
+  }
+  .trending-name {
+    font-size: 14px;
   }
 
   /* Games grid */
   .games-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 10px;
-    padding: 12px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 10px;
   }
   .game-cover {
-    height: 90px;
-    font-size: 36px;
+    height: 80px;
+    font-size: 32px;
+  }
+  .game-title {
+    font-size: 12px;
+  }
+  .game-info {
+    padding: 8px 10px;
   }
 
   /* Messages layout - stack vertically */
@@ -3953,7 +4095,7 @@ body {
   .messages-sidebar {
     width: 100%;
     border-right: none;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
     max-height: none;
   }
   .messages-sidebar.msg-sidebar-hidden {
@@ -3967,17 +4109,17 @@ body {
     display: none;
   }
   .chat-header {
-    padding: 10px 14px;
+    padding: 8px 12px;
   }
   .chat-messages {
-    padding: 12px 14px;
-    min-height: 300px;
+    padding: 10px 12px;
+    min-height: 280px;
   }
   .chat-input-row {
-    padding: 10px 14px;
+    padding: 8px 12px;
   }
   .chat-msg {
-    max-width: 85%;
+    max-width: 88%;
   }
 
   /* Messages back button (mobile) */
@@ -3987,13 +4129,14 @@ body {
 
   /* Notifications */
   .notif-item {
-    padding: 12px 14px;
+    padding: 10px 12px;
     gap: 10px;
   }
   .notif-icon {
-    width: 36px;
-    height: 36px;
-    font-size: 16px;
+    width: 34px;
+    height: 34px;
+    font-size: 15px;
+    border-radius: 8px;
   }
   .notif-text {
     font-size: 13px;
@@ -4001,152 +4144,203 @@ body {
 
   /* Leaderboard */
   .lb-row {
-    padding: 10px 12px;
-    gap: 10px;
-  }
-  .lb-rank {
-    font-size: 16px;
-    width: 28px;
-  }
-  .lb-avatar {
-    width: 34px;
-    height: 34px;
-    font-size: 12px;
-  }
-  .lb-stats {
+    padding: 10px;
     gap: 8px;
   }
+  .lb-rank {
+    font-size: 14px;
+    width: 24px;
+  }
+  .lb-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
+  .lb-stats {
+    gap: 6px;
+  }
   .lb-stat-val {
-    font-size: 13px;
+    font-size: 12px;
   }
   .lb-stat-lbl {
-    font-size: 9px;
+    font-size: 8px;
   }
 
-  /* Profile */
+  /* Profile - properly responsive */
   .profile-banner {
-    height: 140px;
-    font-size: 50px;
+    height: 120px;
+    font-size: 44px;
   }
   .profile-banner-icon {
-    font-size: 48px;
-    right: 14px;
+    font-size: 40px;
+    right: 12px;
   }
   .profile-header-info {
-    padding: 0 14px 8px;
+    padding: 0 12px 8px;
   }
   .profile-avatar {
-    width: 64px;
-    height: 64px;
-    font-size: 22px;
+    width: 60px;
+    height: 60px;
+    font-size: 20px;
+    border-width: 3px;
   }
-  .profile-avatar-row {
-    margin-top: -40px;
-  }
-  .profile-name {
+  .profile-avatar-lg {
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
     font-size: 20px;
   }
+  .profile-avatar-row {
+    margin-top: -36px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .profile-actions-row {
+    width: 100%;
+    gap: 6px;
+  }
+  .profile-actions-row .btn-primary,
+  .profile-actions-row .btn-secondary {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+  .profile-edit-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .profile-name {
+    font-size: 18px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
   .profile-handle {
-    font-size: 13px;
+    font-size: 12px;
   }
   .profile-bio {
     font-size: 13px;
-    padding: 8px 12px;
+    padding: 8px 10px;
   }
   .profile-stats-row {
     gap: 0;
-    justify-content: center;
+    justify-content: space-around;
+    width: 100%;
   }
   .profile-stat {
-    padding: 8px 12px;
+    padding: 8px 10px;
+    flex: 1;
   }
   .stat-val {
     font-size: 16px;
   }
   .stat-label {
-    font-size: 11px;
+    font-size: 10px;
   }
-  .profile-actions-row {
-    gap: 6px;
-    flex-wrap: wrap;
+  .profile-game-tags {
+    gap: 4px;
+  }
+  .profile-game-tag {
+    font-size: 11px;
+    padding: 3px 8px;
   }
   .btn-primary, .btn-secondary {
-    font-size: 13px;
-    padding: 8px 16px;
+    font-size: 12px;
+    padding: 8px 14px;
   }
   .btn-primary.btn-sm, .btn-secondary.btn-sm {
-    padding: 6px 12px;
-    font-size: 12px;
+    padding: 6px 10px;
+    font-size: 11px;
   }
 
   /* Achievements grid */
   .achievements-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 8px;
-    padding: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px;
+    padding: 10px;
   }
 
   /* LFG */
   .lfg-container {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
   .lfg-card {
-    padding: 14px;
+    padding: 12px;
   }
   .lfg-footer {
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
 
   /* Tournaments */
   #tournaments-container {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
   .tournament-banner {
-    height: 80px;
-    font-size: 36px;
+    height: 70px;
+    font-size: 32px;
   }
   .tournament-info {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
   .tournament-name {
-    font-size: 14px;
+    font-size: 13px;
   }
   .tournament-footer {
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
 
-  /* Modals */
+  /* Modals - bottom sheet style */
   .modal-overlay {
-    padding: 10px;
+    padding: 0;
     align-items: flex-end;
   }
   .modal-box {
     max-width: 100%;
-    max-height: 90vh;
+    max-height: 92vh;
     overflow-y: auto;
     border-radius: 16px 16px 0 0;
   }
   .compose-modal {
     max-width: 100%;
-    max-height: 90vh;
+    max-height: 92vh;
     overflow-y: auto;
     border-radius: 16px 16px 0 0;
   }
   .compose-modal-body {
-    padding: 14px 16px 10px;
-    gap: 10px;
+    padding: 12px 14px 8px;
+    gap: 8px;
   }
   .compose-textarea {
     font-size: 15px;
-    min-height: 100px;
+    min-height: 80px;
   }
   .compose-modal-footer {
-    padding: 10px 16px 14px;
+    padding: 8px 14px 12px;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .compose-footer-right {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .compose-tags-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .compose-tag-select {
+    font-size: 11px;
+    padding: 5px 10px;
+    flex: 1;
+    min-width: 0;
   }
 
-  /* Auth modal - keep centered */
+  /* Auth modal - centered */
   .auth-overlay {
     padding: 12px;
     align-items: center;
@@ -4155,13 +4349,21 @@ body {
     max-width: 100%;
     max-height: 90vh;
     overflow-y: auto;
+    border-radius: 14px;
   }
   .auth-form {
-    padding: 16px 18px 20px;
-    gap: 12px;
+    padding: 14px 16px 18px;
+    gap: 10px;
   }
   .auth-logo {
-    padding: 20px 18px 8px;
+    padding: 18px 16px 6px;
+  }
+  .auth-logo-text {
+    font-size: 20px;
+  }
+  .auth-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   /* Clans */
@@ -4181,8 +4383,8 @@ body {
 
   /* Plans grid */
   .plans-grid {
-    padding: 0 14px 24px;
-    gap: 14px;
+    padding: 0 10px 20px;
+    gap: 12px;
   }
 
   /* Analytics */
@@ -4193,6 +4395,18 @@ body {
   /* People section */
   .people-grid {
     grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+  .people-card {
+    padding: 12px;
+    gap: 10px;
+  }
+  .people-avatar {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    font-size: 16px;
   }
 
   /* Bookmarks */
@@ -4202,20 +4416,73 @@ body {
 
   /* Post image */
   .post-image {
-    max-height: 280px;
+    max-height: 240px;
     border-radius: 10px;
   }
   .post-image-container {
     border-radius: 10px;
   }
 
-  /* Comment section */
+  /* Clip/Achievement cards - compact */
+  .post-clip-preview {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .clip-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+  .post-achievement {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .achievement-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  /* Comment section - compact */
   .comment-section {
-    padding: 10px 12px 0;
+    padding: 10px 10px 0;
+  }
+  .comments-list {
+    gap: 12px;
+    max-height: 350px;
+  }
+  .comment-avatar {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    font-size: 10px;
+  }
+  .comment-text {
+    font-size: 13px;
+  }
+  .comment-input-row {
+    gap: 8px;
+    padding: 10px 0;
+  }
+  .comment-input-wrap {
+    padding: 7px 10px;
+    border-radius: 8px;
+  }
+  .comment-input {
+    font-size: 12px;
+  }
+  .comment-submit-btn {
+    width: 26px;
+    height: 26px;
   }
   .comment-thread-replies {
-    margin-left: 14px;
-    padding-left: 10px;
+    margin-left: 12px;
+    padding-left: 8px;
+  }
+
+  /* Quoted post - compact */
+  .quoted-post-card {
+    padding: 10px;
   }
 
   /* Edit profile modal */
@@ -4225,13 +4492,18 @@ body {
 
   /* Lightbox */
   .img-lightbox-inner {
-    max-width: 95vw;
+    max-width: 98vw;
   }
 
   /* Search bar in section header */
   .section-header {
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
+  }
+  .home-search-bar {
+    padding: 7px 12px;
+    font-size: 13px;
   }
 
   /* Reconnecting banner */
@@ -4240,15 +4512,65 @@ body {
     bottom: auto;
     font-size: 12px;
   }
+
+  /* Widget - hide on mobile (already hidden via sidebar) */
+  .widget {
+    padding: 10px;
+  }
+
+  /* Share dropdown */
+  .share-dropdown {
+    min-width: 150px;
+    font-size: 12px;
+  }
+  .share-option {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* AI bubble */
+  .ai-bubble {
+    margin: 6px 10px 4px;
+    padding: 10px 12px;
+  }
+  .ai-chip {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  /* Now playing badge */
+  .now-playing-badge {
+    font-size: 9px;
+  }
+
+  /* Reply feed */
+  .reply-feed-item {
+    padding: 14px 12px;
+  }
+  .reply-feed-avatar {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 12px;
+  }
+  .reply-feed-bubble {
+    padding: 10px 12px;
+  }
 }
 
 /* Tablet tweaks (860px - no sidebar text but bottom nav not needed) */
 @media (max-width: 860px) and (min-width: 561px) {
   .messages-sidebar {
-    width: 220px;
+    width: 200px;
   }
   .profile-banner {
     height: 160px;
+  }
+  .post-card {
+    padding: 14px 16px;
+  }
+  .compose-toolbar-pill {
+    gap: 1px;
   }
 }
 
