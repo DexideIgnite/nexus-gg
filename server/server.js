@@ -64,11 +64,38 @@ async function startServer() {
   // Sync comment counts after data is loaded
   db.syncCommentCounts();
 
+  // Clean up stale /uploads/ URLs that no longer exist on disk (ephemeral filesystem)
+  const fs = require('fs');
+  db.T.posts.findAll(p => p.image_url && p.image_url.startsWith('/uploads/')).forEach(p => {
+    const abs = path.join(__dirname, p.image_url);
+    if (!fs.existsSync(abs)) {
+      db.updatePost(p.id, { image_url: null });
+    }
+  });
+  db.T.posts.findAll(p => p.clip_url && p.clip_url.startsWith('/uploads/')).forEach(p => {
+    const abs = path.join(__dirname, p.clip_url);
+    if (!fs.existsSync(abs)) {
+      db.updatePost(p.id, { clip_url: null });
+    }
+  });
+  db.T.users.findAll(u => u.avatar_url && u.avatar_url.startsWith('/uploads/')).forEach(u => {
+    const abs = path.join(__dirname, u.avatar_url);
+    if (!fs.existsSync(abs)) {
+      db.updateUser(u.id, { avatar_url: null });
+    }
+  });
+  db.T.users.findAll(u => u.banner_url && u.banner_url.startsWith('/uploads/')).forEach(u => {
+    const abs = path.join(__dirname, u.banner_url);
+    if (!fs.existsSync(abs)) {
+      db.updateUser(u.id, { banner_url: null });
+    }
+  });
+
   // ================================================================
   // MIDDLEWARE
   // ================================================================
   app.use(cors());
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true }));
   app.use(express.static(path.join(__dirname, '..')));
   app.use('/shared', express.static(path.join(__dirname, '..', 'shared')));

@@ -1115,7 +1115,7 @@ function renderPost(post) {
     const qu = qp.user || {};
     let quotedMedia = '';
     if (qp.image_url) {
-      quotedMedia = `<div class="quoted-media"><img src="${qp.image_url}" class="quoted-media-img" loading="lazy" onclick="event.stopPropagation();openImageLightbox('${qp.image_url}')" onerror="this.parentElement.style.display='none'"></div>`;
+      quotedMedia = `<div class="quoted-media"><img src="${qp.image_url}" class="quoted-media-img" loading="lazy" onclick="event.stopPropagation();openImageLightbox(this.src)" onerror="this.parentElement.style.display='none'"></div>`;
     } else if (qp.clip_url) {
       quotedMedia = `<div class="quoted-media"><video src="${qp.clip_url}" class="quoted-media-video" preload="metadata" muted></video></div>`;
     }
@@ -1152,7 +1152,7 @@ function renderPost(post) {
       ${post.user_id === (window.Auth?.getUser()?.id || window.CURRENT_USER?.id) ? `<button class="post-delete-btn" title="Delete post" onclick="event.stopPropagation();deletePostReal(${post.id},this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12"/></svg></button>` : ''}
     </div>
     <div class="post-body">${parseBody(post.body)}</div>
-    ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox('${post.image_url}')" onerror="this.parentElement.style.display='none'"></div>` : ''}
+    ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox(this.src)" onerror="this.parentElement.style.display='none'"></div>` : ''}
     ${extra}
     ${post.poll ? renderPollCard(post.poll, post.id) : ''}
     <div class="post-actions">
