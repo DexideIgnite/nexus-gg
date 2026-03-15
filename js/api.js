@@ -190,6 +190,14 @@ const api = {
 
   // Clip upload
   uploadClip: (file) => { const fd = new FormData(); fd.append('clip', file); return fetchWithAuth('/api/posts/upload-clip', { method:'POST', body:fd }).then(r=>r.json()); },
+
+  // Admin (owner only)
+  adminStats:       ()           => api.get('/admin/stats'),
+  adminUsers:       (search, page) => api.get(`/admin/users?search=${encodeURIComponent(search||'')}&page=${page||1}`),
+  adminUpdateUser:  (id, data)   => apiRequest('PATCH', `/admin/users/${id}`, data),
+  adminDeleteUser:  (id)         => apiRequest('DELETE', `/admin/users/${id}`),
+  adminDeletePost:  (id)         => apiRequest('DELETE', `/admin/posts/${id}`),
+  adminReported:    ()           => api.get('/admin/reported'),
 };
 
 // ================================================================

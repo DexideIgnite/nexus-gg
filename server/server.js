@@ -88,6 +88,7 @@ async function startServer() {
   app.use('/api/games',         require('./routes/games'));
   app.use('/api/clans',         require('./routes/clans'));
   app.use('/api/hashtags',      require('./routes/hashtags'));
+  app.use('/api/admin',         require('./routes/admin'));
   app.get('/api/search',        (req, res) => res.json(db.fullSearch(req.query.q, null)));
 
   // Leaderboard endpoint

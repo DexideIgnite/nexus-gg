@@ -438,6 +438,7 @@ function navigate(section, skipHash) {
     clans: loadClans,
     clips: loadClips,
     search: loadSearch,
+    admin: loadAdmin,
   };
   if (loaders[section]) loaders[section]();
 }
@@ -5042,6 +5043,329 @@ window.addEventListener('popstate', () => {
   });
 });
 
+// ================================================================
+// ADMIN PANEL (Owner only - @Dexide)
+// ================================================================
+let _adminTab = 'dashboard';
+let _adminUserSearch = '';
+let _adminUserPage = 1;
+
+async function loadAdmin() {
+  const container = document.getElementById('admin-container');
+  if (!container) return;
+  if (window.CURRENT_USER?.id !== 1) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔒</div><p>Access denied</p></div>`;
+    return;
+  }
+  container.innerHTML = `
+    <div class="adm-tabs">
+      <button class="adm-tab ${_adminTab==='dashboard'?'active':''}" onclick="switchAdminTab('dashboard')">Dashboard</button>
+      <button class="adm-tab ${_adminTab==='users'?'active':''}" onclick="switchAdminTab('users')">Users</button>
+      <button class="adm-tab ${_adminTab==='content'?'active':''}" onclick="switchAdminTab('content')">Content</button>
+      <button class="adm-tab ${_adminTab==='badges'?'active':''}" onclick="switchAdminTab('badges')">Badges</button>
+    </div>
+    <div id="adm-content"></div>
+  `;
+  await renderAdminTab();
+}
+
+function switchAdminTab(tab) {
+  _adminTab = tab;
+  document.querySelectorAll('.adm-tab').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.adm-tab[onclick*="${tab}"]`);
+  if (btn) btn.classList.add('active');
+  renderAdminTab();
+}
+
+async function renderAdminTab() {
+  const el = document.getElementById('adm-content');
+  if (!el) return;
+  el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)"><div class="spinner" style="margin:0 auto 12px"></div></div>`;
+
+  if (_adminTab === 'dashboard') await renderAdminDashboard(el);
+  else if (_adminTab === 'users') await renderAdminUsers(el);
+  else if (_adminTab === 'content') await renderAdminContent(el);
+  else if (_adminTab === 'badges') renderAdminBadges(el);
+}
+
+async function renderAdminDashboard(el) {
+  try {
+    const s = await api.adminStats();
+    el.innerHTML = `
+      <div class="adm-stats-grid">
+        <div class="adm-stat-card adm-stat-purple">
+          <div class="adm-stat-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+          <div class="adm-stat-val">${formatNum(s.totalUsers)}</div>
+          <div class="adm-stat-label">Total Users</div>
+          <div class="adm-stat-sub">+${s.usersToday} today / +${s.usersThisWeek} this week</div>
+        </div>
+        <div class="adm-stat-card adm-stat-blue">
+          <div class="adm-stat-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+          <div class="adm-stat-val">${formatNum(s.totalPosts)}</div>
+          <div class="adm-stat-label">Total Posts</div>
+          <div class="adm-stat-sub">+${s.postsToday} today / +${s.postsThisWeek} this week</div>
+        </div>
+        <div class="adm-stat-card adm-stat-green">
+          <div class="adm-stat-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="adm-stat-val">${s.onlineCount}</div>
+          <div class="adm-stat-label">Online Now</div>
+          <div class="adm-stat-sub">${s.commentsToday} comments today</div>
+        </div>
+        <div class="adm-stat-card adm-stat-amber">
+          <div class="adm-stat-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
+          <div class="adm-stat-val">${formatNum(s.totalReactions)}</div>
+          <div class="adm-stat-label">Total Reactions</div>
+          <div class="adm-stat-sub">${formatNum(s.totalComments)} comments</div>
+        </div>
+      </div>
+
+      <div class="adm-row">
+        <div class="adm-card">
+          <div class="adm-card-title">Subscription Breakdown</div>
+          <div class="adm-plan-bars">
+            <div class="adm-plan-row">
+              <span class="adm-plan-label">Free</span>
+              <div class="adm-plan-bar"><div class="adm-plan-fill" style="width:${s.totalUsers?Math.round((s.planCounts.free/s.totalUsers)*100):0}%;background:#6b7280"></div></div>
+              <span class="adm-plan-count">${s.planCounts.free||0}</span>
+            </div>
+            <div class="adm-plan-row">
+              <span class="adm-plan-label" style="color:#a78bfa">DXED+</span>
+              <div class="adm-plan-bar"><div class="adm-plan-fill" style="width:${s.totalUsers?Math.round((s.planCounts.plus/s.totalUsers)*100):0}%;background:#8b5cf6"></div></div>
+              <span class="adm-plan-count">${s.planCounts.plus||0}</span>
+            </div>
+            <div class="adm-plan-row">
+              <span class="adm-plan-label" style="color:#fbbf24">DXED Pro</span>
+              <div class="adm-plan-bar"><div class="adm-plan-fill" style="width:${s.totalUsers?Math.round((s.planCounts.pro/s.totalUsers)*100):0}%;background:#f59e0b"></div></div>
+              <span class="adm-plan-count">${s.planCounts.pro||0}</span>
+            </div>
+          </div>
+        </div>
+        <div class="adm-card">
+          <div class="adm-card-title">Platform Stats</div>
+          <div class="adm-misc-stats">
+            <div class="adm-misc-row"><span>LFG Posts</span><strong>${s.lfgPosts}</strong></div>
+            <div class="adm-misc-row"><span>Clans</span><strong>${s.clans}</strong></div>
+            <div class="adm-misc-row"><span>Messages</span><strong>${formatNum(s.messages)}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="adm-card">
+        <div class="adm-card-title">User Growth (14 Days)</div>
+        <div class="adm-growth-chart">
+          ${s.growth.map(d => `
+            <div class="adm-growth-bar-wrap">
+              <div class="adm-growth-bar" style="height:${d.users?Math.max(8,d.users*20):4}px" title="${d.users} new users"></div>
+              <span class="adm-growth-label">${d.day}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      ${s.topPosters.length ? `
+      <div class="adm-card">
+        <div class="adm-card-title">Top Posters</div>
+        <div class="adm-top-list">
+          ${s.topPosters.map((u, i) => `
+            <div class="adm-top-item" onclick="openProfileById(${u.id})">
+              <span class="adm-top-rank">${i+1}</span>
+              <div class="adm-top-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
+              <span class="adm-top-name">${u.username}</span>
+              <span class="adm-top-count">${u.count} posts</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
+    `;
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>Failed to load stats</p></div>`;
+  }
+}
+
+async function renderAdminUsers(el) {
+  try {
+    const data = await api.adminUsers(_adminUserSearch, _adminUserPage);
+    el.innerHTML = `
+      <div class="adm-toolbar">
+        <div class="adm-search-wrap">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="adm-search" placeholder="Search users by name, handle, or email..." value="${_adminUserSearch}" oninput="admSearchUsers(this.value)">
+        </div>
+        <span class="adm-count">${data.total} users</span>
+      </div>
+      <div class="adm-users-table">
+        <div class="adm-table-head">
+          <span class="adm-th" style="flex:2">User</span>
+          <span class="adm-th">Plan</span>
+          <span class="adm-th">Badge</span>
+          <span class="adm-th">Status</span>
+          <span class="adm-th" style="flex:1.5">Actions</span>
+        </div>
+        ${data.users.map(u => `
+          <div class="adm-table-row" id="adm-user-${u.id}">
+            <div class="adm-td" style="flex:2;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openProfileById(${u.id})">
+              <div class="adm-user-av" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
+              <div>
+                <div style="font-weight:700;font-size:13px;color:white">${escapeHtml(u.username||'')}</div>
+                <div style="font-size:11px;color:var(--text-muted)">@${u.handle||u.username} &middot; ID: ${u.id}</div>
+              </div>
+            </div>
+            <div class="adm-td">
+              <select class="adm-select" onchange="admUpdateUser(${u.id},{plan:this.value})">
+                <option value="free" ${(u.plan||'free')==='free'?'selected':''}>Free</option>
+                <option value="plus" ${u.plan==='plus'?'selected':''}>DXED+</option>
+                <option value="pro" ${u.plan==='pro'?'selected':''}>Pro</option>
+              </select>
+            </div>
+            <div class="adm-td">
+              <select class="adm-select" onchange="admUpdateUser(${u.id},{badge_type:this.value})">
+                <option value="" ${!u.badge_type?'selected':''}>None</option>
+                <option value="official" ${u.badge_type==='official'?'selected':''}>Official</option>
+                <option value="verified" ${u.badge_type==='verified'?'selected':''}>Verified</option>
+                <option value="trusted" ${u.badge_type==='trusted'?'selected':''}>Trusted</option>
+                <option value="gold" ${u.badge_type==='gold'?'selected':''}>Gold</option>
+                <option value="premium" ${u.badge_type==='premium'?'selected':''}>Premium</option>
+                <option value="creator" ${u.badge_type==='creator'?'selected':''}>Creator</option>
+                <option value="partner" ${u.badge_type==='partner'?'selected':''}>Partner</option>
+                <option value="staff" ${u.badge_type==='staff'?'selected':''}>Staff</option>
+                <option value="admin" ${u.badge_type==='admin'?'selected':''}>Admin</option>
+                <option value="legend" ${u.badge_type==='legend'?'selected':''}>Legend</option>
+                <option value="newcomer" ${u.badge_type==='newcomer'?'selected':''}>New</option>
+                <option value="elite" ${u.badge_type==='elite'?'selected':''}>Elite</option>
+              </select>
+            </div>
+            <div class="adm-td">
+              <span class="adm-status ${u.online?'adm-online':'adm-offline'}">${u.online?'Online':'Offline'}</span>
+            </div>
+            <div class="adm-td" style="flex:1.5;display:flex;gap:6px">
+              <button class="adm-btn adm-btn-warn" onclick="admBanUser(${u.id},'${escapeHtml(u.username||'')}')" title="Ban">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              </button>
+              <button class="adm-btn adm-btn-danger" onclick="admDeleteUser(${u.id},'${escapeHtml(u.username||'')}')" title="Delete">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12"/></svg>
+              </button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ${data.pages > 1 ? `
+      <div class="adm-pagination">
+        ${_adminUserPage > 1 ? `<button class="adm-btn" onclick="_adminUserPage--;renderAdminTab()">Prev</button>` : ''}
+        <span class="adm-page-info">Page ${data.page} of ${data.pages}</span>
+        ${_adminUserPage < data.pages ? `<button class="adm-btn" onclick="_adminUserPage++;renderAdminTab()">Next</button>` : ''}
+      </div>` : ''}
+    `;
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>Failed to load users</p></div>`;
+  }
+}
+
+let _admSearchTimeout;
+function admSearchUsers(q) {
+  clearTimeout(_admSearchTimeout);
+  _admSearchTimeout = setTimeout(() => {
+    _adminUserSearch = q;
+    _adminUserPage = 1;
+    renderAdminTab();
+  }, 300);
+}
+
+async function admUpdateUser(id, changes) {
+  try {
+    await api.adminUpdateUser(id, changes);
+    showToast('User updated', 'success');
+  } catch (err) {
+    showToast('Update failed: ' + (err.message || ''), 'error');
+  }
+}
+
+async function admBanUser(id, name) {
+  if (!confirm(`Ban user "${name}"? They will be unable to use the platform.`)) return;
+  try {
+    await api.adminUpdateUser(id, { banned: true, ban_reason: 'Banned by admin' });
+    showToast(`${name} has been banned`, 'success');
+    renderAdminTab();
+  } catch (err) {
+    showToast('Ban failed', 'error');
+  }
+}
+
+async function admDeleteUser(id, name) {
+  if (!confirm(`Permanently delete user "${name}" and all their data? This cannot be undone.`)) return;
+  if (!confirm(`Are you absolutely sure? This is irreversible.`)) return;
+  try {
+    await api.adminDeleteUser(id);
+    showToast(`${name} has been deleted`, 'success');
+    renderAdminTab();
+  } catch (err) {
+    showToast('Delete failed', 'error');
+  }
+}
+
+async function admDeletePost(id) {
+  if (!confirm('Delete this post?')) return;
+  try {
+    await api.adminDeletePost(id);
+    showToast('Post deleted', 'success');
+    renderAdminTab();
+  } catch (err) {
+    showToast('Delete failed', 'error');
+  }
+}
+
+async function renderAdminContent(el) {
+  try {
+    const data = await api.adminReported();
+    el.innerHTML = `
+      <div class="adm-card" style="margin-top:0">
+        <div class="adm-card-title">Recent Posts</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">Review and moderate recent content across the platform.</p>
+        <div class="adm-content-list">
+          ${data.posts.map(p => `
+            <div class="adm-content-item">
+              <div class="adm-content-meta">
+                <div class="adm-user-av" style="background:${p.user?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${p.user?.avatar_url?`background-image:url('${p.user.avatar_url}');background-size:cover`:''};width:28px;height:28px;font-size:10px">${p.user?.avatar_url?'':p.user?.avatar||'?'}</div>
+                <strong>${p.user?.username||'Unknown'}</strong>
+                <span style="color:var(--text-muted);font-size:11px">${p.time||''}</span>
+              </div>
+              <div class="adm-content-body">${escapeHtml((p.body||'').substring(0,200))}${(p.body||'').length>200?'...':''}</div>
+              ${p.image_url?`<img src="${p.image_url}" style="max-width:200px;border-radius:8px;margin-top:6px">`:''}
+              <div class="adm-content-actions">
+                <span style="font-size:11px;color:var(--text-muted)">${p.type||'post'} &middot; ${totalReactions(p.reactions||{})} reactions &middot; ${p.comments_count||0} comments</span>
+                <button class="adm-btn adm-btn-danger" onclick="admDeletePost(${p.id})">Delete Post</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } catch {
+    el.innerHTML = `<div class="empty-state"><p>Failed to load content</p></div>`;
+  }
+}
+
+function renderAdminBadges(el) {
+  const badges = Object.entries(BADGE_TYPES);
+  el.innerHTML = `
+    <div class="adm-card" style="margin-top:0">
+      <div class="adm-card-title">Badge Reference</div>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">All available verification badge types. Assign badges from the Users tab.</p>
+      <div class="adm-badges-grid">
+        ${badges.map(([key, b]) => `
+          <div class="adm-badge-card">
+            <div class="adm-badge-preview">${verifiedBadge({verified:true,badge_type:key}, true)}</div>
+            <div class="adm-badge-info">
+              <div class="adm-badge-name">${b.title}</div>
+              <div class="adm-badge-key">${key}</div>
+              <div class="adm-badge-color" style="color:${b.color}">${b.color}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
 async function init(user) {
   if (user) {
     const u = window.CURRENT_USER;
@@ -5061,6 +5385,10 @@ async function init(user) {
     u.email     = user.email;
     u.games     = user.games || [];
   }
+  // Show admin nav only for platform owner (user_id=1)
+  const adminNav = document.getElementById('nav-admin');
+  if (adminNav) adminNav.style.display = (window.CURRENT_USER?.id === 1) ? '' : 'none';
+
   updateSidebarUser();
   await loadWidgets();
   // Route based on initial URL hash, or default to home
