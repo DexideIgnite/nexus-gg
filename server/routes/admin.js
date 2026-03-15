@@ -2,9 +2,10 @@ const router = require('express').Router();
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 
-// ── Owner-only middleware (user_id = 1 = @Dexide) ──
+// ── Owner-only middleware (first registered user = platform owner) ──
 function requireOwner(req, res, next) {
-  if (req.user.userId !== 1) return res.status(403).json({ error: 'Owner access only' });
+  const user = db.getUser(req.user.userId);
+  if (!user || user.badge_type !== 'ownership') return res.status(403).json({ error: 'Owner access only' });
   next();
 }
 
@@ -107,7 +108,8 @@ router.get('/users', requireAuth, requireOwner, (req, res) => {
 // ── Update user (ban, verify, badge, plan, etc.) ──
 router.patch('/users/:id', requireAuth, requireOwner, (req, res) => {
   const userId = +req.params.id;
-  if (userId === 1) return res.status(400).json({ error: 'Cannot modify owner account via admin' });
+  const target = db.getUser(userId);
+  if (target && target.badge_type === 'ownership') return res.status(400).json({ error: 'Cannot modify owner account via admin' });
   const user = db.getUser(userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -126,10 +128,10 @@ router.patch('/users/:id', requireAuth, requireOwner, (req, res) => {
 // ── Delete user ──
 router.delete('/users/:id', requireAuth, requireOwner, (req, res) => {
   const userId = +req.params.id;
-  if (userId === 1) return res.status(400).json({ error: 'Cannot delete owner' });
-  if (userId === 999) return res.status(400).json({ error: 'Cannot delete bot' });
   const user = db.getUser(userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.badge_type === 'ownership') return res.status(400).json({ error: 'Cannot delete owner' });
+  if (user.is_bot) return res.status(400).json({ error: 'Cannot delete bot' });
 
   // Clean up user data
   db.T.post_reactions.delete(r => r.user_id === userId);

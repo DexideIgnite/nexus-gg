@@ -55,10 +55,10 @@ async function startServer() {
     db.T.users._save();
   }
 
-  // Ensure platform owner (@Dexide, user_id=1) has ownership badge
-  const owner = db.getUser(1);
-  if (owner && owner.badge_type !== 'ownership') {
-    db.updateUser(1, { badge_type: 'ownership', verified: true });
+  // Ensure the first non-bot user (platform owner) has ownership badge
+  const firstUser = db.T.users.findAll(u => !u.is_bot).sort((a, b) => a.id - b.id)[0];
+  if (firstUser && firstUser.badge_type !== 'ownership') {
+    db.updateUser(firstUser.id, { badge_type: 'ownership', verified: true });
   }
 
   // Sync comment counts after data is loaded

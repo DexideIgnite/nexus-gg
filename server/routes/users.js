@@ -406,11 +406,11 @@ router.post('/:id/follow', requireAuth, (req, res) => {
   res.json(result);
 });
 
-// ── Badge assignment (owner only, user_id 1 = @Dexide) ──
+// ── Badge assignment (owner only) ──
 const VALID_BADGE_TYPES = ['official','verified','trusted','gold','premium','creator','partner','staff','admin','legend','newcomer','elite','ownership',''];
 router.put('/users/:id/badge', requireAuth, (req, res) => {
-  // Only platform owner (first registered user, id=1) can assign badges
-  if (req.user.userId !== 1) return res.status(403).json({ error: 'Only the platform owner can assign badges' });
+  const caller = db.getUser(req.user.userId);
+  if (!caller || caller.badge_type !== 'ownership') return res.status(403).json({ error: 'Only the platform owner can assign badges' });
   const { badge_type } = req.body;
   if (badge_type !== undefined && !VALID_BADGE_TYPES.includes(badge_type)) {
     return res.status(400).json({ error: 'Invalid badge type', valid: VALID_BADGE_TYPES.filter(b=>b) });

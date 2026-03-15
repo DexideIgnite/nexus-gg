@@ -5053,7 +5053,7 @@ let _adminUserPage = 1;
 async function loadAdmin() {
   const container = document.getElementById('admin-container');
   if (!container) return;
-  if (window.CURRENT_USER?.id !== 1) {
+  if (window.CURRENT_USER?.badge_type !== 'ownership') {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔒</div><p>Access denied</p></div>`;
     return;
   }
@@ -5384,9 +5384,11 @@ async function init(user) {
     u.avatar_url = user.avatar_url || null;
     u.email     = user.email;
     u.games     = user.games || [];
+    u.badge_type = user.badge_type || '';
+    u.plan      = user.plan || 'free';
   }
-  // Show admin nav only for platform owner (user_id=1)
-  const isOwner = window.CURRENT_USER?.id === 1;
+  // Show admin nav only for platform owner
+  const isOwner = window.CURRENT_USER?.badge_type === 'ownership';
   ['nav-admin', 'mobile-admin', 'mobile-nav-admin'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isOwner ? '' : 'none';
