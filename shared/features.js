@@ -15,7 +15,7 @@ const FEATURE_GATES = {
 
 const PLAN_LIMITS = {
   free:  { max_posts: 100, max_clip_seconds: 60, max_upload_bytes: 10 * 1024 * 1024 },
-  pro:   { max_posts: 500, max_clip_seconds: 60, max_upload_bytes: 1024 * 1024 * 1024 },
+  pro:   { max_posts: 500, max_clip_seconds: 60, max_upload_bytes: 200 * 1024 * 1024 },
   plus:  { max_posts: Infinity, max_clip_seconds: 600, max_upload_bytes: 1024 * 1024 * 1024 },
 };
 

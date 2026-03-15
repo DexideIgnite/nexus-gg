@@ -323,7 +323,7 @@ function loadPlans() {
         { ok: true,  text: 'Everything in Free' },
         { ok: true,  text: '@Claude AI assistant' },
         { ok: true,  text: 'Up to 500 posts stored' },
-        { ok: true,  text: '1GB file uploads' },
+        { ok: true,  text: '200MB file uploads' },
         { ok: true,  text: 'Animated avatar frame' },
         { ok: true,  text: 'Premium accent colors (12)' },
         { ok: true,  text: 'Priority LFG matchmaking' },
