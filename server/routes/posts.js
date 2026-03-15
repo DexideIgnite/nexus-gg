@@ -237,20 +237,30 @@ router.post('/:id/vote', requireAuth, (req, res) => {
   res.json(result);
 });
 
-// POST /api/posts/upload-image
+// POST /api/posts/upload-image — convert to base64 data URL for DB persistence
 router.post('/upload-image', requireAuth, postImgUpload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided' });
-  res.json({ url: `/uploads/posts/${req.file.filename}` });
+  const data = fs.readFileSync(req.file.path);
+  const base64 = data.toString('base64');
+  const mimeType = req.file.mimetype || 'image/jpeg';
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+  // Remove the temp file since we're storing in DB
+  fs.unlink(req.file.path, () => {});
+  res.json({ url: dataUrl });
 });
 
-// POST /api/posts/upload-clip
+// POST /api/posts/upload-clip — convert to base64 data URL for DB persistence
 router.post('/upload-clip', requireAuth, clipUpload.single('clip'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No video provided' });
   const user = db.getUser(req.user.userId);
   const limits = getPlanLimits((user?.plan) || 'free');
   const maxSec = limits.max_clip_seconds || 60;
-  // Return the URL + max duration so client can enforce; server trusts the upload but tags the limit
-  res.json({ url: `/uploads/clips/${req.file.filename}`, max_clip_seconds: maxSec });
+  const data = fs.readFileSync(req.file.path);
+  const base64 = data.toString('base64');
+  const mimeType = req.file.mimetype || 'video/mp4';
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+  fs.unlink(req.file.path, () => {});
+  res.json({ url: dataUrl, max_clip_seconds: maxSec });
 });
 
 // POST /api/posts/batch-views — increment view counts for multiple posts

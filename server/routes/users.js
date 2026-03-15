@@ -101,18 +101,22 @@ router.post('/me/password', requireAuth, async (req, res) => {
   res.json({ success: true, token });
 });
 
-// POST /api/users/me/avatar — upload profile picture
+// POST /api/users/me/avatar — upload profile picture (stored as base64 in DB)
 router.post('/me/avatar', requireAuth, avatarUpload.single('avatar'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
-  const avatar_url = '/uploads/avatars/' + req.file.filename;
+  const data = fs.readFileSync(req.file.path);
+  const avatar_url = `data:${req.file.mimetype || 'image/jpeg'};base64,${data.toString('base64')}`;
+  fs.unlink(req.file.path, () => {});
   const user = db.updateUser(req.user.userId, { avatar_url });
   res.json({ avatar_url, user: db.safeUser(user, req.user.userId) });
 });
 
-// POST /api/users/me/banner — upload banner image
+// POST /api/users/me/banner — upload banner image (stored as base64 in DB)
 router.post('/me/banner', requireAuth, bannerUpload.single('banner'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
-  const banner_url = '/uploads/banners/' + req.file.filename;
+  const data = fs.readFileSync(req.file.path);
+  const banner_url = `data:${req.file.mimetype || 'image/jpeg'};base64,${data.toString('base64')}`;
+  fs.unlink(req.file.path, () => {});
   const user = db.updateUser(req.user.userId, { banner_url });
   res.json({ banner_url, user: db.safeUser(user, req.user.userId) });
 });
