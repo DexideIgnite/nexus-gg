@@ -1348,10 +1348,12 @@ function renderComment(c) { return renderCommentInner(c, c.post_id, 0); }
 
 function renderCommentInner(c, postId, depth) {
   const isBot = c.user_id === 999;
-  const avatarBg = `background:${c.gradient||'linear-gradient(135deg,#cc785c,#a85f45)'}`;
+  const avatarBg = c.avatar_url
+    ? `background-image:url('${c.avatar_url}');background-size:cover;background-position:center`
+    : `background:${c.gradient||'linear-gradient(135deg,#cc785c,#a85f45)'}`;
   const avatarContent = isBot
     ? `<img src="/claude-avatar.svg" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
-    : (c.avatar||'?');
+    : (c.avatar_url ? '' : (c.avatar||'?'));
   const replyHandle = isBot ? 'Claude' : cleanHandle(c.handle||c.username||'Player');
   const threadLine = depth > 0 ? '' : ''; // thread line is handled by CSS on .comment-thread-replies
   return `
@@ -1382,7 +1384,7 @@ function openInlineReply(postId, commentId, handle) {
   if (wrap.children.length) { wrap.innerHTML = ''; return; } // toggle off
   const me = window.Auth?.getUser() || window.CURRENT_USER;
   const avatarStyle = me.avatar_url
-    ? `background-image:url('${me.avatar_url}');background-size:cover;background-position:center;background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}`
+    ? `background-image:url('${me.avatar_url}');background-size:cover;background-position:center`
     : `background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}`;
   wrap.innerHTML = `
     <div class="comment-input-row inline-reply-row">
