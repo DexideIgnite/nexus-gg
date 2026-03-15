@@ -3547,6 +3547,53 @@ body {
 .adm-badge-key { font-size: 10px; color: var(--text-muted); font-family: monospace; }
 .adm-badge-color { font-size: 10px; font-weight: 600; }
 
+/* Mobile more menu admin item */
+.mobile-more-admin svg { fill: none; stroke: currentColor; stroke-width: 2; }
+
+/* Admin panel mobile responsiveness */
+@media (max-width: 768px) {
+  .adm-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; gap: 6px; padding-bottom: 12px; }
+  .adm-tab { white-space: nowrap; padding: 7px 14px; font-size: 12px; flex-shrink: 0; }
+  .adm-stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .adm-stat-card { padding: 14px; }
+  .adm-stat-val { font-size: 22px; }
+  .adm-stat-label { font-size: 11px; }
+  .adm-row { grid-template-columns: 1fr; gap: 10px; }
+  .adm-card { padding: 14px; }
+
+  /* Users table -> card layout on mobile */
+  .adm-table-head { display: none; }
+  .adm-table-row {
+    flex-direction: column; align-items: stretch; gap: 10px;
+    padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .adm-td { flex: unset !important; }
+  .adm-td:first-child { margin-bottom: 4px; }
+  .adm-table-row .adm-td:nth-child(2),
+  .adm-table-row .adm-td:nth-child(3) { display: inline-flex; align-items: center; gap: 6px; }
+  .adm-table-row .adm-td:nth-child(2)::before { content: 'Plan: '; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+  .adm-table-row .adm-td:nth-child(3)::before { content: 'Badge: '; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+  .adm-table-row .adm-td:last-child { display: flex; justify-content: flex-end; gap: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.04); }
+
+  .adm-toolbar { flex-direction: column; gap: 8px; }
+  .adm-count { align-self: flex-end; }
+
+  .adm-growth-chart { overflow-x: auto; min-width: 0; }
+  .adm-growth-bar-wrap { min-width: 28px; }
+  .adm-growth-label { font-size: 8px; }
+
+  .adm-badges-grid { grid-template-columns: 1fr 1fr; }
+  .adm-badge-card { padding: 10px; gap: 8px; }
+
+  .adm-content-item { padding: 12px; }
+}
+
+@media (max-width: 400px) {
+  .adm-stats-grid { grid-template-columns: 1fr; }
+  .adm-badges-grid { grid-template-columns: 1fr; }
+  .adm-stat-card { padding: 12px; }
+}
+
 /* ===== SHARE PROFILE SHEET ===== */
 .sp-overlay {
   position: fixed; inset: 0; z-index: 10000;

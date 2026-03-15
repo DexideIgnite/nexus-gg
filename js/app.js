@@ -5386,8 +5386,11 @@ async function init(user) {
     u.games     = user.games || [];
   }
   // Show admin nav only for platform owner (user_id=1)
+  const isOwner = window.CURRENT_USER?.id === 1;
   const adminNav = document.getElementById('nav-admin');
-  if (adminNav) adminNav.style.display = (window.CURRENT_USER?.id === 1) ? '' : 'none';
+  if (adminNav) adminNav.style.display = isOwner ? '' : 'none';
+  const mobileAdmin = document.getElementById('mobile-admin');
+  if (mobileAdmin) mobileAdmin.style.display = isOwner ? '' : 'none';
 
   updateSidebarUser();
   await loadWidgets();
