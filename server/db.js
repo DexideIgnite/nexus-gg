@@ -254,7 +254,7 @@ const db = {
   // Users
   getUser:(id)=>T.users.findOne(u=>u.id===+id),
   getUserByHandle:(handle)=>T.users.findOne(u=>(u.handle||u.username).toLowerCase()===handle.toLowerCase()),
-  getUserByLogin:(login)=>T.users.findOne(u=>u.email===login||u.username===login),
+  getUserByLogin:(login)=>{const l=login.toLowerCase();return T.users.findOne(u=>(u.email||'').toLowerCase()===l||(u.username||'').toLowerCase()===l);},
   getUserByOAuth:(provider,providerId)=>T.users.findOne(u=>u.oauth_provider===provider&&u.oauth_id===providerId),
   createUser:(data)=>T.users.insert(data),
   updateUser:(id,changes)=>{T.users.update(u=>u.id===+id,changes);return T.users.findOne(u=>u.id===+id);},
