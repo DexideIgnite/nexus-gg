@@ -114,7 +114,7 @@ router.post('/', requireAuth, (req, res) => {
     const qp = db.getPost(quoted_post_id);
     if (qp) {
       const qu = db.getUser(qp.user_id);
-      quoted_snapshot = { body: qp.body, username: qu?.username, handle: qu?.handle || qu?.username, avatar: qu?.avatar, gradient: qu?.gradient, created_at: qp.created_at };
+      quoted_snapshot = { body: qp.body, username: qu?.username, handle: qu?.handle || qu?.username, avatar: qu?.avatar, gradient: qu?.gradient, created_at: qp.created_at, image_url: qp.image_url || null, clip_url: qp.clip_url || null };
     }
   }
 

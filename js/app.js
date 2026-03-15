@@ -1113,6 +1113,12 @@ function renderPost(post) {
   if (post.quotedPost) {
     const qp = post.quotedPost;
     const qu = qp.user || {};
+    let quotedMedia = '';
+    if (qp.image_url) {
+      quotedMedia = `<div class="quoted-media"><img src="${qp.image_url}" class="quoted-media-img" loading="lazy" onclick="event.stopPropagation();openImageLightbox('${qp.image_url}')" onerror="this.parentElement.style.display='none'"></div>`;
+    } else if (qp.clip_url) {
+      quotedMedia = `<div class="quoted-media"><video src="${qp.clip_url}" class="quoted-media-video" preload="metadata" muted></video></div>`;
+    }
     extra += `<div class="quoted-post-card" onclick="event.stopPropagation()">
       <div class="quoted-post-header">
         <div class="quoted-avatar-sm" style="background:${qu.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${qu.avatar||'?'}</div>
@@ -1122,6 +1128,7 @@ function renderPost(post) {
         <span class="quoted-time-sm">${qp.time}</span>
       </div>
       <div class="quoted-body-sm">${qp.body||''}</div>
+      ${quotedMedia}
     </div>`;
   }
 
@@ -1145,7 +1152,7 @@ function renderPost(post) {
       ${post.user_id === (window.Auth?.getUser()?.id || window.CURRENT_USER?.id) ? `<button class="post-delete-btn" title="Delete post" onclick="event.stopPropagation();deletePostReal(${post.id},this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12"/></svg></button>` : ''}
     </div>
     <div class="post-body">${parseBody(post.body)}</div>
-    ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox('${post.image_url}')"></div>` : ''}
+    ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox('${post.image_url}')" onerror="this.parentElement.style.display='none'"></div>` : ''}
     ${extra}
     ${post.poll ? renderPollCard(post.poll, post.id) : ''}
     <div class="post-actions">
@@ -1527,6 +1534,8 @@ function openQuoteModal(postId) {
           <span style="color:var(--text-muted);font-size:12px">${post.time||''}</span>
         </div>
         <div class="quoted-body">${post.body||''}</div>
+        ${post.image_url ? `<img src="${post.image_url}" class="quoted-media-img" style="margin-top:8px" onerror="this.style.display='none'">` : ''}
+        ${post.clip_url ? `<video src="${post.clip_url}" class="quoted-media-video" style="margin-top:8px" preload="metadata" muted></video>` : ''}
       </div>`;
   }
 }
