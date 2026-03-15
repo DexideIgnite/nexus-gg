@@ -3278,9 +3278,11 @@ async function renderProfile(userId, container) {
           })()}
           <div class="profile-actions-row">
             ${isMe
-              ? `<button class="btn-secondary profile-edit-btn" onclick="openEditProfile()"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Profile</button>`
+              ? `<button class="btn-secondary profile-edit-btn" onclick="openEditProfile()"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Profile</button>
+                 <button class="btn-secondary" onclick="openShareProfile('${cleanHandle(user.handle||user.username)}','${(user.username||'').replace(/'/g,"\\'")}','${user.avatar_url||''}','${user.gradient||''}','${user.avatar||''}',${user.followers||0},${user.post_count||user.posts_count||0})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>`
               : `<button class="btn-primary" id="follow-btn-${user.id}" onclick="toggleFollow(${user.id},this)">${user.isFollowing?'Following':'+ Follow'}</button>
-                 <button class="btn-secondary" onclick="openDirectMessage(${user.id})">Message</button>`}
+                 <button class="btn-secondary" onclick="openDirectMessage(${user.id})">Message</button>
+                 <button class="btn-secondary" onclick="openShareProfile('${cleanHandle(user.handle||user.username)}','${(user.username||'').replace(/'/g,"\\'")}','${user.avatar_url||''}','${user.gradient||''}','${user.avatar||''}',${user.followers||0},${user.post_count||user.posts_count||0})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>`}
           </div>
         </div>
         <div class="profile-name">${user.username||user.name||'Player'} ${verifiedBadge(user, true)} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>
@@ -3316,6 +3318,139 @@ async function renderProfile(userId, container) {
   } catch (err) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load profile</p></div>`;
   }
+}
+
+// ── Share Profile Sheet (Twitter-style) ──
+function openShareProfile(handle, username, avatarUrl, gradient, avatarLetter, followers, posts) {
+  const existing = document.getElementById('share-profile-sheet');
+  if (existing) existing.remove();
+
+  const profileUrl = window.location.origin + '/#@' + handle;
+
+  const sheet = document.createElement('div');
+  sheet.id = 'share-profile-sheet';
+  sheet.className = 'sp-overlay';
+
+  sheet.innerHTML = `
+    <div class="sp-backdrop" onclick="closeShareProfile()"></div>
+    <div class="sp-sheet">
+      <div class="sp-drag-handle"></div>
+      <div class="sp-header">
+        <span class="sp-title">Share Profile</span>
+        <button class="sp-close" onclick="closeShareProfile()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="sp-card" id="sp-card">
+        <div class="sp-card-banner" style="background:${gradient || 'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">
+          <div class="sp-card-pattern"></div>
+        </div>
+        <div class="sp-card-body">
+          <div class="sp-card-avatar" style="background:${gradient || 'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${avatarUrl ? `background-image:url('${avatarUrl}');background-size:cover;background-position:center` : ''}">${avatarUrl ? '' : (avatarLetter || '?')}</div>
+          <div class="sp-card-name">${username}</div>
+          <div class="sp-card-handle">@${handle}</div>
+          <div class="sp-card-stats">
+            <span><strong>${formatNum(followers)}</strong> followers</span>
+            <span class="sp-dot"></span>
+            <span><strong>${formatNum(posts)}</strong> posts</span>
+          </div>
+          <div class="sp-card-url">${profileUrl.replace('http://','').replace('https://','')}</div>
+        </div>
+      </div>
+
+      <div class="sp-actions">
+        <button class="sp-action-btn sp-copy" onclick="copyProfileLink('${profileUrl}')">
+          <div class="sp-action-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </div>
+          <span>Copy link</span>
+        </button>
+        <button class="sp-action-btn" onclick="shareProfileNative('${handle}','${username.replace(/'/g,"\\'")}','${profileUrl}')">
+          <div class="sp-action-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          </div>
+          <span>Share via...</span>
+        </button>
+        <button class="sp-action-btn" onclick="shareProfileToX('${handle}','${username.replace(/'/g,"\\'")}','${profileUrl}')">
+          <div class="sp-action-icon sp-x-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </div>
+          <span>Post to X</span>
+        </button>
+        <button class="sp-action-btn" onclick="shareProfileQR('${profileUrl}')">
+          <div class="sp-action-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="4" height="4"/><line x1="22" y1="14" x2="22" y2="18"/><line x1="18" y1="22" x2="22" y2="22"/></svg>
+          </div>
+          <span>QR code</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(sheet);
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => sheet.classList.add('visible'));
+}
+
+function closeShareProfile() {
+  const sheet = document.getElementById('share-profile-sheet');
+  if (!sheet) return;
+  sheet.classList.remove('visible');
+  document.body.style.overflow = '';
+  setTimeout(() => sheet.remove(), 300);
+}
+
+function copyProfileLink(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.querySelector('.sp-copy');
+    if (btn) {
+      btn.querySelector('span').textContent = 'Copied!';
+      btn.classList.add('sp-copied');
+      setTimeout(() => {
+        btn.querySelector('span').textContent = 'Copy link';
+        btn.classList.remove('sp-copied');
+      }, 2000);
+    }
+    showToast('Profile link copied!', 'success');
+  });
+}
+
+function shareProfileNative(handle, username, url) {
+  if (navigator.share) {
+    navigator.share({
+      title: `${username} (@${handle})`,
+      text: `Check out ${username}'s profile on NEXUS`,
+      url: url
+    });
+  } else {
+    copyProfileLink(url);
+  }
+}
+
+function shareProfileToX(handle, username, url) {
+  const text = encodeURIComponent(`Check out ${username}'s profile on NEXUS`);
+  const encodedUrl = encodeURIComponent(url);
+  window.open(`https://x.com/intent/tweet?text=${text}&url=${encodedUrl}`, '_blank', 'width=550,height=420');
+}
+
+function shareProfileQR(url) {
+  const qrSize = 200;
+  const card = document.querySelector('.sp-card');
+  if (!card) return;
+
+  // Show QR code using a simple QR API
+  const existing = document.getElementById('sp-qr-display');
+  if (existing) { existing.remove(); return; }
+
+  const qrDiv = document.createElement('div');
+  qrDiv.id = 'sp-qr-display';
+  qrDiv.className = 'sp-qr-display';
+  qrDiv.innerHTML = `
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(url)}&bgcolor=0e0e18&color=ffffff&format=svg" width="${qrSize}" height="${qrSize}" alt="QR Code" style="border-radius:12px"/>
+    <span class="sp-qr-label">Scan to view profile</span>
+  `;
+  card.after(qrDiv);
 }
 
 async function switchProfileTab(btn, tab, userId) {
