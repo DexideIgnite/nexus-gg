@@ -2577,7 +2577,7 @@ function renderConversationsFromAPI(conversations) {
   list.innerHTML = conversations.map(c => {
     const user = c.user;
     return `<div class="conv-item ${c.other_id === state.currentConversation ? 'active' : ''}" data-uid="${c.other_id}" onclick="selectConversationAPI(${c.other_id})">
-      <div class="conv-avatar" style="background:${user?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)';cursor:pointer}" data-uid="${c.other_id}" onclick="event.stopPropagation();openUserProfile(${c.other_id})">
+      <div class="conv-avatar" style="background:${user?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};cursor:pointer" data-uid="${c.other_id}" onclick="event.stopPropagation();openUserProfile(${c.other_id})">
         ${user?.avatar||'?'}
         ${user?.online ? '<div class="conv-online-dot"></div>' : ''}
       </div>
