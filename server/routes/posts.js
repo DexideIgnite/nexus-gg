@@ -18,7 +18,7 @@ const postImgUpload = multer({
       cb(null, `post_${req.user?.userId}_${Date.now()}${ext}`);
     },
   }),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 },
   fileFilter: (req, file, cb) => file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Images only')),
 });
 
@@ -32,7 +32,7 @@ const clipUpload = multer({
       cb(null, `clip_${req.user?.userId}_${Date.now()}${ext}`);
     },
   }),
-  limits: { fileSize: 100 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 },
   fileFilter: (req, file, cb) => file.mimetype.startsWith('video/') ? cb(null, true) : cb(new Error('Videos only')),
 });
 
@@ -240,6 +240,14 @@ router.post('/:id/vote', requireAuth, (req, res) => {
 // POST /api/posts/upload-image — convert to base64 data URL for DB persistence
 router.post('/upload-image', requireAuth, postImgUpload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided' });
+  // Enforce plan-based file size limit
+  const user = db.getUser(req.user.userId);
+  const limits = getPlanLimits((user?.plan) || 'free');
+  if (req.file.size > limits.max_upload_bytes) {
+    fs.unlink(req.file.path, () => {});
+    const maxMB = Math.round(limits.max_upload_bytes / (1024 * 1024));
+    return res.status(413).json({ error: `File too large. Max ${maxMB}MB for your plan.` });
+  }
   const data = fs.readFileSync(req.file.path);
   const base64 = data.toString('base64');
   const mimeType = req.file.mimetype || 'image/jpeg';
@@ -254,6 +262,12 @@ router.post('/upload-clip', requireAuth, clipUpload.single('clip'), (req, res) =
   if (!req.file) return res.status(400).json({ error: 'No video provided' });
   const user = db.getUser(req.user.userId);
   const limits = getPlanLimits((user?.plan) || 'free');
+  // Enforce plan-based file size limit
+  if (req.file.size > limits.max_upload_bytes) {
+    fs.unlink(req.file.path, () => {});
+    const maxMB = Math.round(limits.max_upload_bytes / (1024 * 1024));
+    return res.status(413).json({ error: `File too large. Max ${maxMB}MB for your plan.` });
+  }
   const maxSec = limits.max_clip_seconds || 60;
   const data = fs.readFileSync(req.file.path);
   const base64 = data.toString('base64');

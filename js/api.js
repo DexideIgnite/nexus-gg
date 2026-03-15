@@ -73,6 +73,7 @@ const api = {
   post:   (path, body)   => apiRequest('POST', path, body),
   patch:  (path, body)   => apiRequest('PATCH', path, body),
   delete: (path)         => apiRequest('DELETE', path),
+  raw:    (path, method='GET', body) => apiRequest(method, path, body),
 
   // Auth
   login:    (email, password)  => api.post('/auth/login', { email, password }),

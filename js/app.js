@@ -299,6 +299,7 @@ function loadPlans() {
       features: [
         { ok: true,  text: 'Up to 100 posts stored' },
         { ok: true,  text: '60s clip uploads' },
+        { ok: true,  text: '10MB file uploads' },
         { ok: true,  text: 'Join LFG parties' },
         { ok: true,  text: 'Follow gamers & games' },
         { ok: true,  text: 'Direct messages' },
@@ -311,46 +312,48 @@ function loadPlans() {
       disabled: currentPlan === 'free',
     },
     {
-      id: 'plus',
-      name: 'DXED+',
-      price: '$4.99',
-      period: '/month',
-      badge: 'POPULAR',
-      color: '#8b5cf6',
-      gradient: 'linear-gradient(135deg,#1a0a3a,#3b1a6e)',
-      features: [
-        { ok: true,  text: 'Everything in Free' },
-        { ok: true,  text: '@Claude AI assistant' },
-        { ok: true,  text: 'Up to 500 posts stored' },
-        { ok: true,  text: 'Animated avatar frame' },
-        { ok: true,  text: 'Premium accent colors (12)' },
-        { ok: true,  text: 'Priority LFG matchmaking' },
-        { ok: true,  text: 'DXED+ profile badge' },
-        { ok: false, text: 'Clan creation & analytics' },
-      ],
-      cta: currentPlan === 'plus' ? 'Current Plan' : currentPlan === 'pro' ? 'Downgrade' : 'Upgrade to DXED+',
-      disabled: currentPlan === 'plus',
-    },
-    {
       id: 'pro',
       name: 'DXED Pro',
       price: '$9.99',
       period: '/month',
-      badge: 'BEST VALUE',
+      badge: 'POPULAR',
       color: '#f59e0b',
       gradient: 'linear-gradient(135deg,#1a0a00,#3d2000)',
       features: [
-        { ok: true,  text: 'Everything in DXED+' },
+        { ok: true,  text: 'Everything in Free' },
+        { ok: true,  text: '@Claude AI assistant' },
+        { ok: true,  text: 'Up to 500 posts stored' },
+        { ok: true,  text: '1GB file uploads' },
+        { ok: true,  text: 'Animated avatar frame' },
+        { ok: true,  text: 'Premium accent colors (12)' },
+        { ok: true,  text: 'Priority LFG matchmaking' },
+        { ok: true,  text: 'Pro profile badge' },
+        { ok: false, text: 'Clan creation & analytics' },
+      ],
+      cta: currentPlan === 'pro' ? 'Current Plan' : currentPlan === 'plus' ? 'Downgrade' : 'Upgrade to Pro',
+      disabled: currentPlan === 'pro',
+    },
+    {
+      id: 'plus',
+      name: 'DXED+',
+      price: '$20',
+      period: '/month',
+      badge: 'BEST VALUE',
+      color: '#8b5cf6',
+      gradient: 'linear-gradient(135deg,#1a0a3a,#3b1a6e)',
+      features: [
+        { ok: true,  text: 'Everything in Pro' },
         { ok: true,  text: 'Unlimited post storage' },
         { ok: true,  text: '10 min clip uploads' },
-        { ok: true,  text: 'Verified Pro badge ✓ with glow' },
+        { ok: true,  text: '1GB file uploads' },
+        { ok: true,  text: 'Verified DXED+ badge ✓ with glow' },
         { ok: true,  text: 'Create & lead clans' },
         { ok: true,  text: 'Host tournaments (coming soon)' },
         { ok: true,  text: 'Profile analytics dashboard' },
         { ok: true,  text: 'Gold animated avatar frame' },
       ],
-      cta: currentPlan === 'pro' ? 'Current Plan' : 'Upgrade to Pro',
-      disabled: currentPlan === 'pro',
+      cta: currentPlan === 'plus' ? 'Current Plan' : 'Upgrade to DXED+',
+      disabled: currentPlan === 'plus',
     },
   ];
 
@@ -363,7 +366,7 @@ function loadPlans() {
     </div>
     <div class="plans-grid">
       ${plans.map(p => `
-        <div class="plan-card ${currentPlan === p.id ? 'plan-card-current' : ''} ${p.id === 'plus' ? 'plan-card-featured' : ''}" style="--plan-color:${p.color};--plan-gradient:${p.gradient}">
+        <div class="plan-card ${currentPlan === p.id ? 'plan-card-current' : ''} ${p.id === 'pro' ? 'plan-card-featured' : ''}" style="--plan-color:${p.color};--plan-gradient:${p.gradient}">
           ${p.badge ? `<div class="plan-badge-top" style="background:${p.color}">${p.badge}</div>` : ''}
           <div class="plan-card-header">
             <div class="plan-name">${p.name}</div>
@@ -2295,9 +2298,21 @@ async function _loadGameTab(tab, game) {
     try {
       const posts = await api.getFeed('for-you', game.name);
       const normalized = (posts || []).map(normalizePost);
-      content.innerHTML = normalized.length
+      const safeName = game.name.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+      const composeBox = Auth.isLoggedIn() ? `
+        <div class="gc-compose-box" style="padding:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin:12px 16px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div class="post-avatar" style="background:${window.CURRENT_USER?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:36px;height:36px;font-size:14px;flex-shrink:0">${window.CURRENT_USER?.avatar||'?'}</div>
+            <textarea id="gc-compose-text" class="compose-textarea" rows="2" placeholder="Post in ${game.name} community..." style="flex:1;resize:none;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text-primary);font-size:14px"></textarea>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-left:46px">
+            <span style="font-size:12px;color:var(--accent);display:flex;align-items:center;gap:4px">🏷️ Tagged: ${game.name}</span>
+            <button class="btn-primary btn-sm" onclick="submitCommunityPost('${safeName}')">Post</button>
+          </div>
+        </div>` : '';
+      content.innerHTML = composeBox + (normalized.length
         ? normalized.map(renderPost).join('')
-        : `<div class="empty-state"><div class="empty-icon">📝</div><p>No posts for ${game.name} yet</p><span>Tag this game when you post to be the first!</span></div>`;
+        : `<div class="empty-state"><div class="empty-icon">📝</div><p>No posts for ${game.name} yet</p><span>Write something above to be the first!</span></div>`);
     } catch {
       content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load posts</p></div>`;
     }
@@ -2354,6 +2369,23 @@ async function _loadGameTab(tab, game) {
         ${game.summary ? `<p class="gc-summary">${game.summary}</p>` : ''}
         ${game.steam_url ? `<a class="gc-steam-btn" href="${game.steam_url}" target="_blank" rel="noopener">🛒 Buy on Steam</a>` : ''}
       </div>`;
+  }
+}
+
+async function submitCommunityPost(gameName) {
+  const textarea = document.getElementById('gc-compose-text');
+  const text = textarea?.value.trim();
+  if (!text) { showToast('Write something first!', 'error', '⚠️'); return; }
+  try {
+    const newPost = await api.createPost({ body: text, type: 'post', game: gameName });
+    textarea.value = '';
+    showToast('Posted in community! 🎮', 'success', '✅');
+    if (newPost._claudeGated) setTimeout(() => showUpgradePrompt('Use @Claude AI in your posts'), 800);
+    // Reload community feed
+    const commView = document.getElementById('games-community-view');
+    if (commView?._game) _loadGameTab('feed', commView._game);
+  } catch (err) {
+    showToast(err.message || 'Failed to post', 'error', '⚠️');
   }
 }
 
@@ -2545,12 +2577,12 @@ function renderConversationsFromAPI(conversations) {
   list.innerHTML = conversations.map(c => {
     const user = c.user;
     return `<div class="conv-item ${c.other_id === state.currentConversation ? 'active' : ''}" data-uid="${c.other_id}" onclick="selectConversationAPI(${c.other_id})">
-      <div class="conv-avatar" style="background:${user?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}" data-uid="${c.other_id}">
+      <div class="conv-avatar" style="background:${user?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)';cursor:pointer}" data-uid="${c.other_id}" onclick="event.stopPropagation();openUserProfile(${c.other_id})">
         ${user?.avatar||'?'}
         ${user?.online ? '<div class="conv-online-dot"></div>' : ''}
       </div>
       <div class="conv-info">
-        <div class="conv-name">${user?.username||'Unknown'}</div>
+        <div class="conv-name">${c.pinned?'📌 ':''}${c.muted?'🔇 ':''}${user?.username||'Unknown'}</div>
         <div class="conv-last-msg">${c.last_msg||''}</div>
       </div>
       <div class="conv-meta">
@@ -2572,12 +2604,15 @@ async function selectConversationAPI(userId, userObj) {
       <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       Back
     </button>
-    <div class="conv-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:40px;height:40px">${user.avatar||'?'}</div>
-    <div>
+    <div class="conv-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:40px;height:40px;cursor:pointer" onclick="openUserProfile(${userId})">${user.avatar||'?'}</div>
+    <div style="cursor:pointer;flex:1" onclick="openUserProfile(${userId})">
       <div style="font-weight:800;font-size:14px">${user.username||'User'}</div>
       <div style="font-size:12px;color:${user.online?'var(--accent-green)':'var(--text-muted)'}">
         ${user.online ? '🟢 Online' : '⚫ Offline'}
       </div>
+    </div>
+    <div class="msg-options-container" style="position:relative;margin-left:auto">
+      <button class="msg-options-btn" onclick="toggleMsgOptions(event,${userId})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:8px;font-size:18px" title="Options">⋮</button>
     </div>`;
   // Mobile: show chat, hide conversation list
   if (window.innerWidth <= 560) {
@@ -2648,6 +2683,71 @@ function closeMobileMore() {
 function msgShowList() {
   document.querySelector('.messages-sidebar')?.classList.remove('msg-sidebar-hidden');
   document.querySelector('.messages-chat')?.classList.add('msg-chat-hidden');
+}
+
+// Messaging options: block, mute, pin, delete, report
+async function toggleMsgOptions(e, userId) {
+  e.stopPropagation();
+  // Remove any existing dropdown
+  document.querySelectorAll('.msg-options-dropdown').forEach(el => el.remove());
+  // Fetch current status
+  let status = { blocked: false, muted: false, pinned: false };
+  try { status = await api.raw(`/messages/${userId}/status`); } catch {}
+  const dropdown = document.createElement('div');
+  dropdown.className = 'msg-options-dropdown';
+  dropdown.style.cssText = 'position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:6px 0;min-width:180px;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.3)';
+  dropdown.innerHTML = `
+    <div class="msg-opt-item" onclick="msgAction('pin',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>${status.pinned ? '📌' : '📌'}</span> ${status.pinned ? 'Unpin Conversation' : 'Pin Conversation'}
+    </div>
+    <div class="msg-opt-item" onclick="msgAction('mute',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>${status.muted ? '🔔' : '🔇'}</span> ${status.muted ? 'Unmute' : 'Mute Notifications'}
+    </div>
+    <div class="msg-opt-item" onclick="msgAction('block',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:#ef4444;transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>🚫</span> ${status.blocked ? 'Unblock User' : 'Block User'}
+    </div>
+    <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+    <div class="msg-opt-item" onclick="msgAction('delete',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:#ef4444;transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>🗑️</span> Delete Conversation
+    </div>
+    <div class="msg-opt-item" onclick="msgAction('report',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>⚠️</span> Report User
+    </div>
+  `;
+  e.target.closest('.msg-options-container').appendChild(dropdown);
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function closeDropdown() {
+      dropdown.remove();
+      document.removeEventListener('click', closeDropdown);
+    }, { once: true });
+  }, 0);
+}
+
+async function msgAction(action, userId, el) {
+  document.querySelectorAll('.msg-options-dropdown').forEach(d => d.remove());
+  try {
+    if (action === 'block') {
+      const res = await api.raw(`/messages/${userId}/block`, 'POST');
+      showToast(res.action === 'blocked' ? 'User blocked' : 'User unblocked', res.action === 'blocked' ? 'error' : 'success', '🚫');
+      if (res.action === 'blocked') loadMessages();
+    } else if (action === 'mute') {
+      const res = await api.raw(`/messages/${userId}/mute`, 'POST');
+      showToast(res.action === 'muted' ? 'Conversation muted' : 'Conversation unmuted', 'info', res.action === 'muted' ? '🔇' : '🔔');
+    } else if (action === 'pin') {
+      const res = await api.raw(`/messages/${userId}/pin`, 'POST');
+      showToast(res.action === 'pinned' ? 'Conversation pinned' : 'Conversation unpinned', 'success', '📌');
+    } else if (action === 'delete') {
+      if (!confirm('Delete this entire conversation? This cannot be undone.')) return;
+      await api.raw(`/messages/${userId}`, 'DELETE');
+      showToast('Conversation deleted', 'info', '🗑️');
+      loadMessages();
+    } else if (action === 'report') {
+      showToast('User reported. Our team will review.', 'success', '⚠️');
+    }
+  } catch (err) {
+    showToast(err.message || 'Action failed', 'error', '⚠️');
+  }
 }
 
 // ================================================================
@@ -3320,7 +3420,7 @@ async function renderProfile(userId, container) {
         <div class="profile-tab" onclick="switchProfileTab(this,'clips',${effectiveId})">Clips</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'games',${effectiveId})">Games</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>
-        ${(user.plan === 'pro' && isMe) ? `<div class="profile-tab" onclick="switchProfileTab(this,'analytics',${effectiveId})">Analytics</div>` : ''}`}
+        ${(user.plan === 'plus' && isMe) ? `<div class="profile-tab" onclick="switchProfileTab(this,'analytics',${effectiveId})">Analytics</div>` : ''}`}
       </div>
       <div id="profile-tab-content"></div>`;
 
@@ -3711,6 +3811,10 @@ async function switchProfileTab(btn, tab, userId) {
   if (tab === 'games') {
     content.innerHTML = `<div style="padding:20px;color:var(--text-muted);text-align:center">Loading...</div>`;
     try {
+      // Ensure live games are loaded for cover images
+      if (!_liveGames.length) {
+        try { _liveGames = await api.getTrendingGames(100); _populateGameDropdowns(); } catch {}
+      }
       const gameNames = await api.getUserGameFollows(userId);
       if (!gameNames.length) {
         content.innerHTML = `<div class="empty-state"><div class="empty-icon">🎮</div><p>No games followed yet</p></div>`;
@@ -4411,8 +4515,11 @@ async function loadWidgets() {
         ? (g.twitch_viewers >= 1000 ? (g.twitch_viewers/1000).toFixed(1)+'K' : g.twitch_viewers) + ' live'
         : (g.players || '');
       const icon = g._icon || g.icon || '🎮';
+      const coverImg = g.cover_url
+        ? `<img src="${g.cover_url.replace('t_cover_big','t_thumb')}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="${name}">`
+        : `<div class="trend-icon">${icon}</div>`;
       return `<div class="trend-item" onclick="navigate('games')">
-        <div class="trend-icon">${icon}</div>
+        ${coverImg}
         <div class="trend-info">
           <div class="trend-name">${name}</div>
           <div class="trend-players">${viewers}</div>

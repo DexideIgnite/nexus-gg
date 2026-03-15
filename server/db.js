@@ -210,6 +210,9 @@ const T = {
   clan_members:    new Table('clan_members'),
   user_challenges: new Table('user_challenges'),
   profile_views:   new Table('profile_views'),
+  blocked_users:   new Table('blocked_users'),
+  muted_convos:    new Table('muted_convos'),
+  pinned_convos:   new Table('pinned_convos'),
 };
 
 // ================================================================
@@ -309,11 +312,19 @@ const db = {
   // Follows
   follow:(ferId,ingId)=>{if(T.follows.findOne(f=>f.follower_id===+ferId&&f.following_id===+ingId)){T.follows.delete(f=>f.follower_id===+ferId&&f.following_id===+ingId);return{action:'unfollowed',followers:T.follows.count(f=>f.following_id===+ingId)};}T.follows.insert({follower_id:+ferId,following_id:+ingId});return{action:'followed',followers:T.follows.count(f=>f.following_id===+ingId)};},
   // Messages
-  getConversations:(userId)=>{const msgs=T.messages.findAll(m=>m.sender_id===+userId||m.receiver_id===+userId);const ids=[...new Set(msgs.map(m=>m.sender_id===+userId?m.receiver_id:m.sender_id))];return ids.map(oid=>{const thread=msgs.filter(m=>(m.sender_id===+userId&&m.receiver_id===oid)||(m.sender_id===oid&&m.receiver_id===+userId));const last=thread.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];const unread=thread.filter(m=>m.sender_id===oid&&m.receiver_id===+userId&&!m.read).length;const user=safeUser(T.users.findOne(u=>u.id===oid),userId);return{other_id:oid,last_msg:last?.text||'',last_time:last?.created_at||'',unread,user,time:timeAgo(last?.created_at||new Date())};}).sort((a,b)=>new Date(b.last_time)-new Date(a.last_time));},
+  getConversations:(userId)=>{const blocked=T.blocked_users.findAll(b=>b.user_id===+userId).map(b=>b.target_id);const msgs=T.messages.findAll(m=>(m.sender_id===+userId||m.receiver_id===+userId)&&!blocked.includes(m.sender_id===+userId?m.receiver_id:m.sender_id));const ids=[...new Set(msgs.map(m=>m.sender_id===+userId?m.receiver_id:m.sender_id))];return ids.map(oid=>{const thread=msgs.filter(m=>(m.sender_id===+userId&&m.receiver_id===oid)||(m.sender_id===oid&&m.receiver_id===+userId));const last=thread.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];const unread=thread.filter(m=>m.sender_id===oid&&m.receiver_id===+userId&&!m.read).length;const user=safeUser(T.users.findOne(u=>u.id===oid),userId);const pinned=!!T.pinned_convos.findOne(p=>p.user_id===+userId&&p.target_id===oid);const muted=!!T.muted_convos.findOne(m=>m.user_id===+userId&&m.target_id===oid);return{other_id:oid,last_msg:last?.text||'',last_time:last?.created_at||'',unread,user,time:timeAgo(last?.created_at||new Date()),pinned,muted};}).sort((a,b)=>{if(a.pinned&&!b.pinned)return-1;if(!a.pinned&&b.pinned)return 1;return new Date(b.last_time)-new Date(a.last_time);});},
   getMessages:(uid1,uid2)=>T.messages.findAll(m=>(m.sender_id===+uid1&&m.receiver_id===+uid2)||(m.sender_id===+uid2&&m.receiver_id===+uid1)).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).map(m=>{const u=T.users.findOne(x=>x.id===m.sender_id);return{...m,mine:m.sender_id===+uid1,username:u?.username,avatar:u?.avatar,gradient:u?.gradient,time:timeAgo(m.created_at)};}),
   sendMessage:(sid,rid,text)=>T.messages.insert({sender_id:+sid,receiver_id:+rid,text,read:0}),
   markRead:(sid,rid)=>T.messages.update(m=>m.sender_id===+sid&&m.receiver_id===+rid,{read:1}),
   unreadMsgCount:(uid)=>T.messages.count(m=>m.receiver_id===+uid&&!m.read),
+  // Block/Mute/Pin
+  toggleBlock:(uid,targetId)=>{const ex=T.blocked_users.findOne(b=>b.user_id===+uid&&b.target_id===+targetId);if(ex){T.blocked_users.delete(b=>b.user_id===+uid&&b.target_id===+targetId);return'unblocked';}T.blocked_users.insert({user_id:+uid,target_id:+targetId});return'blocked';},
+  isBlocked:(uid,targetId)=>!!T.blocked_users.findOne(b=>b.user_id===+uid&&b.target_id===+targetId),
+  getBlockedUsers:(uid)=>T.blocked_users.findAll(b=>b.user_id===+uid).map(b=>b.target_id),
+  toggleMute:(uid,targetId)=>{const ex=T.muted_convos.findOne(m=>m.user_id===+uid&&m.target_id===+targetId);if(ex){T.muted_convos.delete(m=>m.user_id===+uid&&m.target_id===+targetId);return'unmuted';}T.muted_convos.insert({user_id:+uid,target_id:+targetId});return'muted';},
+  isMuted:(uid,targetId)=>!!T.muted_convos.findOne(m=>m.user_id===+uid&&m.target_id===+targetId),
+  togglePin:(uid,targetId)=>{const ex=T.pinned_convos.findOne(p=>p.user_id===+uid&&p.target_id===+targetId);if(ex){T.pinned_convos.delete(p=>p.user_id===+uid&&p.target_id===+targetId);return'unpinned';}T.pinned_convos.insert({user_id:+uid,target_id:+targetId});return'pinned';},
+  isPinned:(uid,targetId)=>!!T.pinned_convos.findOne(p=>p.user_id===+uid&&p.target_id===+targetId),
   // LFG
   getLFG:(game,region)=>{const planRank={pro:2,plus:1,free:0};let p=T.lfg_posts.findAll();if(game)p=p.filter(x=>x.game===game);if(region)p=p.filter(x=>x.region===region);p.sort((a,b)=>{const ua=T.users.findOne(u=>u.id===a.user_id);const ub=T.users.findOne(u=>u.id===b.user_id);const ra=planRank[(ua?.plan)||'free']||0;const rb=planRank[(ub?.plan)||'free']||0;if(rb!==ra)return rb-ra;return new Date(b.created_at)-new Date(a.created_at);});return p;},
   createLFG:(data)=>T.lfg_posts.insert(data),
