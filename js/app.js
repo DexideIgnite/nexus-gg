@@ -3844,7 +3844,7 @@ function openVideoPlayer(postId) {
           <button class="vp-close-btn" id="vp-close-btn">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 5 12 12 19"/></svg>
           </button>
-          <div class="vp-top-info" onclick="closeVideoPlayer();openProfileById(${user.id || 0})">
+          <div class="vp-top-info" onclick="closeVideoPlayer();openUserProfile(${user.id || 0})">
             <div class="vp-user-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
             <div class="vp-user-meta">
               <span class="vp-username">${userName(user)}</span>
@@ -3860,7 +3860,7 @@ function openVideoPlayer(postId) {
 
         <!-- Side action rail (TikTok-style) -->
         <div class="vp-rail" id="vp-rail">
-          <div class="vp-rail-avatar" onclick="closeVideoPlayer();openProfileById(${user.id || 0})">
+          <div class="vp-rail-avatar" onclick="closeVideoPlayer();openUserProfile(${user.id || 0})">
             <div class="vp-rail-avatar-img" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
           </div>
           <button class="vp-rail-btn ${liked ? 'active' : ''}" id="vp-like-btn">
@@ -5001,7 +5001,7 @@ async function loadTrendingHashtags() {
 // HASH-BASED ROUTING
 // ================================================================
 
-const VALID_SECTIONS = ['home','explore','games','lfg','tournaments','messages','notifications','leaderboard','profile','people','plans','settings','bookmarks','clans','clips','search'];
+const VALID_SECTIONS = ['home','explore','games','lfg','tournaments','messages','notifications','leaderboard','profile','people','plans','settings','bookmarks','clans','clips','search','admin'];
 
 async function handleHashRoute() {
   const hash = window.location.hash.slice(1); // remove '#'
@@ -5167,7 +5167,7 @@ async function renderAdminDashboard(el) {
         <div class="adm-card-title">Top Posters</div>
         <div class="adm-top-list">
           ${s.topPosters.map((u, i) => `
-            <div class="adm-top-item" onclick="openProfileById(${u.id})">
+            <div class="adm-top-item" onclick="openUserProfile(${u.id})">
               <span class="adm-top-rank">${i+1}</span>
               <div class="adm-top-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
               <span class="adm-top-name">${u.username}</span>
@@ -5203,7 +5203,7 @@ async function renderAdminUsers(el) {
         </div>
         ${data.users.map(u => `
           <div class="adm-table-row" id="adm-user-${u.id}">
-            <div class="adm-td" style="flex:2;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openProfileById(${u.id})">
+            <div class="adm-td" style="flex:2;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openUserProfile(${u.id})">
               <div class="adm-user-av" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
               <div>
                 <div style="font-weight:700;font-size:13px;color:white">${escapeHtml(u.username||'')}</div>
