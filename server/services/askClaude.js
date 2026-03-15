@@ -36,12 +36,20 @@ async function askClaude(mentionText, context, imageUrl) {
   // Add image if present
   if (imageUrl) {
     try {
-      const imgPath = path.join(__dirname, '..', imageUrl.replace(/^\//, ''));
-      if (fs.existsSync(imgPath)) {
-        const imgData = fs.readFileSync(imgPath).toString('base64');
-        const ext = path.extname(imgPath).toLowerCase();
-        const mediaType = ext === '.png' ? 'image/png' : ext === '.gif' ? 'image/gif' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
-        userContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: imgData } });
+      if (imageUrl.startsWith('data:')) {
+        // Base64 data URL — extract media type and data
+        const match = imageUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
+        if (match) {
+          userContent.push({ type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } });
+        }
+      } else {
+        const imgPath = path.join(__dirname, '..', imageUrl.replace(/^\//, ''));
+        if (fs.existsSync(imgPath)) {
+          const imgData = fs.readFileSync(imgPath).toString('base64');
+          const ext = path.extname(imgPath).toLowerCase();
+          const mediaType = ext === '.png' ? 'image/png' : ext === '.gif' ? 'image/gif' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+          userContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: imgData } });
+        }
       }
     } catch (err) {
       console.warn('[askClaude] Could not load image:', err.message);

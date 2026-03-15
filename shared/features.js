@@ -7,16 +7,16 @@ const FEATURE_GATES = {
   accent_colors:   ['plus', 'pro'],
   animated_frame:  ['plus', 'pro'],
   priority_lfg:    ['plus', 'pro'],
-  clan_create:     ['pro'],
-  tournament_host: ['pro'],
-  extended_clips:  ['pro'],
-  analytics:       ['pro'],
+  clan_create:     ['plus'],
+  tournament_host: ['plus'],
+  extended_clips:  ['plus'],
+  analytics:       ['plus'],
 };
 
 const PLAN_LIMITS = {
-  free:  { max_posts: 100, max_clip_seconds: 60 },
-  plus:  { max_posts: 500, max_clip_seconds: 60 },
-  pro:   { max_posts: Infinity, max_clip_seconds: 600 },
+  free:  { max_posts: 100, max_clip_seconds: 60, max_upload_bytes: 10 * 1024 * 1024 },
+  pro:   { max_posts: 500, max_clip_seconds: 60, max_upload_bytes: 200 * 1024 * 1024 },
+  plus:  { max_posts: Infinity, max_clip_seconds: 600, max_upload_bytes: 1024 * 1024 * 1024 },
 };
 
 function hasFeature(user, feature) {

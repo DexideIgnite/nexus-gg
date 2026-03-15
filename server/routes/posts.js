@@ -18,7 +18,7 @@ const postImgUpload = multer({
       cb(null, `post_${req.user?.userId}_${Date.now()}${ext}`);
     },
   }),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 },
   fileFilter: (req, file, cb) => file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Images only')),
 });
 
@@ -32,7 +32,7 @@ const clipUpload = multer({
       cb(null, `clip_${req.user?.userId}_${Date.now()}${ext}`);
     },
   }),
-  limits: { fileSize: 100 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 },
   fileFilter: (req, file, cb) => file.mimetype.startsWith('video/') ? cb(null, true) : cb(new Error('Videos only')),
 });
 
@@ -60,9 +60,15 @@ async function maybeAskClaude(postId, text, contextNote, io, imageUrl, authorId)
 
 // GET /api/posts
 router.get('/', optionalAuth, (req, res) => {
-  const { tab = 'for-you', game } = req.query;
+  const { tab = 'for-you', game, after } = req.query;
   const uid = req.user?.userId;
-  res.json(db.getPosts(tab, uid, game));
+  let posts = db.getPosts(tab, uid, game);
+  // Cursor-based pagination: ?after=postId returns posts after that ID
+  if (after) {
+    const idx = posts.findIndex(p => p.id === +after);
+    if (idx >= 0) posts = posts.slice(idx + 1);
+  }
+  res.json(posts);
 });
 
 // GET /api/posts/user/:id
@@ -108,7 +114,7 @@ router.post('/', requireAuth, (req, res) => {
     const qp = db.getPost(quoted_post_id);
     if (qp) {
       const qu = db.getUser(qp.user_id);
-      quoted_snapshot = { body: qp.body, username: qu?.username, handle: qu?.handle || qu?.username, avatar: qu?.avatar, gradient: qu?.gradient, created_at: qp.created_at };
+      quoted_snapshot = { body: qp.body, username: qu?.username, handle: qu?.handle || qu?.username, avatar: qu?.avatar, gradient: qu?.gradient, created_at: qp.created_at, image_url: qp.image_url || null, clip_url: qp.clip_url || null };
     }
   }
 
@@ -231,20 +237,56 @@ router.post('/:id/vote', requireAuth, (req, res) => {
   res.json(result);
 });
 
-// POST /api/posts/upload-image
+// POST /api/posts/upload-image — convert to base64 data URL for DB persistence
 router.post('/upload-image', requireAuth, postImgUpload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided' });
-  res.json({ url: `/uploads/posts/${req.file.filename}` });
+  // Enforce plan-based file size limit
+  const user = db.getUser(req.user.userId);
+  const limits = getPlanLimits((user?.plan) || 'free');
+  if (req.file.size > limits.max_upload_bytes) {
+    fs.unlink(req.file.path, () => {});
+    const maxMB = Math.round(limits.max_upload_bytes / (1024 * 1024));
+    return res.status(413).json({ error: `File too large. Max ${maxMB}MB for your plan.` });
+  }
+  const data = fs.readFileSync(req.file.path);
+  const base64 = data.toString('base64');
+  const mimeType = req.file.mimetype || 'image/jpeg';
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+  // Remove the temp file since we're storing in DB
+  fs.unlink(req.file.path, () => {});
+  res.json({ url: dataUrl });
 });
 
-// POST /api/posts/upload-clip
+// POST /api/posts/upload-clip — convert to base64 data URL for DB persistence
 router.post('/upload-clip', requireAuth, clipUpload.single('clip'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No video provided' });
   const user = db.getUser(req.user.userId);
   const limits = getPlanLimits((user?.plan) || 'free');
+  // Enforce plan-based file size limit
+  if (req.file.size > limits.max_upload_bytes) {
+    fs.unlink(req.file.path, () => {});
+    const maxMB = Math.round(limits.max_upload_bytes / (1024 * 1024));
+    return res.status(413).json({ error: `File too large. Max ${maxMB}MB for your plan.` });
+  }
   const maxSec = limits.max_clip_seconds || 60;
-  // Return the URL + max duration so client can enforce; server trusts the upload but tags the limit
-  res.json({ url: `/uploads/clips/${req.file.filename}`, max_clip_seconds: maxSec });
+  const data = fs.readFileSync(req.file.path);
+  const base64 = data.toString('base64');
+  const mimeType = req.file.mimetype || 'video/mp4';
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+  fs.unlink(req.file.path, () => {});
+  res.json({ url: dataUrl, max_clip_seconds: maxSec });
+});
+
+// POST /api/posts/batch-views — increment view counts for multiple posts
+router.post('/batch-views', optionalAuth, (req, res) => {
+  const { postIds } = req.body;
+  if (!Array.isArray(postIds)) return res.status(400).json({ error: 'postIds required' });
+  const userId = req.user?.userId;
+  postIds.forEach(id => {
+    const p = db.getPost(id);
+    if (p) db.updatePost(id, { views: (p.views || 0) + 1 });
+  });
+  res.json({ success: true });
 });
 
 module.exports = router;

@@ -10,7 +10,8 @@ const makeToken = (userId) => jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_
 
 // POST /api/auth/register
 router.post('/register', (req, res) => {
-  const { username, email, password, rank, bio, platform, region } = req.body;
+  const { username, password, rank, bio, platform, region } = req.body;
+  const email = (req.body.email || '').trim().toLowerCase();
   if (!username || !email || !password) return res.status(400).json({ error: 'username, email and password required' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
   if (username.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
@@ -35,10 +36,11 @@ router.post('/register', (req, res) => {
 
 // POST /api/auth/login
 router.post('/login', (req, res) => {
-  const { email, password } = req.body;
+  const { password } = req.body;
+  const email = (req.body.email || '').trim();
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   const user = db.getUserByLogin(email);
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Invalid email or password' });
+  if (!user || !user.password_hash || !bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Invalid email or password' });
   res.json({ token: makeToken(user.id), user: db.safeUser(user, null) });
 });
 

@@ -101,18 +101,22 @@ router.post('/me/password', requireAuth, async (req, res) => {
   res.json({ success: true, token });
 });
 
-// POST /api/users/me/avatar — upload profile picture
+// POST /api/users/me/avatar — upload profile picture (stored as base64 in DB)
 router.post('/me/avatar', requireAuth, avatarUpload.single('avatar'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
-  const avatar_url = '/uploads/avatars/' + req.file.filename;
+  const data = fs.readFileSync(req.file.path);
+  const avatar_url = `data:${req.file.mimetype || 'image/jpeg'};base64,${data.toString('base64')}`;
+  fs.unlink(req.file.path, () => {});
   const user = db.updateUser(req.user.userId, { avatar_url });
   res.json({ avatar_url, user: db.safeUser(user, req.user.userId) });
 });
 
-// POST /api/users/me/banner — upload banner image
+// POST /api/users/me/banner — upload banner image (stored as base64 in DB)
 router.post('/me/banner', requireAuth, bannerUpload.single('banner'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
-  const banner_url = '/uploads/banners/' + req.file.filename;
+  const data = fs.readFileSync(req.file.path);
+  const banner_url = `data:${req.file.mimetype || 'image/jpeg'};base64,${data.toString('base64')}`;
+  fs.unlink(req.file.path, () => {});
   const user = db.updateUser(req.user.userId, { banner_url });
   res.json({ banner_url, user: db.safeUser(user, req.user.userId) });
 });
@@ -373,6 +377,13 @@ router.get('/:id/game-follows', optionalAuth, (req, res) => {
   res.json(db.getGameFollows(req.params.id));
 });
 
+// GET /api/users/by-handle/:handle
+router.get('/by-handle/:handle', optionalAuth, (req, res) => {
+  const user = db.getUserByHandle(req.params.handle);
+  if (!user) return res.status(404).json({ error: 'Not found' });
+  res.json(db.safeUser(user, req.user?.userId));
+});
+
 // GET /api/users/:id
 router.get('/:id/comments', optionalAuth, (req, res) => {
   res.json(db.getUserComments(req.params.id));
@@ -397,6 +408,22 @@ router.post('/:id/follow', requireAuth, (req, res) => {
     db.updateChallengeProgress(req.user.userId, 'follow');
   }
   res.json(result);
+});
+
+// ── Badge assignment (owner only) ──
+const VALID_BADGE_TYPES = ['official','verified','trusted','gold','premium','creator','partner','staff','admin','legend','newcomer','elite','ownership',''];
+router.put('/users/:id/badge', requireAuth, (req, res) => {
+  const caller = db.getUser(req.user.userId);
+  if (!caller || caller.badge_type !== 'ownership') return res.status(403).json({ error: 'Only the platform owner can assign badges' });
+  const { badge_type } = req.body;
+  if (badge_type !== undefined && !VALID_BADGE_TYPES.includes(badge_type)) {
+    return res.status(400).json({ error: 'Invalid badge type', valid: VALID_BADGE_TYPES.filter(b=>b) });
+  }
+  const targetUser = db.getUser(req.params.id);
+  if (!targetUser) return res.status(404).json({ error: 'User not found' });
+  const verified = badge_type ? true : false;
+  db.updateUser(+req.params.id, { badge_type: badge_type || '', verified });
+  res.json({ success: true, badge_type, verified });
 });
 
 module.exports = router;

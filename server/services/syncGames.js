@@ -126,7 +126,10 @@ function trendingScore({ twitch_viewers = 0, igdb_rating = 0, igdb_rating_count 
 // ----------------------------------------------------------------
 async function syncGames() {
   if (!CLIENT_ID || !CLIENT_SECRET) {
-    console.warn('[syncGames] Missing Twitch credentials — skipping sync');
+    console.warn('[syncGames] Missing Twitch credentials — skipping sync.');
+    console.warn('[syncGames] Set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET env vars.');
+    console.warn('[syncGames] TWITCH_CLIENT_ID:', CLIENT_ID ? '✓ set (' + CLIENT_ID.slice(0,4) + '...)' : '✗ missing');
+    console.warn('[syncGames] TWITCH_CLIENT_SECRET:', CLIENT_SECRET ? '✓ set' : '✗ missing');
     return;
   }
 

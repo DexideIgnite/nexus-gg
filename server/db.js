@@ -1,6 +1,7 @@
 /**
- * DXED — Pure JavaScript JSON Database
- * No native compilation required. Works on any Node.js version.
+ * DXED — Persistent Database Layer
+ * Uses PostgreSQL when DATABASE_URL is set (Railway/production),
+ * falls back to JSON files for local development.
  */
 
 const fs = require('fs');
@@ -11,72 +12,226 @@ const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 // ================================================================
-// WRITE-LOCK QUEUE — serializes async writes per file to prevent corruption
+// DATABASE MODE DETECTION
+// ================================================================
+const USE_PG = !!process.env.DATABASE_URL;
+let pool = null;
+
+if (USE_PG) {
+  const { Pool } = require('pg');
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+  console.log('[db] PostgreSQL mode — data will persist across deploys');
+} else {
+  console.log('[db] JSON file mode — data resets on restart (set DATABASE_URL for persistence)');
+}
+
+// ================================================================
+// WRITE-LOCK QUEUE — serializes async writes per file (JSON mode only)
 // ================================================================
 const writeQueues = new Map();
 
 function enqueueWrite(filePath, fn) {
   const prev = writeQueues.get(filePath) || Promise.resolve();
-  const next = prev.then(fn, fn); // always run even if previous failed
+  const next = prev.then(fn, fn);
   writeQueues.set(filePath, next);
   return next;
 }
 
 // ================================================================
-// JSON FILE STORE — synchronous + async, like SQLite but pure JS
+// TABLE CLASS — same API, backed by PostgreSQL or JSON files
 // ================================================================
 
 class Table {
   constructor(name) {
+    this.name = name;
     this.file = path.join(DATA_DIR, `${name}.json`);
-    this.data = this._load();
+    this.data = [];
+    // In JSON mode, load immediately (sync)
+    if (!USE_PG) {
+      this.data = this._loadJson();
+    }
   }
-  _load() { try { return JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch { return []; } }
-  _save() { fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2)); }
-  _saveAsync() { return enqueueWrite(this.file, () => fs.promises.writeFile(this.file, JSON.stringify(this.data, null, 2))); }
+
+  // --- JSON file methods (local dev fallback) ---
+  _loadJson() { try { return JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch { return []; } }
+  _saveJson() { fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2)); }
+  _saveJsonAsync() { return enqueueWrite(this.file, () => fs.promises.writeFile(this.file, JSON.stringify(this.data, null, 2))); }
+
+  // --- PostgreSQL initialization ---
+  async initPg() {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "${this.name}" (
+        id INTEGER PRIMARY KEY,
+        doc JSONB NOT NULL
+      )
+    `);
+    const { rows } = await pool.query(`SELECT doc FROM "${this.name}" ORDER BY id`);
+    this.data = rows.map(r => r.doc);
+  }
+
+  // --- PostgreSQL persistence (fire-and-forget, memory is source of truth) ---
+  _pgInsert(row) {
+    if (!USE_PG) return;
+    pool.query(
+      `INSERT INTO "${this.name}" (id, doc) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET doc = $2`,
+      [row.id, JSON.stringify(row)]
+    ).catch(err => console.error(`[db] pg insert error ${this.name}:`, err.message));
+  }
+
+  _pgUpdate(rows) {
+    if (!USE_PG) return;
+    for (const row of rows) {
+      pool.query(
+        `UPDATE "${this.name}" SET doc = $1 WHERE id = $2`,
+        [JSON.stringify(row), row.id]
+      ).catch(err => console.error(`[db] pg update error ${this.name}:`, err.message));
+    }
+  }
+
+  _pgDelete(rows) {
+    if (!USE_PG) return;
+    for (const row of rows) {
+      pool.query(
+        `DELETE FROM "${this.name}" WHERE id = $1`,
+        [row.id]
+      ).catch(err => console.error(`[db] pg delete error ${this.name}:`, err.message));
+    }
+  }
+
+  _pgTruncate() {
+    if (!USE_PG) return;
+    pool.query(`DELETE FROM "${this.name}"`).catch(err => console.error(`[db] pg truncate error ${this.name}:`, err.message));
+  }
+
+  // --- Common API (unchanged from original) ---
   nextId() { return this.data.length ? Math.max(...this.data.map(r => r.id || 0)) + 1 : 1; }
-  insert(record) { const row = { id: this.nextId(), created_at: new Date().toISOString(), ...record }; this.data.push(row); this._save(); return row; }
-  insertAsync(record) { const row = { id: this.nextId(), created_at: new Date().toISOString(), ...record }; this.data.push(row); return this._saveAsync().then(() => row); }
+
+  insert(record) {
+    const row = { id: this.nextId(), created_at: new Date().toISOString(), ...record };
+    this.data.push(row);
+    if (USE_PG) { this._pgInsert(row); } else { this._saveJson(); }
+    return row;
+  }
+
+  insertAsync(record) {
+    const row = { id: this.nextId(), created_at: new Date().toISOString(), ...record };
+    this.data.push(row);
+    if (USE_PG) { this._pgInsert(row); return Promise.resolve(row); }
+    return this._saveJsonAsync().then(() => row);
+  }
+
   findAll(predicate) { return predicate ? this.data.filter(predicate) : [...this.data]; }
   findOne(predicate) { return this.data.find(predicate) || null; }
-  update(predicate, changes) { let n=0; this.data=this.data.map(r=>{if(predicate(r)){n++;return{...r,...changes};}return r;}); this._save(); return n; }
-  updateAsync(predicate, changes) { let n=0; this.data=this.data.map(r=>{if(predicate(r)){n++;return{...r,...changes};}return r;}); return this._saveAsync().then(() => n); }
-  delete(predicate) { const b=this.data.length; this.data=this.data.filter(r=>!predicate(r)); this._save(); return b-this.data.length; }
-  deleteAsync(predicate) { const b=this.data.length; this.data=this.data.filter(r=>!predicate(r)); return this._saveAsync().then(() => b-this.data.length); }
+
+  update(predicate, changes) {
+    let n = 0;
+    const updated = [];
+    this.data = this.data.map(r => {
+      if (predicate(r)) {
+        n++;
+        const row = { ...r, ...changes };
+        updated.push(row);
+        return row;
+      }
+      return r;
+    });
+    if (USE_PG) { this._pgUpdate(updated); } else { this._saveJson(); }
+    return n;
+  }
+
+  updateAsync(predicate, changes) {
+    let n = 0;
+    const updated = [];
+    this.data = this.data.map(r => {
+      if (predicate(r)) {
+        n++;
+        const row = { ...r, ...changes };
+        updated.push(row);
+        return row;
+      }
+      return r;
+    });
+    if (USE_PG) { this._pgUpdate(updated); return Promise.resolve(n); }
+    return this._saveJsonAsync().then(() => n);
+  }
+
+  delete(predicate) {
+    const toDelete = this.data.filter(r => predicate(r));
+    this.data = this.data.filter(r => !predicate(r));
+    if (USE_PG) { this._pgDelete(toDelete); } else { this._saveJson(); }
+    return toDelete.length;
+  }
+
+  deleteAsync(predicate) {
+    const toDelete = this.data.filter(r => predicate(r));
+    this.data = this.data.filter(r => !predicate(r));
+    if (USE_PG) { this._pgDelete(toDelete); return Promise.resolve(toDelete.length); }
+    return this._saveJsonAsync().then(() => toDelete.length);
+  }
+
   count(predicate) { return predicate ? this.data.filter(predicate).length : this.data.length; }
+
+  // Legacy _save for direct calls in server.js (Claude bot init)
+  _save() {
+    if (USE_PG) {
+      // Sync all data for this table to PG
+      for (const row of this.data) { this._pgInsert(row); }
+    } else {
+      this._saveJson();
+    }
+  }
 }
 
 // ================================================================
 // TABLES
 // ================================================================
 const T = {
-  users:          new Table('users'),
-  follows:        new Table('follows'),
-  posts:          new Table('posts'),
-  post_reactions: new Table('post_reactions'),
-  post_reposts:   new Table('post_reposts'),
-  comments:       new Table('comments'),
-  messages:       new Table('messages'),
-  lfg_posts:      new Table('lfg_posts'),
-  lfg_members:    new Table('lfg_members'),
-  notifications:  new Table('notifications'),
-  game_follows:   new Table('game_follows'),
-  stories:        new Table('stories'),
-  story_views:    new Table('story_views'),
-  games:          new Table('games'),
-  bookmarks:      new Table('bookmarks'),
-  poll_options:   new Table('poll_options'),
-  poll_votes:     new Table('poll_votes'),
-  clans:          new Table('clans'),
-  clan_members:   new Table('clan_members'),
+  users:           new Table('users'),
+  follows:         new Table('follows'),
+  posts:           new Table('posts'),
+  post_reactions:  new Table('post_reactions'),
+  post_reposts:    new Table('post_reposts'),
+  comments:        new Table('comments'),
+  messages:        new Table('messages'),
+  lfg_posts:       new Table('lfg_posts'),
+  lfg_members:     new Table('lfg_members'),
+  notifications:   new Table('notifications'),
+  game_follows:    new Table('game_follows'),
+  stories:         new Table('stories'),
+  story_views:     new Table('story_views'),
+  games:           new Table('games'),
+  bookmarks:       new Table('bookmarks'),
+  poll_options:    new Table('poll_options'),
+  poll_votes:      new Table('poll_votes'),
+  clans:           new Table('clans'),
+  clan_members:    new Table('clan_members'),
   user_challenges: new Table('user_challenges'),
-  profile_views:  new Table('profile_views'),
+  profile_views:   new Table('profile_views'),
+  blocked_users:   new Table('blocked_users'),
+  muted_convos:    new Table('muted_convos'),
+  pinned_convos:   new Table('pinned_convos'),
 };
+
+// ================================================================
+// ASYNC INIT — must be called before server starts (loads PG data)
+// ================================================================
+async function initDb() {
+  if (!USE_PG) return; // JSON mode loads synchronously in constructor
+  console.log('[db] Initializing PostgreSQL tables...');
+  for (const [name, table] of Object.entries(T)) {
+    await table.initPg();
+    console.log(`  ✓ ${name}: ${table.data.length} rows`);
+  }
+  console.log('[db] All tables loaded from PostgreSQL');
+}
 
 // ================================================================
 // SYNC: fix comments_count from actual comment data
 // ================================================================
-(function syncCommentCounts() {
+function syncCommentCounts() {
   const posts = T.posts.findAll();
   posts.forEach(p => {
     const actual = T.comments.findAll(c => c.post_id === p.id && !c.parent_id).length;
@@ -84,21 +239,23 @@ const T = {
       T.posts.update(x => x.id === p.id, { comments_count: actual });
     }
   });
-})();
+}
 
 // ================================================================
 // DB API
 // ================================================================
 function timeAgo(d){const diff=Date.now()-new Date(d).getTime(),s=Math.floor(diff/1000),m=Math.floor(s/60),h=Math.floor(m/60),dy=Math.floor(h/24);if(dy>0)return dy+'d ago';if(h>0)return h+'h ago';if(m>0)return m+'m ago';return'just now';}
-function safeUser(u,viewerId){if(!u)return null;const{password_hash,...s}=u;s.followers=T.follows.count(f=>f.following_id===u.id);s.following=T.follows.count(f=>f.follower_id===u.id);s.posts_count=T.posts.count(p=>p.user_id===u.id);s.isFollowing=viewerId?!!T.follows.findOne(f=>f.follower_id===+viewerId&&f.following_id===u.id):false;s.verified=!!u.verified;s.plan=u.plan||'free';s.xp=u.xp||0;s.clan_tag=(()=>{const m=T.clan_members.findOne(cm=>cm.user_id===u.id);return m?(T.clans.findOne(c=>c.id===m.clan_id)?.tag||null):null;})();return s;}
-function formatPost(p,viewerId){if(typeof p==='number'||typeof p==='string'){const found=T.posts.findOne(x=>x.id===+p);if(!found)return null;p=found;}if(!p)return null;const user=safeUser(T.users.findOne(u=>u.id===p.user_id),viewerId);const myReaction=viewerId?T.post_reactions.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):null;const reposted=viewerId?!!T.post_reposts.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):false;let quotedPost=null;if(p.quoted_post_id){if(p.quoted_snapshot){const snap=p.quoted_snapshot;quotedPost={id:+p.quoted_post_id,body:snap.body,user:{username:snap.username,handle:snap.handle,avatar:snap.avatar,gradient:snap.gradient},time:timeAgo(snap.created_at)};}else{const qp=T.posts.findOne(x=>x.id===+p.quoted_post_id);if(qp){const qu=safeUser(T.users.findOne(u=>u.id===qp.user_id),viewerId);quotedPost={id:qp.id,body:qp.body,user:qu,time:timeAgo(qp.created_at)};}}}const bookmarked=viewerId?!!T.bookmarks.findOne(b=>b.user_id===+viewerId&&b.post_id===p.id):false;const poll=p.has_poll?(()=>{const opts=T.poll_options.findAll(o=>o.post_id===p.id);if(!opts.length)return null;const total=opts.reduce((s,o)=>s+(o.votes||0),0);const uv=viewerId?T.poll_votes.findOne(v=>v.post_id===p.id&&v.user_id===+viewerId):null;return{options:opts.map(o=>({...o,pct:total?Math.round((o.votes/total)*100):0})),totalVotes:total,userVoteId:uv?.option_id||null};})():null;return{...p,user,myReaction:myReaction?.reaction_type||null,reposted,reactions:{gg:p.reactions_gg||0,fire:p.reactions_fire||0,rekt:p.reactions_rekt||0,king:p.reactions_king||0,epic:p.reactions_epic||0,lul:p.reactions_lul||0},achievement:p.achievement_title?{title:p.achievement_title,game:p.achievement_game,icon:p.achievement_icon}:null,clip:p.clip_title?{title:p.clip_title,desc:p.clip_desc}:null,quotedPost,bookmarked,poll,time:timeAgo(p.created_at),views:p.views?String(p.views):'0'};}
+function safeUser(u,viewerId){if(!u)return null;const{password_hash,...s}=u;s.followers=T.follows.count(f=>f.following_id===u.id);s.following=T.follows.count(f=>f.follower_id===u.id);s.posts_count=T.posts.count(p=>p.user_id===u.id);s.isFollowing=viewerId?!!T.follows.findOne(f=>f.follower_id===+viewerId&&f.following_id===u.id):false;s.verified=!!u.verified;s.badge_type=u.badge_type||'';s.plan=u.plan||'free';s.xp=u.xp||0;s.clan_tag=(()=>{const m=T.clan_members.findOne(cm=>cm.user_id===u.id);return m?(T.clans.findOne(c=>c.id===m.clan_id)?.tag||null):null;})();return s;}
+function formatPost(p,viewerId){if(typeof p==='number'||typeof p==='string'){const found=T.posts.findOne(x=>x.id===+p);if(!found)return null;p=found;}if(!p)return null;const user=safeUser(T.users.findOne(u=>u.id===p.user_id),viewerId);const myReaction=viewerId?T.post_reactions.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):null;const reposted=viewerId?!!T.post_reposts.findOne(r=>r.user_id===+viewerId&&r.post_id===p.id):false;let quotedPost=null;if(p.quoted_post_id){if(p.quoted_snapshot){const snap=p.quoted_snapshot;quotedPost={id:+p.quoted_post_id,body:snap.body,user:{username:snap.username,handle:snap.handle,avatar:snap.avatar,gradient:snap.gradient},time:timeAgo(snap.created_at),image_url:snap.image_url||null,clip_url:snap.clip_url||null};}else{const qp=T.posts.findOne(x=>x.id===+p.quoted_post_id);if(qp){const qu=safeUser(T.users.findOne(u=>u.id===qp.user_id),viewerId);quotedPost={id:qp.id,body:qp.body,user:qu,time:timeAgo(qp.created_at),image_url:qp.image_url||null,clip_url:qp.clip_url||null};}}}const bookmarked=viewerId?!!T.bookmarks.findOne(b=>b.user_id===+viewerId&&b.post_id===p.id):false;const poll=p.has_poll?(()=>{const opts=T.poll_options.findAll(o=>o.post_id===p.id);if(!opts.length)return null;const total=opts.reduce((s,o)=>s+(o.votes||0),0);const uv=viewerId?T.poll_votes.findOne(v=>v.post_id===p.id&&v.user_id===+viewerId):null;return{options:opts.map(o=>({...o,pct:total?Math.round((o.votes/total)*100):0})),totalVotes:total,userVoteId:uv?.option_id||null};})():null;return{...p,user,myReaction:myReaction?.reaction_type||null,viewer_has_liked:!!myReaction,reposted,reactions:{gg:p.reactions_gg||0,fire:p.reactions_fire||0,rekt:p.reactions_rekt||0,king:p.reactions_king||0,epic:p.reactions_epic||0,lul:p.reactions_lul||0},achievement:p.achievement_title?{title:p.achievement_title,game:p.achievement_game,icon:p.achievement_icon}:null,clip:p.clip_title?{title:p.clip_title,desc:p.clip_desc}:null,quotedPost,bookmarked,poll,time:timeAgo(p.created_at),views:p.views?String(p.views):'0'};}
 function formatLFG(l,viewerId){const user=safeUser(T.users.findOne(u=>u.id===l.user_id),viewerId);const members=T.lfg_members.findAll(m=>m.lfg_id===l.id).map(m=>safeUser(T.users.findOne(u=>u.id===m.user_id),viewerId)).filter(Boolean);const filled=members.length+1;const isMember=viewerId?!!T.lfg_members.findOne(m=>m.lfg_id===l.id&&m.user_id===+viewerId):false;const isHost=viewerId&&l.user_id===+viewerId;let status='open';if(filled>=l.slots)status='full';else if(filled>=l.slots-1)status='filling';return{...l,user,members,filled,status,isMember,isHost,time:timeAgo(l.created_at)};}
 
 const db = {
-  T, safeUser, formatPost, formatLFG, timeAgo,
+  T, safeUser, formatPost, formatLFG, timeAgo, initDb, syncCommentCounts,
   // Users
   getUser:(id)=>T.users.findOne(u=>u.id===+id),
-  getUserByLogin:(login)=>T.users.findOne(u=>u.email===login||u.username===login),
+  getUserByHandle:(handle)=>T.users.findOne(u=>(u.handle||u.username).toLowerCase()===handle.toLowerCase()),
+  getUserByLogin:(login)=>{const l=login.toLowerCase();return T.users.findOne(u=>(u.email||'').toLowerCase()===l||(u.username||'').toLowerCase()===l);},
+  getUserByOAuth:(provider,providerId)=>T.users.findOne(u=>u.oauth_provider===provider&&u.oauth_id===providerId),
   createUser:(data)=>T.users.insert(data),
   updateUser:(id,changes)=>{T.users.update(u=>u.id===+id,changes);return T.users.findOne(u=>u.id===+id);},
   getOnlineUsers:()=>T.users.findAll(u=>u.online),
@@ -119,16 +276,22 @@ const db = {
       const p=T.posts.findAll(x=>x.game===game).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,30);
       return p.map(x=>formatPost(x,userId));
     }
-    // For-you: scored feed — following boost + recency + engagement
+    // For-you: algorithm-based feed — follows + game follows + engagement + recency decay
     const followedIds=userId?T.follows.findAll(f=>f.follower_id===+userId).map(f=>f.following_id):[];
+    const followedGames=userId?T.game_follows.findAll(f=>f.user_id===+userId).map(f=>f.game_name):[];
     const now=Date.now();
     const scored=T.posts.findAll().map(p=>{
       const rawHours=(now-new Date(p.created_at).getTime())/(1000*60*60);
-      const hoursOld=Number.isFinite(rawHours)?Math.max(0,rawHours):72;
-      const recency=Math.max(0,72-hoursOld)/72*50;
-      const engagement=((p.reactions_gg||0)+(p.reactions_fire||0)+(p.reactions_rekt||0)+(p.reactions_king||0)+(p.reactions_epic||0)+(p.reactions_lul||0)+(p.comments_count||0)*2+(p.reposts_count||0)*2)*0.5;
-      const followBoost=followedIds.includes(p.user_id)?30:0;
-      const score=recency+engagement+followBoost;
+      const hoursOld=Number.isFinite(rawHours)?Math.max(0,rawHours):168;
+      // Engagement score: likes×1 + comments×3 + reposts×2 + bookmarks×2
+      const likes=(p.reactions_gg||0)+(p.reactions_fire||0)+(p.reactions_rekt||0)+(p.reactions_king||0)+(p.reactions_epic||0)+(p.reactions_lul||0);
+      const engagement=likes+(p.comments_count||0)*3+(p.reposts_count||0)*2;
+      // Recency decay: score / log(hours + 2)
+      const decayed=engagement/(Math.log(hoursOld+2)/Math.LN2);
+      // Boosts for content from followed users and followed games
+      const followBoost=followedIds.includes(p.user_id)?40:0;
+      const gameBoost=(p.game&&followedGames.includes(p.game))?25:0;
+      const score=decayed+followBoost+gameBoost;
       return{post:p,score:Number.isFinite(score)?score:0};
     });
     return scored.sort((a,b)=>b.score-a.score).slice(0,30).map(x=>formatPost(x.post,userId));
@@ -143,17 +306,25 @@ const db = {
   // Reposts
   repost:(userId,postId)=>{const ex=T.post_reposts.findOne(r=>r.user_id===+userId&&r.post_id===+postId);const p=T.posts.findOne(x=>x.id===+postId);if(ex){T.post_reposts.delete(r=>r.user_id===+userId&&r.post_id===+postId);if(p)T.posts.update(x=>x.id===+postId,{reposts_count:Math.max(0,(p.reposts_count||0)-1)});return{action:'removed',reposts:(p?.reposts_count||1)-1};}T.post_reposts.insert({user_id:+userId,post_id:+postId});if(p)T.posts.update(x=>x.id===+postId,{reposts_count:(p.reposts_count||0)+1});return{action:'added',reposts:(p?.reposts_count||0)+1};},
   // Comments
-  getComments:(postId)=>T.comments.findAll(c=>c.post_id===+postId).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).map(c=>{const u=T.users.findOne(x=>x.id===c.user_id);return{...c,username:u?.username,handle:u?.handle||u?.username,avatar:u?.avatar,gradient:u?.gradient,rank:u?.rank,verified:u?.verified||false,plan:u?.plan||'free',time:timeAgo(c.created_at),likes:c.likes||0,aiHighlighted:c.user_id===999};}),
-  addComment:(data)=>{const c=T.comments.insert(data);if(!data.parent_id){const post=T.posts.findOne(p=>p.id===+data.post_id);if(post)T.posts.update(p=>p.id===+data.post_id,{comments_count:(post.comments_count||0)+1});}const u=T.users.findOne(x=>x.id===c.user_id);return{...c,username:u?.username,handle:u?.handle||u?.username,avatar:u?.avatar,gradient:u?.gradient,rank:u?.rank,verified:u?.verified||false,plan:u?.plan||'free',time:'just now',likes:0,aiHighlighted:c.user_id===999};},
+  getComments:(postId)=>T.comments.findAll(c=>c.post_id===+postId).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).map(c=>{const u=T.users.findOne(x=>x.id===c.user_id);return{...c,username:u?.username,handle:u?.handle||u?.username,avatar:u?.avatar,avatar_url:u?.avatar_url,gradient:u?.gradient,rank:u?.rank,verified:u?.verified||false,badge_type:u?.badge_type||'',plan:u?.plan||'free',time:timeAgo(c.created_at),likes:c.likes||0,aiHighlighted:c.user_id===999};}),
+  addComment:(data)=>{const c=T.comments.insert(data);if(!data.parent_id){const post=T.posts.findOne(p=>p.id===+data.post_id);if(post)T.posts.update(p=>p.id===+data.post_id,{comments_count:(post.comments_count||0)+1});}const u=T.users.findOne(x=>x.id===c.user_id);return{...c,username:u?.username,handle:u?.handle||u?.username,avatar:u?.avatar,avatar_url:u?.avatar_url,gradient:u?.gradient,rank:u?.rank,verified:u?.verified||false,badge_type:u?.badge_type||'',plan:u?.plan||'free',time:'just now',likes:0,aiHighlighted:c.user_id===999};},
   getUserComments:(userId)=>{const commenter=T.users.findOne(u=>u.id===+userId);return T.comments.findAll(c=>c.user_id===+userId).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50).map(c=>{const p=T.posts.findOne(x=>x.id===c.post_id);const author=p?T.users.findOne(x=>x.id===p.user_id):null;return{...c,username:commenter?.username,handle:commenter?.handle||commenter?.username,avatar:commenter?.avatar,avatar_url:commenter?.avatar_url,gradient:commenter?.gradient,plan:commenter?.plan||'free',time:timeAgo(c.created_at),post_body:p?.body||'',post_author:author?.username||'Unknown'};});},
   // Follows
   follow:(ferId,ingId)=>{if(T.follows.findOne(f=>f.follower_id===+ferId&&f.following_id===+ingId)){T.follows.delete(f=>f.follower_id===+ferId&&f.following_id===+ingId);return{action:'unfollowed',followers:T.follows.count(f=>f.following_id===+ingId)};}T.follows.insert({follower_id:+ferId,following_id:+ingId});return{action:'followed',followers:T.follows.count(f=>f.following_id===+ingId)};},
   // Messages
-  getConversations:(userId)=>{const msgs=T.messages.findAll(m=>m.sender_id===+userId||m.receiver_id===+userId);const ids=[...new Set(msgs.map(m=>m.sender_id===+userId?m.receiver_id:m.sender_id))];return ids.map(oid=>{const thread=msgs.filter(m=>(m.sender_id===+userId&&m.receiver_id===oid)||(m.sender_id===oid&&m.receiver_id===+userId));const last=thread.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];const unread=thread.filter(m=>m.sender_id===oid&&m.receiver_id===+userId&&!m.read).length;const user=safeUser(T.users.findOne(u=>u.id===oid),userId);return{other_id:oid,last_msg:last?.text||'',last_time:last?.created_at||'',unread,user,time:timeAgo(last?.created_at||new Date())};}).sort((a,b)=>new Date(b.last_time)-new Date(a.last_time));},
+  getConversations:(userId)=>{const blocked=T.blocked_users.findAll(b=>b.user_id===+userId).map(b=>b.target_id);const msgs=T.messages.findAll(m=>(m.sender_id===+userId||m.receiver_id===+userId)&&!blocked.includes(m.sender_id===+userId?m.receiver_id:m.sender_id));const ids=[...new Set(msgs.map(m=>m.sender_id===+userId?m.receiver_id:m.sender_id))];return ids.map(oid=>{const thread=msgs.filter(m=>(m.sender_id===+userId&&m.receiver_id===oid)||(m.sender_id===oid&&m.receiver_id===+userId));const last=thread.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0];const unread=thread.filter(m=>m.sender_id===oid&&m.receiver_id===+userId&&!m.read).length;const user=safeUser(T.users.findOne(u=>u.id===oid),userId);const pinned=!!T.pinned_convos.findOne(p=>p.user_id===+userId&&p.target_id===oid);const muted=!!T.muted_convos.findOne(m=>m.user_id===+userId&&m.target_id===oid);return{other_id:oid,last_msg:last?.text||'',last_time:last?.created_at||'',unread,user,time:timeAgo(last?.created_at||new Date()),pinned,muted};}).sort((a,b)=>{if(a.pinned&&!b.pinned)return-1;if(!a.pinned&&b.pinned)return 1;return new Date(b.last_time)-new Date(a.last_time);});},
   getMessages:(uid1,uid2)=>T.messages.findAll(m=>(m.sender_id===+uid1&&m.receiver_id===+uid2)||(m.sender_id===+uid2&&m.receiver_id===+uid1)).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).map(m=>{const u=T.users.findOne(x=>x.id===m.sender_id);return{...m,mine:m.sender_id===+uid1,username:u?.username,avatar:u?.avatar,gradient:u?.gradient,time:timeAgo(m.created_at)};}),
   sendMessage:(sid,rid,text)=>T.messages.insert({sender_id:+sid,receiver_id:+rid,text,read:0}),
   markRead:(sid,rid)=>T.messages.update(m=>m.sender_id===+sid&&m.receiver_id===+rid,{read:1}),
   unreadMsgCount:(uid)=>T.messages.count(m=>m.receiver_id===+uid&&!m.read),
+  // Block/Mute/Pin
+  toggleBlock:(uid,targetId)=>{const ex=T.blocked_users.findOne(b=>b.user_id===+uid&&b.target_id===+targetId);if(ex){T.blocked_users.delete(b=>b.user_id===+uid&&b.target_id===+targetId);return'unblocked';}T.blocked_users.insert({user_id:+uid,target_id:+targetId});return'blocked';},
+  isBlocked:(uid,targetId)=>!!T.blocked_users.findOne(b=>b.user_id===+uid&&b.target_id===+targetId),
+  getBlockedUsers:(uid)=>T.blocked_users.findAll(b=>b.user_id===+uid).map(b=>b.target_id),
+  toggleMute:(uid,targetId)=>{const ex=T.muted_convos.findOne(m=>m.user_id===+uid&&m.target_id===+targetId);if(ex){T.muted_convos.delete(m=>m.user_id===+uid&&m.target_id===+targetId);return'unmuted';}T.muted_convos.insert({user_id:+uid,target_id:+targetId});return'muted';},
+  isMuted:(uid,targetId)=>!!T.muted_convos.findOne(m=>m.user_id===+uid&&m.target_id===+targetId),
+  togglePin:(uid,targetId)=>{const ex=T.pinned_convos.findOne(p=>p.user_id===+uid&&p.target_id===+targetId);if(ex){T.pinned_convos.delete(p=>p.user_id===+uid&&p.target_id===+targetId);return'unpinned';}T.pinned_convos.insert({user_id:+uid,target_id:+targetId});return'pinned';},
+  isPinned:(uid,targetId)=>!!T.pinned_convos.findOne(p=>p.user_id===+uid&&p.target_id===+targetId),
   // LFG
   getLFG:(game,region)=>{const planRank={pro:2,plus:1,free:0};let p=T.lfg_posts.findAll();if(game)p=p.filter(x=>x.game===game);if(region)p=p.filter(x=>x.region===region);p.sort((a,b)=>{const ua=T.users.findOne(u=>u.id===a.user_id);const ub=T.users.findOne(u=>u.id===b.user_id);const ra=planRank[(ua?.plan)||'free']||0;const rb=planRank[(ub?.plan)||'free']||0;if(rb!==ra)return rb-ra;return new Date(b.created_at)-new Date(a.created_at);});return p;},
   createLFG:(data)=>T.lfg_posts.insert(data),
@@ -174,7 +345,6 @@ const db = {
     const now=new Date().toISOString();
     T.stories.delete(s=>s.expires_at<now);
     const stories=T.stories.findAll().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-    // Only show stories from followed users + own stories
     const followedIds=viewerId?T.follows.findAll(f=>f.follower_id===+viewerId).map(f=>f.following_id):[];
     const byUser={};
     stories.forEach(s=>{
@@ -186,7 +356,6 @@ const db = {
       byUser[s.user_id].stories.push({...s,viewed});
     });
     const groups=Object.values(byUser).filter(g=>g.user);
-    // Order: own first, then unwatched, then watched
     const me=+viewerId;
     groups.sort((a,b)=>{
       if(a.user.id===me)return-1;if(b.user.id===me)return 1;
@@ -207,7 +376,7 @@ const db = {
   getTrendingGames:(limit=20)=>T.games.findAll().sort((a,b)=>(b.trending_score||0)-(a.trending_score||0)).slice(0,limit),
   searchGames:(q)=>{const lq=q.toLowerCase();return T.games.findAll(g=>g.name.toLowerCase().includes(lq)).slice(0,10);},
   getGame:(igdbId)=>T.games.findOne(g=>g.igdb_id===+igdbId||g.id===+igdbId),
-  clearGames:()=>{T.games.data=[];T.games._save();},
+  clearGames:()=>{T.games.data=[];if(USE_PG){T.games._pgTruncate();}else{T.games._saveJson();}},
   // Leaderboard
   getLeaderboard:()=>T.users.findAll(u=>!u.is_bot).map(u=>{const posts=T.posts.findAll(p=>p.user_id===u.id);const reactions=posts.reduce((s,p)=>s+(p.reactions_gg||0)+(p.reactions_fire||0)+(p.reactions_epic||0)+(p.reactions_king||0)+(p.reactions_rekt||0)+(p.reactions_lul||0),0);const views=posts.reduce((s,p)=>s+(p.views||0),0);const score=reactions+Math.floor(views/10);return{...u,post_count:posts.length,score,total_reactions:reactions,total_views:views};}).sort((a,b)=>b.score-a.score).slice(0,20).map((u,i)=>{const{password_hash,...s}=u;return{...s,rank_position:i+1};}),
   // Bookmarks

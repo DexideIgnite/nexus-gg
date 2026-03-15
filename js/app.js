@@ -83,6 +83,7 @@ const state = {
   followedGames: JSON.parse(localStorage.getItem('nx_followed_games') || '[]'),
   feedTab: 'for-you',
   exploreTab: 'trending',
+  newsFilter: 'all',
   gamesFilter: 'all',
   notifs: [],
 };
@@ -98,6 +99,34 @@ function saveState() {
 function rankBadgeClass(rank) {
   const map = { Iron:'iron', Bronze:'bronze', Silver:'silver', Gold:'gold', Platinum:'platinum', Diamond:'diamond', Master:'master', Grandmaster:'master', Challenger:'challenger' };
   return 'rank-badge rank-' + (map[rank] || 'gold');
+}
+
+// Badge type config: label, color, title
+const BADGE_TYPES = {
+  official:  { label: 'Official',  color: '#1D9BF0', title: 'Official Account' },
+  verified:  { label: 'Verified',  color: '#7C3AED', title: 'Verified' },
+  trusted:   { label: 'Trusted',   color: '#059669', title: 'Trusted Member' },
+  gold:      { label: 'Gold',      color: '#D97706', title: 'Gold Verified' },
+  premium:   { label: 'Premium',   color: '#DC2626', title: 'Premium' },
+  creator:   { label: 'Creator',   color: '#DB2777', title: 'Creator' },
+  partner:   { label: 'Partner',   color: '#0891B2', title: 'Partner' },
+  staff:     { label: 'Staff',     color: '#65A30D', title: 'Staff' },
+  admin:     { label: 'Admin',     color: '#9333EA', title: 'Admin' },
+  legend:    { label: 'Legend',    color: '#F59E0B', title: 'Legend' },
+  newcomer:  { label: 'New',       color: '#14B8A6', title: 'New Member' },
+  elite:     { label: 'Elite',     color: '#6366F1', title: 'Elite' },
+  ownership: { label: 'Owner',     color: '#FFD700', title: 'Platform Owner' },
+};
+
+function verifiedBadge(user, large) {
+  if (!user) return '';
+  // Support both badge_type and legacy boolean verified
+  const type = user.badge_type || (user.verified ? 'official' : '');
+  if (!type || !BADGE_TYPES[type]) return '';
+  const b = BADGE_TYPES[type];
+  const sz = large ? 22 : 16;
+  const icsz = large ? 13 : 10;
+  return `<span class="vb vb-${type}${large ? ' vb-lg' : ''}" title="${b.title}"><svg class="vb-svg" viewBox="0 0 64 64" width="${sz}" height="${sz}"><path d="M32 4L54 14Q56 15 56 18L56 34Q56 50 32 60Q8 50 8 34L8 18Q8 15 10 14Z" fill="currentColor"/><path d="M32 10L50 18.5Q51.5 19.2 51.5 21L51.5 34Q51.5 47 32 56Q12.5 47 12.5 34L12.5 21Q12.5 19.2 14 18.5Z" fill="white" opacity="0.15"/><g transform="translate(14,16)"><polyline points="26 8 14 22 8 16" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.25" fill="none"/><polyline points="26 8 14 22 8 16" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><ellipse cx="26" cy="18" rx="7" ry="3.5" fill="white" opacity="0.18" transform="rotate(-20 26 18)"/></svg></span>`;
 }
 
 function formatNum(n) {
@@ -152,13 +181,39 @@ function showToast(msg, type='info', emoji='🎮') {
   }, 3200);
 }
 
+// Custom confirm dialog (replaces browser confirm())
+function showConfirm(message, { confirmText = 'Delete', cancelText = 'Cancel', danger = true } = {}) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-box">
+        <p class="confirm-message">${message}</p>
+        <div class="confirm-actions">
+          <button class="confirm-cancel-btn">${cancelText}</button>
+          <button class="confirm-ok-btn${danger ? ' confirm-danger' : ''}">${confirmText}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+    const close = (result) => {
+      overlay.classList.remove('visible');
+      setTimeout(() => overlay.remove(), 200);
+      resolve(result);
+    };
+    overlay.querySelector('.confirm-cancel-btn').onclick = () => close(false);
+    overlay.querySelector('.confirm-ok-btn').onclick = () => close(true);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+  });
+}
+
 // ================================================================
 // PLANS / SUBSCRIPTION
 // ================================================================
 
 function planBadge(plan) {
   if (plan === 'plus') return `<span class="plan-badge plan-badge-plus">DXED+</span>`;
-  if (plan === 'pro') return `<span class="verified-badge verified-gold plan-badge-pro-glow" title="DXED Pro">✓</span>`;
+  if (plan === 'pro') return `<span class="verified-badge verified-gold plan-badge-pro-glow" title="DXED Pro"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
   return '';
 }
 
@@ -208,7 +263,7 @@ async function upgradePlan(plan) {
   const isDowngrade = (planOrder[plan] || 0) < (planOrder[currentPlan] || 0);
   if (isDowngrade) {
     const names = { free: 'Free', plus: 'DXED+', pro: 'DXED Pro' };
-    if (!confirm(`Downgrade from ${names[currentPlan]} to ${names[plan]}? You'll lose access to premium features immediately.`)) return;
+    if (!await showConfirm(`Downgrade from ${names[currentPlan]} to ${names[plan]}? You'll lose access to premium features immediately.`, { confirmText: 'Downgrade', danger: true })) return;
   }
   const btn = document.getElementById(`plan-btn-${plan}`);
   if (btn) { btn.disabled = true; btn.textContent = 'Processing...'; }
@@ -245,6 +300,7 @@ function loadPlans() {
       features: [
         { ok: true,  text: 'Up to 100 posts stored' },
         { ok: true,  text: '60s clip uploads' },
+        { ok: true,  text: '10MB file uploads' },
         { ok: true,  text: 'Join LFG parties' },
         { ok: true,  text: 'Follow gamers & games' },
         { ok: true,  text: 'Direct messages' },
@@ -257,46 +313,48 @@ function loadPlans() {
       disabled: currentPlan === 'free',
     },
     {
-      id: 'plus',
-      name: 'DXED+',
-      price: '$4.99',
-      period: '/month',
-      badge: 'POPULAR',
-      color: '#8b5cf6',
-      gradient: 'linear-gradient(135deg,#1a0a3a,#3b1a6e)',
-      features: [
-        { ok: true,  text: 'Everything in Free' },
-        { ok: true,  text: '@Claude AI assistant' },
-        { ok: true,  text: 'Up to 500 posts stored' },
-        { ok: true,  text: 'Animated avatar frame' },
-        { ok: true,  text: 'Premium accent colors (12)' },
-        { ok: true,  text: 'Priority LFG matchmaking' },
-        { ok: true,  text: 'DXED+ profile badge' },
-        { ok: false, text: 'Clan creation & analytics' },
-      ],
-      cta: currentPlan === 'plus' ? 'Current Plan' : currentPlan === 'pro' ? 'Downgrade' : 'Upgrade to DXED+',
-      disabled: currentPlan === 'plus',
-    },
-    {
       id: 'pro',
       name: 'DXED Pro',
       price: '$9.99',
       period: '/month',
-      badge: 'BEST VALUE',
+      badge: 'POPULAR',
       color: '#f59e0b',
       gradient: 'linear-gradient(135deg,#1a0a00,#3d2000)',
       features: [
-        { ok: true,  text: 'Everything in DXED+' },
+        { ok: true,  text: 'Everything in Free' },
+        { ok: true,  text: '@Claude AI assistant' },
+        { ok: true,  text: 'Up to 500 posts stored' },
+        { ok: true,  text: '200MB file uploads' },
+        { ok: true,  text: 'Animated avatar frame' },
+        { ok: true,  text: 'Premium accent colors (12)' },
+        { ok: true,  text: 'Priority LFG matchmaking' },
+        { ok: true,  text: 'Pro profile badge' },
+        { ok: false, text: 'Clan creation & analytics' },
+      ],
+      cta: currentPlan === 'pro' ? 'Current Plan' : currentPlan === 'plus' ? 'Downgrade' : 'Upgrade to Pro',
+      disabled: currentPlan === 'pro',
+    },
+    {
+      id: 'plus',
+      name: 'DXED+',
+      price: '$20',
+      period: '/month',
+      badge: 'BEST VALUE',
+      color: '#8b5cf6',
+      gradient: 'linear-gradient(135deg,#1a0a3a,#3b1a6e)',
+      features: [
+        { ok: true,  text: 'Everything in Pro' },
         { ok: true,  text: 'Unlimited post storage' },
         { ok: true,  text: '10 min clip uploads' },
-        { ok: true,  text: 'Verified Pro badge ✓ with glow' },
+        { ok: true,  text: '1GB file uploads' },
+        { ok: true,  text: 'Verified DXED+ badge ✓ with glow' },
         { ok: true,  text: 'Create & lead clans' },
         { ok: true,  text: 'Host tournaments (coming soon)' },
         { ok: true,  text: 'Profile analytics dashboard' },
         { ok: true,  text: 'Gold animated avatar frame' },
       ],
-      cta: currentPlan === 'pro' ? 'Current Plan' : 'Upgrade to Pro',
-      disabled: currentPlan === 'pro',
+      cta: currentPlan === 'plus' ? 'Current Plan' : 'Upgrade to DXED+',
+      disabled: currentPlan === 'plus',
     },
   ];
 
@@ -309,7 +367,7 @@ function loadPlans() {
     </div>
     <div class="plans-grid">
       ${plans.map(p => `
-        <div class="plan-card ${currentPlan === p.id ? 'plan-card-current' : ''} ${p.id === 'plus' ? 'plan-card-featured' : ''}" style="--plan-color:${p.color};--plan-gradient:${p.gradient}">
+        <div class="plan-card ${currentPlan === p.id ? 'plan-card-current' : ''} ${p.id === 'pro' ? 'plan-card-featured' : ''}" style="--plan-color:${p.color};--plan-gradient:${p.gradient}">
           ${p.badge ? `<div class="plan-badge-top" style="background:${p.color}">${p.badge}</div>` : ''}
           <div class="plan-card-header">
             <div class="plan-name">${p.name}</div>
@@ -337,7 +395,7 @@ function loadPlans() {
 // NAVIGATION
 // ================================================================
 
-function navigate(section) {
+function navigate(section, skipHash) {
   // Close any open game community page when leaving games section
   if (section !== 'games') closeCommunity();
 
@@ -350,7 +408,21 @@ function navigate(section) {
   const navEl = document.querySelector(`.nav-item[data-section="${section}"]`);
   if (navEl) navEl.classList.add('active');
 
+  // Update mobile bottom nav
+  document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
+  const mobileNavEl = document.querySelector(`.mobile-nav-item[data-section="${section}"]`);
+  if (mobileNavEl) mobileNavEl.classList.add('active');
+
   state.currentSection = section;
+
+  // Update URL hash (skip for user-profile since openUserProfile handles that)
+  if (!skipHash && section !== 'user-profile') {
+    const hashName = section === 'home' ? '' : section;
+    const newHash = hashName ? '#' + hashName : '';
+    if (window.location.hash !== newHash) {
+      history.pushState(null, '', newHash || window.location.pathname);
+    }
+  }
 
   const loaders = {
     home: loadHome,
@@ -370,6 +442,7 @@ function navigate(section) {
     clans: loadClans,
     clips: loadClips,
     search: loadSearch,
+    admin: loadAdmin,
   };
   if (loaders[section]) loaders[section]();
 }
@@ -770,13 +843,35 @@ function _svRender() {
   overlayEl.textContent = story.text_overlay || '';
   overlayEl.style.display = story.text_overlay ? 'block' : 'none';
 
-  // View count (own stories only)
+  // View count + delete button (own stories only)
   const vcEl = document.getElementById('sv-view-count');
-  if (story.user_id === me?.id || u.id === me?.id) {
+  const isOwn = story.user_id === me?.id || u.id === me?.id;
+  let delBtn = document.getElementById('sv-delete-btn');
+  if (isOwn) {
     vcEl.classList.remove('hidden');
-    api.getStoryViewCount(story.id).then(({ count }) => { vcEl.textContent = '👁 ' + count; }).catch(() => {});
+    api.getStoryViewCount(story.id).then(({ count }) => { vcEl.textContent = count + ' views'; }).catch(() => {});
+    if (!delBtn) {
+      delBtn = document.createElement('button');
+      delBtn.id = 'sv-delete-btn';
+      delBtn.className = 'sv-delete-btn';
+      delBtn.textContent = 'Delete';
+      vcEl.parentElement.insertBefore(delBtn, vcEl);
+    }
+    delBtn.style.display = '';
+    delBtn.onclick = async () => {
+      if (!await showConfirm('Delete this story?')) return;
+      try {
+        await api.deleteStory(story.id);
+        group.stories.splice(SV.sIdx, 1);
+        if (!group.stories.length) { closeStoryViewer(); loadStories(); return; }
+        if (SV.sIdx >= group.stories.length) SV.sIdx = group.stories.length - 1;
+        _svRender();
+        loadStories();
+      } catch { showToast('Failed to delete story', 'error'); }
+    };
   } else {
     vcEl.classList.add('hidden');
+    if (delBtn) delBtn.style.display = 'none';
   }
 
   // Progress bars
@@ -910,9 +1005,56 @@ async function renderFeed() {
       return;
     }
     container.innerHTML = normalized.map(renderPost).join('');
+    observePostViews(container);
   } catch (err) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load feed</p><span>Make sure the server is running</span></div>`;
   }
+}
+
+// ================================================================
+// VIEW COUNTING — IntersectionObserver + batching
+// ================================================================
+const _viewState = { pending: new Set(), timers: {}, sent: new Set(), flushTimer: null };
+
+const _viewObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    const postId = +entry.target.dataset.postId;
+    if (!postId) return;
+    if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+      if (_viewState.sent.has(postId)) return;
+      _viewState.timers[postId] = setTimeout(() => {
+        _viewState.pending.add(postId);
+        _viewState.sent.add(postId);
+        if (!_viewState.flushTimer) {
+          _viewState.flushTimer = setTimeout(flushViews, 3000);
+        }
+      }, 300);
+    } else {
+      clearTimeout(_viewState.timers[postId]);
+      delete _viewState.timers[postId];
+    }
+  });
+}, { threshold: 0.5 });
+
+function flushViews() {
+  _viewState.flushTimer = null;
+  if (!_viewState.pending.size) return;
+  const ids = [..._viewState.pending];
+  _viewState.pending.clear();
+  apiRequest('POST', '/posts/batch-views', { postIds: ids }).catch(() => {});
+  // Update displayed counts
+  ids.forEach(id => {
+    const el = document.querySelector(`#post-${id} .views-btn span`);
+    if (el) el.textContent = +el.textContent + 1;
+  });
+}
+
+function observePostViews(container) {
+  if (!container) return;
+  container.querySelectorAll('.post-card').forEach(card => {
+    const id = card.id?.replace('post-', '');
+    if (id) { card.dataset.postId = id; _viewObserver.observe(card); }
+  });
 }
 
 function normalizePost(p) {
@@ -944,24 +1086,25 @@ function renderPost(post) {
 
   let extra = '';
   // Now playing badge
-  const nowPlayingBadge = user.now_playing ? `<span class="now-playing-badge">🎮 ${escapeHtml(user.now_playing)}</span>` : '';
+  const nowPlayingBadge = user.now_playing ? `<span class="now-playing-badge">Playing ${escapeHtml(user.now_playing)}</span>` : '';
 
   if (post.type === 'clip' && post.clip_url) {
-    extra = `<div class="clip-video-wrapper">
-      <video class="post-clip-video" controls preload="metadata" src="${post.clip_url}"></video>
+    extra = `<div class="clip-video-wrapper" onclick="event.stopPropagation();openVideoPlayer(${post.id})">
+      <video class="post-clip-video" preload="metadata" src="${post.clip_url}" muted></video>
+      <div class="clip-video-play-overlay"><svg viewBox="0 0 24 24" width="48" height="48" fill="white" opacity="0.9"><polygon points="5,3 19,12 5,21"/></svg></div>
     </div>`;
   } else if (post.type === 'clip' && post.clip) {
     extra = `<div class="post-clip-preview">
-      <div class="clip-icon">🎬</div>
+      <div class="clip-icon"><svg viewBox="0 0 24 24"><polygon points="23,7 16,12 23,17"/><rect x="1" y="5" width="15" height="14" rx="3"/></svg></div>
       <div class="clip-info">
         <div class="clip-title">${post.clip.title}</div>
         <div class="clip-desc">${post.clip.desc}</div>
       </div>
-      <button class="clip-play-btn" onclick="showToast('Playing clip!','success','🎬')">▶ Watch</button>
+      <button class="clip-play-btn" onclick="showToast('Playing clip!','success')">▶ Watch</button>
     </div>`;
   } else if (post.type === 'achievement' && post.achievement) {
     extra = `<div class="post-achievement">
-      <div class="achievement-icon">${post.achievement.icon}</div>
+      <div class="achievement-icon"><svg viewBox="0 0 24 24"><path d="M6 9H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2"/><path d="M18 9h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-2"/><path d="M8 21h8M12 17v4M6 3h12v10a6 6 0 0 1-12 0V3Z"/></svg></div>
       <div class="achievement-info">
         <div class="ach-title">${post.achievement.title}</div>
         <div class="ach-game">${post.achievement.game}</div>
@@ -974,15 +1117,22 @@ function renderPost(post) {
   if (post.quotedPost) {
     const qp = post.quotedPost;
     const qu = qp.user || {};
+    let quotedMedia = '';
+    if (qp.image_url) {
+      quotedMedia = `<div class="quoted-media"><img src="${qp.image_url}" class="quoted-media-img" loading="lazy" onclick="event.stopPropagation();openImageLightbox(this.src)" onerror="this.parentElement.style.display='none'"></div>`;
+    } else if (qp.clip_url) {
+      quotedMedia = `<div class="quoted-media"><video src="${qp.clip_url}" class="quoted-media-video" preload="metadata" muted></video></div>`;
+    }
     extra += `<div class="quoted-post-card" onclick="event.stopPropagation()">
       <div class="quoted-post-header">
         <div class="quoted-avatar-sm" style="background:${qu.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${qu.avatar||'?'}</div>
         <span class="quoted-username-sm">${qu.username||'Player'}</span>
-        ${qu.verified ? '<span class="verified-badge">✓</span>' : ''}
+        ${verifiedBadge(qu)}
         <span class="quoted-handle-sm">@${cleanHandle(qu.handle||qu.username)}</span>
         <span class="quoted-time-sm">${qp.time}</span>
       </div>
       <div class="quoted-body-sm">${qp.body||''}</div>
+      ${quotedMedia}
     </div>`;
   }
 
@@ -992,48 +1142,49 @@ function renderPost(post) {
       <div class="post-user-info">
         <div class="post-user-row">
           <span class="post-username" onclick="openUserProfile(${user.id})">${userName(user)}</span>
-          ${user.verified ? '<span class="verified-badge">✓</span>' : ''}
+          ${verifiedBadge(user)}
           ${planBadge(user.plan)}
           <span class="${rankBadgeClass(user.rank)}">${user.rank||'Bronze'}</span>
-          ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? '🎬 Clip' : post.type === 'achievement' ? '🏆 Achievement' : '👥 LFG'}</span>` : ''}
-          ${post.game ? `<span class="post-game-tag" onclick="navigate('games')">🎮 ${post.game}</span>` : ''}
+          ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23,7 16,12 23,17"/><rect x="1" y="5" width="15" height="14" rx="3"/></svg> Clip' : post.type === 'achievement' ? '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 21h8M12 17v4M6 3h12v10a6 6 0 0 1-12 0V3Z"/></svg> Achievement' : '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> LFG'}</span>` : ''}
+          ${post.game ? `<span class="post-game-tag" onclick="navigate('games')">${post.game}</span>` : ''}
           ${post.platform ? `<span class="post-platform-badge">${post.platform}</span>` : ''}
           ${nowPlayingBadge}
         </div>
         <span class="post-tag">${userHandle(user)}</span>
       </div>
       <span class="post-time">${post.time}</span>
+      ${post.user_id === (window.Auth?.getUser()?.id || window.CURRENT_USER?.id) ? `<button class="post-delete-btn" title="Delete post" onclick="event.stopPropagation();deletePostReal(${post.id},this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12"/></svg></button>` : ''}
     </div>
     <div class="post-body">${parseBody(post.body)}</div>
-    ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox('${post.image_url}')"></div>` : ''}
+    ${post.image_url ? `<div class="post-image-container"><img src="${post.image_url}" class="post-image" loading="lazy" onclick="openImageLightbox(this.src)" onerror="this.parentElement.style.display='none'"></div>` : ''}
     ${extra}
     ${post.poll ? renderPollCard(post.poll, post.id) : ''}
     <div class="post-actions">
-      <button class="post-action-btn ${liked ? 'liked' : ''}" onclick="toggleLike(${post.id},this)">
+      <button class="post-action-btn like-btn ${liked ? 'liked' : ''}" onclick="toggleLike(${post.id},this)">
         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" ${liked?'fill="currentColor"':''}/></svg>
         <span id="like-count-${post.id}">${formatNum(total)}</span>
       </button>
-      <button class="post-action-btn" onclick="toggleComment(${post.id},this)">
-        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      <button class="post-action-btn comment-btn" onclick="toggleComment(${post.id},this)">
+        <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
         <span id="comment-count-${post.id}">${post.comments}</span>
       </button>
       <div class="post-share-wrap">
-        <button class="post-action-btn" onclick="toggleShareMenu(${post.id},this)">
+        <button class="post-action-btn share-btn" onclick="toggleShareMenu(${post.id},this)">
           <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
           <span>${post.reposts || 0}</span>
         </button>
         <div class="share-dropdown hidden" id="share-menu-${post.id}">
-          <div class="share-option" onclick="openQuoteModal(${post.id});closeAllShareMenus()">💬 Quote Post</div>
-          <div class="share-option" onclick="boostPost(${post.id},this);closeAllShareMenus()">📢 Boost</div>
-          <div class="share-option" onclick="copyPostLink(${post.id});closeAllShareMenus()">🔗 Copy Link</div>
+          <div class="share-option" onclick="openQuoteModal(${post.id});closeAllShareMenus()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg> Quote</div>
+          <div class="share-option" onclick="boostPost(${post.id},this);closeAllShareMenus()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> Boost</div>
+          <div class="share-option" onclick="copyPostLink(${post.id});closeAllShareMenus()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Copy Link</div>
         </div>
       </div>
       <button class="post-action-btn views-btn">
         <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>${post.views}</span>
       </button>
-      <button class="post-action-btn ${post.bookmarked ? 'active' : ''}" title="${post.bookmarked ? 'Remove bookmark' : 'Bookmark'}" onclick="toggleBookmark(${post.id},this)">
-        <svg viewBox="0 0 24 24" fill="${post.bookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      <button class="post-action-btn bookmark-btn ${post.bookmarked ? 'active' : ''}" title="${post.bookmarked ? 'Remove bookmark' : 'Bookmark'}" onclick="toggleBookmark(${post.id},this)">
+        <svg viewBox="0 0 24 24" fill="${post.bookmarked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
       </button>
     </div>
   </div>`;
@@ -1054,6 +1205,19 @@ async function toggleLike(postId, btn) {
     if (span && post) span.textContent = formatNum(totalReactions(post.reactions));
   } catch {
     showToast('Failed to like', 'error', '⚠️');
+  }
+}
+
+async function deletePostReal(postId, btn) {
+  if (!await showConfirm('Delete this post?')) return;
+  try {
+    await api.deletePost(postId);
+    const el = document.getElementById(`post-${postId}`);
+    if (el) el.remove();
+    state.posts = state.posts.filter(p => p.id !== postId);
+    showToast('Post deleted', 'success');
+  } catch (err) {
+    showToast(err.message || 'Failed to delete', 'error');
   }
 }
 
@@ -1146,7 +1310,7 @@ function renderCommentSectionInEl(postId, comments, me, section) {
       <div class="comment-avatar" style="background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${me.avatar_url?`background-image:url('${me.avatar_url}');background-size:cover;background-position:center`:''}">${me.avatar_url?'':me.avatar||'?'}</div>
       <div class="comment-input-wrap">
         <input class="comment-input" data-post-id="${postId}" placeholder="${(window.CURRENT_USER?.plan==='plus'||window.CURRENT_USER?.plan==='pro')?'Comment… @Claude AI is active':'Comment… @Claude requires DXED+'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(${postId},this)}">
-        <button class="comment-submit-btn" onclick="submitComment(${postId},this)">↑</button>
+        <button class="comment-submit-btn" onclick="submitComment(${postId},this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
       </div>
     </div>` : ''}`;
   section.dataset.comments = JSON.stringify(comments);
@@ -1185,10 +1349,12 @@ function renderComment(c) { return renderCommentInner(c, c.post_id, 0); }
 
 function renderCommentInner(c, postId, depth) {
   const isBot = c.user_id === 999;
-  const avatarBg = `background:${c.gradient||'linear-gradient(135deg,#cc785c,#a85f45)'}`;
+  const avatarBg = c.avatar_url
+    ? `background-image:url('${c.avatar_url}');background-size:cover;background-position:center`
+    : `background:${c.gradient||'linear-gradient(135deg,#cc785c,#a85f45)'}`;
   const avatarContent = isBot
     ? `<img src="/claude-avatar.svg" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
-    : (c.avatar||'?');
+    : (c.avatar_url ? '' : (c.avatar||'?'));
   const replyHandle = isBot ? 'Claude' : cleanHandle(c.handle||c.username||'Player');
   const threadLine = depth > 0 ? '' : ''; // thread line is handled by CSS on .comment-thread-replies
   return `
@@ -1200,7 +1366,7 @@ function renderCommentInner(c, postId, depth) {
       <div class="comment-body">
         <div class="comment-meta">
           <span class="comment-author" onclick="openUserProfile(${c.user_id})">${c.username||'Player'}</span>
-          ${isBot ? `<span class="claude-ai-badge">AI</span>` : (c.verified ? '<span class="verified-badge">✓</span>' : '')}
+          ${isBot ? `<span class="claude-ai-badge">AI</span>` : verifiedBadge(c)}
           ${isBot ? '' : planBadge(c.plan)}
           <span class="comment-time">${c.time||'just now'}</span>
         </div>
@@ -1219,7 +1385,7 @@ function openInlineReply(postId, commentId, handle) {
   if (wrap.children.length) { wrap.innerHTML = ''; return; } // toggle off
   const me = window.Auth?.getUser() || window.CURRENT_USER;
   const avatarStyle = me.avatar_url
-    ? `background-image:url('${me.avatar_url}');background-size:cover;background-position:center;background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}`
+    ? `background-image:url('${me.avatar_url}');background-size:cover;background-position:center`
     : `background:${me.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}`;
   wrap.innerHTML = `
     <div class="comment-input-row inline-reply-row">
@@ -1228,7 +1394,7 @@ function openInlineReply(postId, commentId, handle) {
         <input class="comment-input" id="inline-input-${commentId}" placeholder="Reply to @${handle}…"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitInlineReply(${postId},${commentId},this)}"
           value="@${handle} ">
-        <button class="comment-submit-btn" onclick="submitInlineReply(${postId},${commentId},document.getElementById('inline-input-${commentId}'))">↑</button>
+        <button class="comment-submit-btn" onclick="submitInlineReply(${postId},${commentId},document.getElementById('inline-input-${commentId}'))"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
       </div>
     </div>`;
   const input = wrap.querySelector('input');
@@ -1374,6 +1540,8 @@ function openQuoteModal(postId) {
           <span style="color:var(--text-muted);font-size:12px">${post.time||''}</span>
         </div>
         <div class="quoted-body">${post.body||''}</div>
+        ${post.image_url ? `<img src="${post.image_url}" class="quoted-media-img" style="margin-top:8px" onerror="this.style.display='none'">` : ''}
+        ${post.clip_url ? `<video src="${post.clip_url}" class="quoted-media-video" style="margin-top:8px" preload="metadata" muted></video>` : ''}
       </div>`;
   }
 }
@@ -1467,6 +1635,7 @@ function collapseComposeBox() {
   const sel = document.getElementById('compose-game-tag');
   if (sel) sel.value = '';
   _inlinePostType = 'post';
+  removeInlineVideo();
 }
 
 function setPostType(type) {
@@ -1482,26 +1651,48 @@ async function submitInlinePost() {
   if (btn) { btn.disabled = true; btn.textContent = 'Posting...'; }
   try {
     let image_url = null;
+    let clip_url = null;
+    const token = Auth.getToken();
     if (window._pendingInlineFile) {
       const form = new FormData();
       form.append('image', window._pendingInlineFile);
       const r = await fetch('/api/posts/upload-image', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
+        headers: { 'Authorization': 'Bearer ' + token },
         body: form,
       });
       const data = await r.json();
       if (data.url) image_url = data.url;
     }
+    // Upload video clip if attached
+    if (window._pendingInlineVideoFile) {
+      btn.textContent = 'Uploading video...';
+      const fd = new FormData();
+      fd.append('clip', window._pendingInlineVideoFile);
+      const uploadRes = await fetch('/api/posts/upload-clip', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: fd,
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Video upload failed');
+      }
+      const uploadData = await uploadRes.json();
+      clip_url = uploadData.url;
+    }
+    const postType = window._pendingInlineVideoFile ? 'clip' : _inlinePostType;
     const newPost = await api.createPost({
       body: text,
-      type: _inlinePostType,
+      type: postType,
       game: document.getElementById('compose-game-tag')?.value || null,
       image_url,
+      clip_url,
     });
+    removeInlineVideo();
     collapseComposeBox();
     removeInlineImage();
-    showToast('Post published! 🎮', 'success', '✅');
+    showToast(clip_url ? 'Clip posted! 🎬' : 'Post published! 🎮', 'success', clip_url ? '🎬' : '✅');
     if (newPost._claudeGated) setTimeout(() => showUpgradePrompt('Use @Claude AI in your posts'), 800);
     await renderFeed();
   } catch (err) {
@@ -1524,6 +1715,7 @@ function closePostModal() {
   const preview = document.getElementById('post-image-preview');
   preview.innerHTML = ''; preview.classList.add('hidden');
   window._pendingPostImageUrl = null;
+  removeModalVideo();
 }
 
 function handlePostImageSelect(input) {
@@ -1566,6 +1758,94 @@ function removeInlineImage() {
   window._pendingInlineFile = null;
 }
 
+// Video clip handlers for compose areas
+function handleModalVideoSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('video/')) {
+    showToast('Only video files are allowed', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  if (file.size > 100 * 1024 * 1024) {
+    showToast('Video must be under 100MB', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  // Remove any pending image since we're attaching video
+  removePostImage();
+  window._pendingModalVideoFile = file;
+  const url = URL.createObjectURL(file);
+  const preview = document.getElementById('modal-video-preview');
+  const video = document.getElementById('modal-video-el');
+  video.src = url;
+  preview.classList.remove('hidden');
+  // Auto-set post type to clip
+  const typeSelect = document.getElementById('modal-post-type');
+  if (typeSelect) typeSelect.value = 'clip';
+  // Check duration
+  video.onloadedmetadata = () => {
+    if (video.duration > 60) {
+      showToast('Clip must be 60 seconds or shorter', 'error', '⚠️');
+      removeModalVideo();
+    }
+  };
+  showToast('Video clip attached! 🎬', 'success', '🎬');
+}
+
+function removeModalVideo() {
+  const input = document.getElementById('modal-video-input');
+  if (input) input.value = '';
+  const preview = document.getElementById('modal-video-preview');
+  if (preview) { preview.classList.add('hidden'); }
+  const video = document.getElementById('modal-video-el');
+  if (video) video.src = '';
+  window._pendingModalVideoFile = null;
+}
+
+function handleInlineVideoSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('video/')) {
+    showToast('Only video files are allowed', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  if (file.size > 100 * 1024 * 1024) {
+    showToast('Video must be under 100MB', 'error', '⚠️');
+    input.value = '';
+    return;
+  }
+  // Remove any pending image since we're attaching video
+  removeInlineImage();
+  window._pendingInlineVideoFile = file;
+  const url = URL.createObjectURL(file);
+  const preview = document.getElementById('inline-video-preview');
+  const video = document.getElementById('inline-video-el');
+  video.src = url;
+  preview.classList.remove('hidden');
+  _inlinePostType = 'clip';
+  // Check duration
+  video.onloadedmetadata = () => {
+    if (video.duration > 60) {
+      showToast('Clip must be 60 seconds or shorter', 'error', '⚠️');
+      removeInlineVideo();
+    }
+  };
+  showToast('Video clip attached! 🎬', 'success', '🎬');
+}
+
+function removeInlineVideo() {
+  const input = document.getElementById('inline-video-input');
+  if (input) input.value = '';
+  const preview = document.getElementById('inline-video-preview');
+  if (preview) { preview.classList.add('hidden'); }
+  const video = document.getElementById('inline-video-el');
+  if (video) video.src = '';
+  window._pendingInlineVideoFile = null;
+  _inlinePostType = 'post';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const textarea = document.getElementById('modal-post-text');
   if (textarea) {
@@ -1589,26 +1869,48 @@ async function submitModalPost() {
 
   try {
     let image_url = null;
+    let clip_url = null;
+    const token = Auth.getToken();
     if (window._pendingPostFile) {
       const form = new FormData();
       form.append('image', window._pendingPostFile);
       const r = await fetch('/api/posts/upload-image', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + Auth.getToken() },
+        headers: { 'Authorization': 'Bearer ' + token },
         body: form,
       });
       const data = await r.json();
       if (data.url) image_url = data.url;
     }
+    // Upload video clip if attached
+    if (window._pendingModalVideoFile) {
+      btn.textContent = 'Uploading video...';
+      const fd = new FormData();
+      fd.append('clip', window._pendingModalVideoFile);
+      const uploadRes = await fetch('/api/posts/upload-clip', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: fd,
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Video upload failed');
+      }
+      const uploadData = await uploadRes.json();
+      clip_url = uploadData.url;
+    }
+    const postType = window._pendingModalVideoFile ? 'clip' : document.getElementById('modal-post-type').value;
     const newPost = await api.createPost({
       body: text,
-      type: document.getElementById('modal-post-type').value,
+      type: postType,
       game: document.getElementById('modal-game-tag').value || null,
       platform: document.getElementById('modal-platform').value || null,
       image_url,
+      clip_url,
     });
+    removeModalVideo();
     closePostModal();
-    showToast('Post published! 🎮', 'success', '✅');
+    showToast(clip_url ? 'Clip posted! 🎬' : 'Post published! 🎮', 'success', clip_url ? '🎬' : '✅');
     if (newPost._claudeGated) {
       setTimeout(() => showUpgradePrompt('Use @Claude AI in your posts'), 800);
     }
@@ -1746,7 +2048,7 @@ async function renderExploreContent(tab) {
           <div style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .2s" onclick="openUserProfile(${u.id})" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
             <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:50px;height:50px;font-size:18px">${u.avatar||'?'}</div>
             <div style="flex:1">
-              <div style="font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px">${u.username||'Player'} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
+              <div style="font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px">${u.username||'Player'} ${verifiedBadge(u)} ${planBadge(u.plan)}</div>
               <div style="font-size:13px;color:var(--text-muted)">@${cleanHandle(u.handle||u.username)} · ${formatNum(u.followers||0)} followers</div>
               <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${u.online ? '🟢 Online' : '⚫ Offline'}</div>
             </div>
@@ -1758,23 +2060,7 @@ async function renderExploreContent(tab) {
       container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load players</p></div>`;
     }
   } else {
-    const news = [
-      { title:'Valorant Episode 9 Act 2 launches with new Agent Thorn', desc:'Riot drops massive patch including map rework and new tactical ability system.', icon:'🎯', time:'1h ago' },
-      { title:'Minecraft 1.21.5 drops with new cave biomes and mobs', desc:'The "Deep Darkness" update is finally here with 4 new biomes and 12 new mobs.', icon:'⛏️', time:'3h ago' },
-      { title:'CS2 Major results: Team Vitality claim back-to-back trophies', desc:'Historic run ends in 2-0 sweep of NaVi in Copenhagen finals.', icon:'💣', time:'5h ago' },
-      { title:'Elden Ring DLC "Shattered Realms" announced for Q3', desc:'FromSoftware teases a 30+ hour expansion with 8 new Legacy Dungeons.', icon:'⚱️', time:'8h ago' },
-    ];
-    container.innerHTML = `<div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
-      ${news.map(n => `
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;display:flex;gap:14px;transition:all .2s" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
-          <div style="font-size:36px;flex-shrink:0">${n.icon}</div>
-          <div>
-            <div style="font-weight:800;font-size:14px;margin-bottom:6px">${n.title}</div>
-            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${n.desc}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:8px">📰 ${n.time}</div>
-          </div>
-        </div>`).join('')}
-    </div>`;
+    renderPatchNotes(container);
   }
 }
 
@@ -1795,6 +2081,246 @@ async function searchExplore(val) {
 }
 
 // ================================================================
+// PATCH NOTES / NEWS
+// ================================================================
+
+const PATCH_NOTES = [
+  {
+    game: 'Fortnite', icon: '🔫', color: '#1e90ff', version: 'v39.51',
+    date: 'Mar 5, 2026', tag: 'BATTLE ROYALE',
+    title: 'OG Weapons Return + Rick & Morty Wave 2',
+    summary: 'Pump Shotgun, Combat Shotgun, Suppressed SMG and Hunting Rifle unvaulted with tuned stats. Pickle Rick and Prime Rick skins arrive March 7.',
+    details: [
+      'MK-Seven and Deadeye AR shots become projectiles beyond 100m (no longer hitscan at range)',
+      'Rick and Morty collab wave 2: Pickle Rick skin earnable via in-game tourney',
+      'Wild Week 2 (Mar 12): Vending Machines stock Legendary/Exotic/Mythic loot, triple Gold Bars',
+      'Balloons unvaulted; Tactical AR, Deadeye AR, Vengeful Sniper, and Sovereign Shotgun vaulted',
+      'Dark Voyager live event on March 14; Chapter 7 Season 2 (v40.00) launches March 19',
+    ],
+  },
+  {
+    game: 'Call of Duty', icon: '💥', color: '#ff4500', version: 'Season 02 Reloaded',
+    date: 'Mar 10, 2026', tag: 'BLACK OPS 7 / WARZONE',
+    title: 'Black Ops Royale Launches — Warzone Reimagined',
+    summary: 'Brand new Warzone mode with no Loadouts, in-match progression, signature gear, and dynamic world events.',
+    details: [
+      'Black Ops Royale: completely new BR experience — no loadouts, loot-based progression per match',
+      'Win Streak progress tracker added to track consecutive victories',
+      'Altitude Tactics Event: earn Voyak KT-3 Assault Rifle plus camos and reticles across four modes',
+      'Bug fixes: Trauma Kit spectator HUD, wingsuit downed state, Polaris vehicle eject, Reactive Armor perk',
+      'Iron Gauntlet competitive mode and Redacted Contracts (mystery objectives) from March 3 patch',
+    ],
+  },
+  {
+    game: 'Apex Legends', icon: '🦾', color: '#da292a', version: 'Season 28: Breach',
+    date: 'Mar 10, 2026', tag: 'BATTLE ROYALE',
+    title: 'Gundam Takeover Event — Mobile Suits Crash Broken Moon',
+    summary: 'Gundam x Apex crossover transforms Broken Moon with destroyed Mobile Suits. New weapons and Wildcard abilities.',
+    details: [
+      'Broken Moon transformed with Wing Gundam statues and destroyed Mobile Suit debris',
+      'New weapons: Buster Rifle (Care Package — aerial recon + wall-scan + laser beam), Bit Staves (shield/drone mode)',
+      'New Wildcard abilities: Epyon\'s Lash (magnetic pull), Heavyarms Salvo (airstrike), Zero Sacrifice/Rebirth',
+      'Fuse buffs: Tactical duration doubled to ~4s, Ultimate pullout time reduced 25%, explosive wave delay halved',
+      '8 Gundam Legend skins, 8 themed weapon skins, 2 Mythic Universal Melees',
+    ],
+  },
+  {
+    game: 'Marvel Rivals', icon: '🦸', color: '#ed1d24', version: 'Season 6.5',
+    date: 'Mar 12, 2026', tag: 'HERO SHOOTER',
+    title: 'The Thing: Fear Itself + Bug Fixes',
+    summary: 'New store content and multiple bug fixes including Punisher proficiency badges and Rogue costume fixes.',
+    details: [
+      'New store content: The Thing — Fear Itself skin',
+      'Fixed Punisher proficiency badge display issue',
+      'Fixed Rogue\'s Mrs. X costume translucent material rendering',
+      'Controller surrender shortcut can now be remapped',
+      'Chrono-Rush event active (Mar 5-20) with uncapped Chrono Token earning; new Psylocke and Captain America costumes',
+    ],
+  },
+  {
+    game: 'Counter-Strike 2', icon: '💣', color: '#de9b35', version: 'Dead Hand Update',
+    date: 'Mar 11, 2026', tag: 'TACTICAL SHOOTER',
+    title: 'Dead Hand Collection — 17 New Finishes + 22 Gloves',
+    summary: 'Community-contributed weapon finishes and all-new gloves accessible via Dead Hand Terminal as weekly drops — no cases needed.',
+    details: [
+      '17 community-contributed weapon finishes in the Dead Hand Collection',
+      '22 all-new gloves available as rare special items',
+      'Items accessible via Dead Hand Terminal as weekly drops (no cases/gambling)',
+      'Dust II fix: pixel gap in door Outside Long patched',
+      'Previous patch (Mar 4): Inferno A-site rework — graveyard closed off, apartment balcony extended',
+    ],
+  },
+  {
+    game: 'Overwatch 2', icon: '🎯', color: '#f99e1a', version: 'Mar 10 Balance Patch',
+    date: 'Mar 12, 2026', tag: 'HERO SHOOTER',
+    title: 'Roadhog Buff, Illari Nerfs, Bruiser Subrole Rework',
+    summary: 'Roadhog Scrap Gun damage increased for Hook combo consistency. Illari attack speed and damage nerfed. Bruiser subrole triggers at 50% HP.',
+    details: [
+      'Roadhog: Scrap Gun damage per pellet 6.5 → 7 (improves Hook combo kill consistency)',
+      'Illari: Attack speed bonus 30% → 20%, damage 70 → 50, secondary fire resource 3.5s → 3s',
+      'Bruiser subrole: now triggers below 50% HP instead of critical health (major buff)',
+      'Medic subrole: self-healing 25% → 40%; Initiator subrole: healing 75 → 60',
+      'Jetpack Cat: Territorial perk removed; Claws Out moved to Major perk with reduced cooldown (hotfixed Mar 12)',
+    ],
+  },
+  {
+    game: 'Valorant', icon: '🎮', color: '#ff4655', version: 'Patch 12.04',
+    date: 'Mar 3, 2026', tag: 'TACTICAL SHOOTER',
+    title: 'Killjoy Turret QoL + New Progression Hub',
+    summary: 'Killjoy Turret can now rotate with ALT-FIRE. Battlepass tab replaced with Progression Hub showing all progress at a glance.',
+    details: [
+      'Killjoy Turret QoL: can now rotate with ALT-FIRE, ACTIVATE swaps direction (aligned with Sage Barrier Orb)',
+      'Performance fix for stuttering issues introduced in 12.03',
+      'End of Game/Career screens revamped with new Rank summary screen showing RR gains/losses',
+      'Battlepass tab replaced with Progression Hub showing all progress at a glance',
+      'New Sova voicelines added; Patch 12.05 / Act 2 expected March 18',
+    ],
+  },
+  {
+    game: 'League of Legends', icon: '⚔️', color: '#c8aa6e', version: 'Patch 26.5',
+    date: 'Mar 4, 2026', tag: 'MOBA',
+    title: 'Jungle Buffs, Mid Nerfs, Gameplay Bans',
+    summary: 'Lee Sin, Lillia, Nocturne, Volibear buffed. Orianna, Azir, Taliyah nerfed. Gameplay bans replace chat-only bans for toxic players.',
+    details: [
+      'Jungle buffs: Lee Sin, Lillia, Nocturne, Volibear; plus Garen and Mel',
+      'Mid lane nerfs: Orianna, Azir, Taliyah, Neeko, and Kha\'Zix',
+      'Behavioral changes: gameplay bans (not just chat bans) for severely disruptive comms',
+      'Last Hit Assistance feature goes live; Brawl mode returns (Mar 4 – Apr 28)',
+      'New skins: Corrupted Petricite Maokai & Xerath, Prestige Requiem Sona',
+    ],
+  },
+  {
+    game: 'Minecraft', icon: '⛏️', color: '#62b03f', version: '26.1 Pre-Release',
+    date: 'Mar 11, 2026', tag: 'SANDBOX',
+    title: 'Tiny Takeover — Baby Mobs Overhaul',
+    summary: 'Baby mobs get a visual overhaul with chunkier, fluffier designs. Golden Dandelion keeps baby mobs young forever.',
+    details: [
+      'Baby mob visual overhaul: baby wolves, kittens, piglets, calves, chicks, lambs, rabbits now chunkier/fluffier with new sounds',
+      'New baby mounts: mules, skeleton foals, zombie foals, baby donkeys, regular foals',
+      'Golden Dandelion: keeps baby mobs young forever (8 gold ingots + dandelion); feeding another reverses it',
+      'Craftable Name Tags (any nugget + paper)',
+      'New version numbering: versions now start with year (26.x for 2026)',
+    ],
+  },
+  {
+    game: 'Destiny 2', icon: '🪐', color: '#97d8e0', version: 'Update 9.5.5.5',
+    date: 'Mar 10, 2026', tag: 'LOOTER SHOOTER',
+    title: 'Stability Fixes + Suros Week',
+    summary: 'Fixed weapons not benefiting from Weapon Foundry Sponsorships. Suros Week overcharges all Suros weapons in Portal activities.',
+    details: [
+      'Fixed weapons not benefiting from Weapon Foundry Sponsorships when active',
+      'General stability fixes and performance improvements',
+      'Suros Week (Mar 10-17): all Suros weapons overcharged in Portal activities',
+      'Trials of Osiris returns March 13 on Javelin-4 map',
+      'Guardian Games teased for March 24 start',
+    ],
+  },
+  {
+    game: 'GTA VI', icon: '🚗', color: '#81c946', version: 'News',
+    date: 'Mar 2026', tag: 'UPCOMING',
+    title: 'Release Date Confirmed: November 19, 2026',
+    summary: 'Rockstar confirms GTA VI launches November 19, 2026 on PS5 and Xbox Series X|S. PC expected by end of 2026.',
+    details: [
+      'Release date confirmed: November 19, 2026 for PS5 and Xbox Series X|S; PC expected by end of 2026',
+      'GTA 6 Title ID added to PlayStation Store on March 1 — pre-orders may be imminent',
+      'Rockstar posted unusual 3-week GTA Online roadmap through April 1, clearing news slate for possible GTA VI reveal',
+      'Every major publisher avoiding Oct-Dec window to dodge competing with GTA VI',
+      'Game reportedly still not content complete per Jason Schreier reporting',
+    ],
+  },
+  {
+    game: 'Helldivers 2', icon: '🪖', color: '#ffe03d', version: 'Patch 6.0.3',
+    date: 'Feb 10, 2026', tag: 'CO-OP SHOOTER',
+    title: 'Melee Rebalancing + Siegebreakers Warbond',
+    summary: 'All melee weapons buffed with new combos. Siegebreakers Warbond adds new armor sets and stratagems. Next patch expected March 17.',
+    details: [
+      'Melee rebalancing: all melee weapons buffed with improved combos and damage',
+      'Siegebreakers Warbond: new armor sets, stratagems, and cosmetics',
+      'Patch 6.0.1 (Feb 3): "Into The Unjust" added new tank vehicle and increased high-difficulty intensity',
+      'Enemies now better at aiming on higher difficulties',
+      'Next patch expected March 17 — will remove "large" build option from Steam',
+    ],
+  },
+  {
+    game: 'Path of Exile 2', icon: '🗡️', color: '#af6025', version: '0.4.0d',
+    date: 'Jan 26, 2026', tag: 'ARPG',
+    title: 'Hotfix 3 — Major 0.5.0 Update Coming April/May',
+    summary: 'Current patch fixes from January. The massive 0.5.0 update with full endgame/mapping rework is confirmed for late April reveal.',
+    details: [
+      'Latest patch is 0.4.0d Hotfix 3 with bug fixes and balance tuning',
+      'Major 0.5.0 update confirmed for late April reveal, early May release',
+      'Full endgame/mapping system rework expected in 0.5.0',
+      'Possible new Ascendancy classes found in data files: Arcane Archer (Ranger), Wild Speaker (Huntress)',
+      'Full 1.0 release expected late 2026; ExileCon November 7-8',
+    ],
+  },
+  {
+    game: 'Palworld', icon: '🐾', color: '#36c5f0', version: 'v0.7.1',
+    date: 'Jan 22, 2026', tag: 'SURVIVAL',
+    title: 'Combat Balance + Road to 1.0',
+    summary: 'Combat balance adjustments and bug fixes. Pocketpair focused on polishing for the 1.0 full release planned for 2026.',
+    details: [
+      'Combat balance adjustments with Pal damage and capture rate tweaks',
+      'Various bug fixes for stability and performance',
+      'Pocketpair focused on polishing for the 1.0 full release planned for 2026',
+      'World Tree confirmed as centerpiece of endgame content in 1.0',
+      'No March patch — next major update expected with 1.0 release',
+    ],
+  },
+];
+
+function renderPatchNotes(container) {
+  const filterTag = state.newsFilter || 'all';
+  const tags = ['all', ...new Set(PATCH_NOTES.map(n => n.tag))];
+  const filtered = filterTag === 'all' ? PATCH_NOTES : PATCH_NOTES.filter(n => n.tag === filterTag);
+
+  container.innerHTML = `
+    <div style="padding:12px 16px 0;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:18px">📋</span>
+        <span style="font-weight:800;font-size:16px">Game Patch Notes</span>
+        <span style="font-size:12px;color:var(--text-muted);margin-left:auto">Updated Mar 14, 2026</span>
+      </div>
+      <div class="news-filter-row" style="display:flex;gap:6px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        ${tags.map(t => `<button class="news-filter-chip ${t === filterTag ? 'active' : ''}" onclick="state.newsFilter='${t}';renderPatchNotes(document.getElementById('explore-content'))" style="padding:4px 10px;border-radius:20px;border:1px solid ${t === filterTag ? 'var(--accent)' : 'var(--border)'};background:${t === filterTag ? 'var(--accent)' : 'var(--bg-card)'};color:${t === filterTag ? '#fff' : 'var(--text-secondary)'};font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s">${t === 'all' ? 'All Games' : t}</button>`).join('')}
+      </div>
+      ${filtered.map((n, i) => `
+        <div class="news-patch-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:all .2s" onmouseenter="this.style.borderColor='${n.color}'" onmouseleave="this.style.borderColor='var(--border)'">
+          <div style="padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:flex-start" onclick="togglePatchDetail(${i})">
+            <div style="font-size:28px;flex-shrink:0;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:${n.color}22;border-radius:10px">${n.icon}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+                <span style="font-weight:800;font-size:13px;color:${n.color}">${n.game}</span>
+                <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${n.color}22;color:${n.color};font-weight:700">${n.version}</span>
+                <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--bg-tertiary);color:var(--text-muted);font-weight:600">${n.tag}</span>
+              </div>
+              <div style="font-weight:700;font-size:14px;margin-bottom:4px;line-height:1.3">${n.title}</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${n.summary}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px">📰 ${n.date}</div>
+            </div>
+            <div id="patch-arrow-${i}" style="color:var(--text-muted);transition:transform .2s;flex-shrink:0;margin-top:4px">▶</div>
+          </div>
+          <div id="patch-detail-${i}" style="display:none;padding:0 16px 14px 68px;border-top:1px solid var(--border)">
+            <ul style="margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px">
+              ${n.details.map(d => `<li style="font-size:12px;color:var(--text-secondary);line-height:1.5;display:flex;gap:8px;align-items:flex-start"><span style="color:${n.color};font-weight:700;flex-shrink:0">▸</span><span>${d}</span></li>`).join('')}
+            </ul>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+window.renderPatchNotes = renderPatchNotes;
+
+function togglePatchDetail(idx) {
+  const detail = document.getElementById(`patch-detail-${idx}`);
+  const arrow = document.getElementById(`patch-arrow-${idx}`);
+  if (!detail) return;
+  const open = detail.style.display !== 'none';
+  detail.style.display = open ? 'none' : 'block';
+  if (arrow) arrow.style.transform = open ? '' : 'rotate(90deg)';
+}
+window.togglePatchDetail = togglePatchDetail;
+
+// ================================================================
 // GAMES
 // ================================================================
 
@@ -1805,17 +2331,27 @@ async function loadGames() {
   const grid = document.getElementById('games-grid');
   if (grid) grid.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading games...</div>`;
   try {
-    _liveGames = await api.getTrendingGames(500);
+    const result = await api.getTrendingGames(500);
+    if (result && result.length > 0) {
+      _liveGames = result;
+    } else {
+      // API returned empty — use static catalog
+      _liveGames = _staticFallbackGames();
+    }
   } catch {
-    // Fallback to static list if API fails or no data yet
-    _liveGames = GAMES.map(g => ({
-      igdb_id: g.id, name: g.name, genres: g.category,
-      cover_url: null, igdb_rating: Math.round(parseFloat(g.rating)*10),
-      twitch_viewers: 0, trending_score: 0, _icon: g.icon, _color: g.color,
-    }));
+    // Network/API error — use static catalog
+    _liveGames = _staticFallbackGames();
   }
   renderGamesGrid(state.gamesFilter);
   _populateGameDropdowns();
+}
+
+function _staticFallbackGames() {
+  return GAMES.map(g => ({
+    igdb_id: g.id, name: g.name, genres: g.category,
+    cover_url: null, igdb_rating: Math.round(parseFloat(g.rating)*10),
+    twitch_viewers: 0, trending_score: 0, _icon: g.icon, _color: g.color,
+  }));
 }
 
 function _gameCard(g) {
@@ -1989,9 +2525,21 @@ async function _loadGameTab(tab, game) {
     try {
       const posts = await api.getFeed('for-you', game.name);
       const normalized = (posts || []).map(normalizePost);
-      content.innerHTML = normalized.length
+      const safeName = game.name.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+      const composeBox = Auth.isLoggedIn() ? `
+        <div class="gc-compose-box" style="padding:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin:12px 16px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div class="post-avatar" style="background:${window.CURRENT_USER?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:36px;height:36px;font-size:14px;flex-shrink:0">${window.CURRENT_USER?.avatar||'?'}</div>
+            <textarea id="gc-compose-text" class="compose-textarea" rows="2" placeholder="Post in ${game.name} community..." style="flex:1;resize:none;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text-primary);font-size:14px"></textarea>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-left:46px">
+            <span style="font-size:12px;color:var(--accent);display:flex;align-items:center;gap:4px">🏷️ Tagged: ${game.name}</span>
+            <button class="btn-primary btn-sm" onclick="submitCommunityPost('${safeName}')">Post</button>
+          </div>
+        </div>` : '';
+      content.innerHTML = composeBox + (normalized.length
         ? normalized.map(renderPost).join('')
-        : `<div class="empty-state"><div class="empty-icon">📝</div><p>No posts for ${game.name} yet</p><span>Tag this game when you post to be the first!</span></div>`;
+        : `<div class="empty-state"><div class="empty-icon">📝</div><p>No posts for ${game.name} yet</p><span>Write something above to be the first!</span></div>`);
     } catch {
       content.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load posts</p></div>`;
     }
@@ -2015,9 +2563,9 @@ async function _loadGameTab(tab, game) {
               <div class="lfg-avatar" style="background:${user.gradient}">${user.avatar}</div>
               <div><div class="lfg-username">${user.username}</div><div class="lfg-rank-region">${user.rank} · ${p.region||'NA'}</div></div>
             </div>
-            <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'🔴 Full':p.status==='filling'?'🟡 Filling':'🟢 Open'}</div>
+            <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'Full':p.status==='filling'?'Filling':'Open'}</div>
           </div>
-          <div class="lfg-game-row"><span class="lfg-game-name">🎮 ${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
+          <div class="lfg-game-row"><span class="lfg-game-name">${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
           <div class="lfg-description">${p.description||''}</div>
           <div class="lfg-footer">
             <div class="lfg-slots"><div class="slot-dots">${slotsHtml}</div><span style="font-size:12px;color:var(--text-muted)">${filled}/${slots} filled</span></div>
@@ -2051,6 +2599,23 @@ async function _loadGameTab(tab, game) {
   }
 }
 
+async function submitCommunityPost(gameName) {
+  const textarea = document.getElementById('gc-compose-text');
+  const text = textarea?.value.trim();
+  if (!text) { showToast('Write something first!', 'error', '⚠️'); return; }
+  try {
+    const newPost = await api.createPost({ body: text, type: 'post', game: gameName });
+    textarea.value = '';
+    showToast('Posted in community! 🎮', 'success', '✅');
+    if (newPost._claudeGated) setTimeout(() => showUpgradePrompt('Use @Claude AI in your posts'), 800);
+    // Reload community feed
+    const commView = document.getElementById('games-community-view');
+    if (commView?._game) _loadGameTab('feed', commView._game);
+  } catch (err) {
+    showToast(err.message || 'Failed to post', 'error', '⚠️');
+  }
+}
+
 function _populateGameDropdowns() {
   const names = _liveGames.length
     ? _liveGames.map(g => g.name)
@@ -2061,7 +2626,7 @@ function _populateGameDropdowns() {
     const sel = document.getElementById(id);
     if (!sel) return;
     const cur = sel.value;
-    sel.innerHTML = `<option value="">🎮 Tag a game...</option>` +
+    sel.innerHTML = `<option value="">Tag a game...</option>` +
       names.map(n => `<option value="${n}">${n}</option>`).join('');
     if (cur) sel.value = cur;
   });
@@ -2118,7 +2683,7 @@ function renderLFGCards(posts) {
       `<div class="slot-dot ${i < filled ? 'filled' : ''}"></div>`
     ).join('');
     const userPlan = user.plan || 'free';
-    const priorityStar = (userPlan === 'pro' || userPlan === 'plus') ? '<span class="lfg-priority-star" title="Priority listing">⭐</span>' : '';
+    const priorityStar = (userPlan === 'pro' || userPlan === 'plus') ? '<span class="lfg-priority-star" title="Priority listing">★</span>' : '';
     return `<div class="lfg-card">
       <div class="lfg-header">
         <div class="lfg-user-info">
@@ -2128,18 +2693,28 @@ function renderLFGCards(posts) {
             <div class="lfg-rank-region">${user.rank||'?'} · ${p.region||'NA'}</div>
           </div>
         </div>
-        <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'🔴 Full':p.status==='filling'?'🟡 Filling':'🟢 Open'}</div>
+        <div class="lfg-status lfg-${p.status||'open'}">${p.status==='full'?'Full':p.status==='filling'?'Filling':'Open'}</div>
       </div>
-      <div class="lfg-game-row"><span class="lfg-game-name">🎮 ${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
+      <div class="lfg-game-row"><span class="lfg-game-name">${p.game}</span><span class="lfg-mode">· ${p.mode||'Ranked'}</span></div>
       <div class="lfg-description">${p.description||p.desc||''}</div>
       <div class="lfg-footer">
         <div class="lfg-slots"><div class="slot-dots">${slotsHtml}</div><span style="font-size:12px;color:var(--text-muted)">${filled}/${slots} filled</span></div>
-        <button class="lfg-join-btn" ${p.status==='full'?'disabled':''} onclick="joinLFGReal(${p.id},this)">
-          ${p.isMember?'✓ Joined':p.status==='full'?'Full':'⚡ Join Party'}
+        ${p.isHost ? `<button class="lfg-delete-btn" onclick="deleteLFGReal(${p.id})">Delete</button>` : ''}
+        <button class="lfg-join-btn" ${p.status==='full'||p.isHost?'disabled':''} onclick="joinLFGReal(${p.id},this)">
+          ${p.isHost?'Your Party':p.isMember?'Joined':p.status==='full'?'Full':'Join'}
         </button>
       </div>
     </div>`;
   }).join('');
+}
+
+async function deleteLFGReal(id) {
+  if (!await showConfirm('Delete this LFG post?')) return;
+  try {
+    await api.deleteLFG(id);
+    showToast('LFG post deleted', 'success');
+    loadLFG();
+  } catch (err) { showToast(err.message || 'Failed to delete', 'error'); }
 }
 
 async function joinLFGReal(id, btn) {
@@ -2181,10 +2756,29 @@ function loadTournaments() {
 // MESSAGES
 // ================================================================
 
+async function openDirectMessage(userId) {
+  navigate('messages');
+  // Wait for DOM to be ready, then open the conversation
+  setTimeout(async () => {
+    try {
+      const user = await api.getUser(userId);
+      state.currentConversation = userId;
+      await selectConversationAPI(userId, user);
+    } catch {
+      showToast('Could not open conversation', 'error');
+    }
+  }, 100);
+}
+
 async function loadMessages() {
   const list = document.getElementById('conversations-list');
   const header = document.getElementById('chat-header');
   list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted)">Loading...</div>`;
+  // Mobile: reset to show list, hide chat
+  if (window.innerWidth <= 560) {
+    document.querySelector('.messages-sidebar')?.classList.remove('msg-sidebar-hidden');
+    document.querySelector('.messages-chat')?.classList.add('msg-chat-hidden');
+  }
   try {
     const conversations = await api.getConversations();
     renderConversationsFromAPI(conversations);
@@ -2210,12 +2804,12 @@ function renderConversationsFromAPI(conversations) {
   list.innerHTML = conversations.map(c => {
     const user = c.user;
     return `<div class="conv-item ${c.other_id === state.currentConversation ? 'active' : ''}" data-uid="${c.other_id}" onclick="selectConversationAPI(${c.other_id})">
-      <div class="conv-avatar" style="background:${user?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}" data-uid="${c.other_id}">
+      <div class="conv-avatar" style="background:${user?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};cursor:pointer" data-uid="${c.other_id}" onclick="event.stopPropagation();openUserProfile(${c.other_id})">
         ${user?.avatar||'?'}
         ${user?.online ? '<div class="conv-online-dot"></div>' : ''}
       </div>
       <div class="conv-info">
-        <div class="conv-name">${user?.username||'Unknown'}</div>
+        <div class="conv-name">${c.pinned?'📌 ':''}${c.muted?'🔇 ':''}${user?.username||'Unknown'}</div>
         <div class="conv-last-msg">${c.last_msg||''}</div>
       </div>
       <div class="conv-meta">
@@ -2233,13 +2827,25 @@ async function selectConversationAPI(userId, userObj) {
     try { user = await api.getUser(userId); } catch { user = { username:'User', avatar:'?', gradient:'linear-gradient(135deg,#8b5cf6,#3b82f6)', online:false }; }
   }
   document.getElementById('chat-header').innerHTML = `
-    <div class="conv-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:40px;height:40px">${user.avatar||'?'}</div>
-    <div>
+    <button class="msg-back-btn" onclick="msgShowList()">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Back
+    </button>
+    <div class="conv-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:40px;height:40px;cursor:pointer" onclick="openUserProfile(${userId})">${user.avatar||'?'}</div>
+    <div style="cursor:pointer;flex:1" onclick="openUserProfile(${userId})">
       <div style="font-weight:800;font-size:14px">${user.username||'User'}</div>
       <div style="font-size:12px;color:${user.online?'var(--accent-green)':'var(--text-muted)'}">
         ${user.online ? '🟢 Online' : '⚫ Offline'}
       </div>
+    </div>
+    <div class="msg-options-container" style="position:relative;margin-left:auto">
+      <button class="msg-options-btn" onclick="toggleMsgOptions(event,${userId})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:8px;font-size:18px" title="Options">⋮</button>
     </div>`;
+  // Mobile: show chat, hide conversation list
+  if (window.innerWidth <= 560) {
+    document.querySelector('.messages-sidebar')?.classList.add('msg-sidebar-hidden');
+    document.querySelector('.messages-chat')?.classList.remove('msg-chat-hidden');
+  }
   // Update active conversation in list
   document.querySelectorAll('.conv-item').forEach(el => {
     el.classList.toggle('active', +el.dataset.uid === userId);
@@ -2288,6 +2894,86 @@ async function sendMessage(e) {
       const msg = await api.sendMessage(state.currentConversation, text);
       appendChatMessage(msg, true);
     } catch { showToast('Failed to send message', 'error', '⚠️'); }
+  }
+}
+
+// Mobile More menu
+function toggleMobileMore(e) {
+  e?.preventDefault();
+  document.getElementById('mobile-more-menu')?.classList.remove('hidden');
+}
+function closeMobileMore() {
+  document.getElementById('mobile-more-menu')?.classList.add('hidden');
+}
+
+// Mobile messages: show conversation list, hide chat
+function msgShowList() {
+  document.querySelector('.messages-sidebar')?.classList.remove('msg-sidebar-hidden');
+  document.querySelector('.messages-chat')?.classList.add('msg-chat-hidden');
+}
+
+// Messaging options: block, mute, pin, delete, report
+async function toggleMsgOptions(e, userId) {
+  e.stopPropagation();
+  // Remove any existing dropdown
+  document.querySelectorAll('.msg-options-dropdown').forEach(el => el.remove());
+  // Fetch current status
+  let status = { blocked: false, muted: false, pinned: false };
+  try { status = await api.raw(`/messages/${userId}/status`); } catch {}
+  const dropdown = document.createElement('div');
+  dropdown.className = 'msg-options-dropdown';
+  dropdown.style.cssText = 'position:absolute;right:0;top:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:6px 0;min-width:180px;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,0.3)';
+  dropdown.innerHTML = `
+    <div class="msg-opt-item" onclick="msgAction('pin',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>${status.pinned ? '📌' : '📌'}</span> ${status.pinned ? 'Unpin Conversation' : 'Pin Conversation'}
+    </div>
+    <div class="msg-opt-item" onclick="msgAction('mute',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>${status.muted ? '🔔' : '🔇'}</span> ${status.muted ? 'Unmute' : 'Mute Notifications'}
+    </div>
+    <div class="msg-opt-item" onclick="msgAction('block',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:#ef4444;transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>🚫</span> ${status.blocked ? 'Unblock User' : 'Block User'}
+    </div>
+    <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+    <div class="msg-opt-item" onclick="msgAction('delete',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:#ef4444;transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>🗑️</span> Delete Conversation
+    </div>
+    <div class="msg-opt-item" onclick="msgAction('report',${userId},this)" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);transition:background .15s" onmouseenter="this.style.background='var(--bg-tertiary)'" onmouseleave="this.style.background='none'">
+      <span>⚠️</span> Report User
+    </div>
+  `;
+  e.target.closest('.msg-options-container').appendChild(dropdown);
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function closeDropdown() {
+      dropdown.remove();
+      document.removeEventListener('click', closeDropdown);
+    }, { once: true });
+  }, 0);
+}
+
+async function msgAction(action, userId, el) {
+  document.querySelectorAll('.msg-options-dropdown').forEach(d => d.remove());
+  try {
+    if (action === 'block') {
+      const res = await api.raw(`/messages/${userId}/block`, 'POST');
+      showToast(res.action === 'blocked' ? 'User blocked' : 'User unblocked', res.action === 'blocked' ? 'error' : 'success', '🚫');
+      if (res.action === 'blocked') loadMessages();
+    } else if (action === 'mute') {
+      const res = await api.raw(`/messages/${userId}/mute`, 'POST');
+      showToast(res.action === 'muted' ? 'Conversation muted' : 'Conversation unmuted', 'info', res.action === 'muted' ? '🔇' : '🔔');
+    } else if (action === 'pin') {
+      const res = await api.raw(`/messages/${userId}/pin`, 'POST');
+      showToast(res.action === 'pinned' ? 'Conversation pinned' : 'Conversation unpinned', 'success', '📌');
+    } else if (action === 'delete') {
+      if (!confirm('Delete this entire conversation? This cannot be undone.')) return;
+      await api.raw(`/messages/${userId}`, 'DELETE');
+      showToast('Conversation deleted', 'info', '🗑️');
+      loadMessages();
+    } else if (action === 'report') {
+      showToast('User reported. Our team will review.', 'success', '⚠️');
+    }
+  } catch (err) {
+    showToast(err.message || 'Action failed', 'error', '⚠️');
   }
 }
 
@@ -2434,7 +3120,7 @@ async function loadPeople() {
       <div class="people-card" onclick="openUserProfile(${u.id})">
         <div class="people-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
         <div class="people-info">
-          <div class="people-name">${escapeHtml(u.username)} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
+          <div class="people-name">${escapeHtml(u.username)} ${verifiedBadge(u)} ${planBadge(u.plan)}</div>
           <div class="people-handle">@${escapeHtml(cleanHandle(u.handle||u.username))}</div>
           <div style="margin-top:4px"><span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
           ${u.bio?`<div class="people-bio">${escapeHtml(u.bio.slice(0,60))}${u.bio.length>60?'...':''}</div>`:''}
@@ -2879,7 +3565,15 @@ async function confirmDeleteAccount() {
 // PROFILE
 // ================================================================
 
-function loadProfile() { renderProfile(window.CURRENT_USER.id, document.getElementById('profile-container')); }
+function loadProfile() {
+  const u = window.CURRENT_USER;
+  const handle = cleanHandle(u.handle || u.name || u.username);
+  if (handle) {
+    const newHash = '#@' + handle;
+    if (window.location.hash !== newHash) history.pushState(null, '', newHash);
+  }
+  renderProfile(u.id, document.getElementById('profile-container'));
+}
 
 async function renderProfile(userId, container) {
   container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading profile...</div>`;
@@ -2921,12 +3615,14 @@ async function renderProfile(userId, container) {
           })()}
           <div class="profile-actions-row">
             ${isMe
-              ? `<button class="btn-secondary profile-edit-btn" onclick="openEditProfile()"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Profile</button>`
+              ? `<button class="btn-secondary profile-edit-btn" onclick="openEditProfile()"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit Profile</button>
+                 <button class="btn-secondary" onclick="openShareProfile('${cleanHandle(user.handle||user.username)}','${(user.username||'').replace(/'/g,"\\'")}','${user.avatar_url||''}','${user.gradient||''}','${user.avatar||''}',${user.followers||0},${user.post_count||user.posts_count||0})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>`
               : `<button class="btn-primary" id="follow-btn-${user.id}" onclick="toggleFollow(${user.id},this)">${user.isFollowing?'Following':'+ Follow'}</button>
-                 <button class="btn-secondary" onclick="navigate('messages')">💬 Message</button>`}
+                 <button class="btn-secondary" onclick="openDirectMessage(${user.id})">Message</button>
+                 <button class="btn-secondary" onclick="openShareProfile('${cleanHandle(user.handle||user.username)}','${(user.username||'').replace(/'/g,"\\'")}','${user.avatar_url||''}','${user.gradient||''}','${user.avatar||''}',${user.followers||0},${user.post_count||user.posts_count||0})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>`}
           </div>
         </div>
-        <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg">✓</span>' : ''} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>
+        <div class="profile-name">${user.username||user.name||'Player'} ${verifiedBadge(user, true)} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>
         <div class="profile-handle">@${cleanHandle(user.handle||user.username)} <span class="profile-online-dot" style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'● Online':'● Offline'}</span></div>
         ${user.bio ? `<div class="profile-bio">${user.bio}</div>` : ''}
         <div class="profile-stats-row">
@@ -2935,6 +3631,14 @@ async function renderProfile(userId, container) {
           <div class="profile-stat clickable-stat" onclick="openFollowModal('following',${effectiveId})"><span class="stat-val">${formatNum(user.following||0)}</span> <span class="stat-label">Following</span></div>
         </div>
       </div>
+      ${isMe ? `<div class="profile-compose-box">
+        <div class="compose-box" style="border-bottom:none;border-top:1px solid rgba(255,255,255,0.04)">
+          <div class="compose-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''};width:32px;height:32px;font-size:12px">${user.avatar_url?'':user.avatar||'?'}</div>
+          <div class="compose-right" style="flex:1">
+            <div class="profile-compose-trigger" onclick="openPostModal()" style="cursor:pointer;padding:8px 12px;border:1px solid rgba(255,255,255,0.06);border-radius:10px;color:rgba(255,255,255,0.3);font-size:13px;transition:border-color 0.15s">What's on your mind?</div>
+          </div>
+        </div>
+      </div>` : ''}
       <div class="profile-tabs">
         ${user.is_bot
           ? `<div class="profile-tab active" onclick="switchProfileTab(this,'replies',${effectiveId})">Replies</div>`
@@ -2943,7 +3647,7 @@ async function renderProfile(userId, container) {
         <div class="profile-tab" onclick="switchProfileTab(this,'clips',${effectiveId})">Clips</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'games',${effectiveId})">Games</div>
         <div class="profile-tab" onclick="switchProfileTab(this,'achievements',${effectiveId})">Achievements</div>
-        ${(user.plan === 'pro' && isMe) ? `<div class="profile-tab" onclick="switchProfileTab(this,'analytics',${effectiveId})">📊 Analytics</div>` : ''}`}
+        ${(user.plan === 'plus' && isMe) ? `<div class="profile-tab" onclick="switchProfileTab(this,'analytics',${effectiveId})">Analytics</div>` : ''}`}
       </div>
       <div id="profile-tab-content"></div>`;
 
@@ -2951,6 +3655,139 @@ async function renderProfile(userId, container) {
   } catch (err) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load profile</p></div>`;
   }
+}
+
+// ── Share Profile Sheet (Twitter-style) ──
+function openShareProfile(handle, username, avatarUrl, gradient, avatarLetter, followers, posts) {
+  const existing = document.getElementById('share-profile-sheet');
+  if (existing) existing.remove();
+
+  const profileUrl = window.location.origin + '/#@' + handle;
+
+  const sheet = document.createElement('div');
+  sheet.id = 'share-profile-sheet';
+  sheet.className = 'sp-overlay';
+
+  sheet.innerHTML = `
+    <div class="sp-backdrop" onclick="closeShareProfile()"></div>
+    <div class="sp-sheet">
+      <div class="sp-drag-handle"></div>
+      <div class="sp-header">
+        <span class="sp-title">Share Profile</span>
+        <button class="sp-close" onclick="closeShareProfile()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="sp-card" id="sp-card">
+        <div class="sp-card-banner" style="background:${gradient || 'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">
+          <div class="sp-card-pattern"></div>
+        </div>
+        <div class="sp-card-body">
+          <div class="sp-card-avatar" style="background:${gradient || 'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${avatarUrl ? `background-image:url('${avatarUrl}');background-size:cover;background-position:center` : ''}">${avatarUrl ? '' : (avatarLetter || '?')}</div>
+          <div class="sp-card-name">${username}</div>
+          <div class="sp-card-handle">@${handle}</div>
+          <div class="sp-card-stats">
+            <span><strong>${formatNum(followers)}</strong> followers</span>
+            <span class="sp-dot"></span>
+            <span><strong>${formatNum(posts)}</strong> posts</span>
+          </div>
+          <div class="sp-card-url">${profileUrl.replace('http://','').replace('https://','')}</div>
+        </div>
+      </div>
+
+      <div class="sp-actions">
+        <button class="sp-action-btn sp-copy" onclick="copyProfileLink('${profileUrl}')">
+          <div class="sp-action-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </div>
+          <span>Copy link</span>
+        </button>
+        <button class="sp-action-btn" onclick="shareProfileNative('${handle}','${username.replace(/'/g,"\\'")}','${profileUrl}')">
+          <div class="sp-action-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          </div>
+          <span>Share via...</span>
+        </button>
+        <button class="sp-action-btn" onclick="shareProfileToX('${handle}','${username.replace(/'/g,"\\'")}','${profileUrl}')">
+          <div class="sp-action-icon sp-x-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </div>
+          <span>Post to X</span>
+        </button>
+        <button class="sp-action-btn" onclick="shareProfileQR('${profileUrl}')">
+          <div class="sp-action-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="4" height="4"/><line x1="22" y1="14" x2="22" y2="18"/><line x1="18" y1="22" x2="22" y2="22"/></svg>
+          </div>
+          <span>QR code</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(sheet);
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => sheet.classList.add('visible'));
+}
+
+function closeShareProfile() {
+  const sheet = document.getElementById('share-profile-sheet');
+  if (!sheet) return;
+  sheet.classList.remove('visible');
+  document.body.style.overflow = '';
+  setTimeout(() => sheet.remove(), 300);
+}
+
+function copyProfileLink(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.querySelector('.sp-copy');
+    if (btn) {
+      btn.querySelector('span').textContent = 'Copied!';
+      btn.classList.add('sp-copied');
+      setTimeout(() => {
+        btn.querySelector('span').textContent = 'Copy link';
+        btn.classList.remove('sp-copied');
+      }, 2000);
+    }
+    showToast('Profile link copied!', 'success');
+  });
+}
+
+function shareProfileNative(handle, username, url) {
+  if (navigator.share) {
+    navigator.share({
+      title: `${username} (@${handle})`,
+      text: `Check out ${username}'s profile on NEXUS`,
+      url: url
+    });
+  } else {
+    copyProfileLink(url);
+  }
+}
+
+function shareProfileToX(handle, username, url) {
+  const text = encodeURIComponent(`Check out ${username}'s profile on NEXUS`);
+  const encodedUrl = encodeURIComponent(url);
+  window.open(`https://x.com/intent/tweet?text=${text}&url=${encodedUrl}`, '_blank', 'width=550,height=420');
+}
+
+function shareProfileQR(url) {
+  const qrSize = 200;
+  const card = document.querySelector('.sp-card');
+  if (!card) return;
+
+  // Show QR code using a simple QR API
+  const existing = document.getElementById('sp-qr-display');
+  if (existing) { existing.remove(); return; }
+
+  const qrDiv = document.createElement('div');
+  qrDiv.id = 'sp-qr-display';
+  qrDiv.className = 'sp-qr-display';
+  qrDiv.innerHTML = `
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(url)}&bgcolor=0e0e18&color=ffffff&format=svg" width="${qrSize}" height="${qrSize}" alt="QR Code" style="border-radius:12px"/>
+    <span class="sp-qr-label">Scan to view profile</span>
+  `;
+  card.after(qrDiv);
 }
 
 async function switchProfileTab(btn, tab, userId) {
@@ -3201,6 +4038,10 @@ async function switchProfileTab(btn, tab, userId) {
   if (tab === 'games') {
     content.innerHTML = `<div style="padding:20px;color:var(--text-muted);text-align:center">Loading...</div>`;
     try {
+      // Ensure live games are loaded for cover images
+      if (!_liveGames.length) {
+        try { _liveGames = await api.getTrendingGames(100); _populateGameDropdowns(); } catch {}
+      }
       const gameNames = await api.getUserGameFollows(userId);
       if (!gameNames.length) {
         content.innerHTML = `<div class="empty-state"><div class="empty-icon">🎮</div><p>No games followed yet</p></div>`;
@@ -3285,6 +4126,460 @@ function openImageLightbox(url) {
   document.body.appendChild(el);
 }
 
+// ================================================================
+// CUSTOM VIDEO PLAYER
+// ================================================================
+function openVideoPlayer(postId) {
+  const post = state.posts.find(p => p.id === postId);
+  if (!post || !post.clip_url) return;
+  const user = post.user || {};
+  const me = window.Auth?.getUser() || window.CURRENT_USER;
+  const total = totalReactions(post.reactions || {});
+  const liked = post._liked || false;
+  const isLoggedIn = !!window.Auth?.getToken();
+  const commentCount = post.comment_count || post.comments_count || 0;
+  const viewCount = post.views || 0;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'vp-overlay';
+  overlay.id = 'video-player-overlay';
+
+  overlay.innerHTML = `
+    <div class="vp-container">
+      <div class="vp-video-area">
+        <video class="vp-video" src="${post.clip_url}" playsinline preload="auto" loop></video>
+
+        <!-- Gradient overlays for readability -->
+        <div class="vp-gradient-top"></div>
+        <div class="vp-gradient-bottom"></div>
+
+        <!-- Tap zones -->
+        <div class="vp-tap-zone vp-tap-left"></div>
+        <div class="vp-tap-zone vp-tap-center"></div>
+        <div class="vp-tap-zone vp-tap-right"></div>
+
+        <!-- Double-tap heart burst -->
+        <div class="vp-heart-burst" id="vp-heart-burst"></div>
+
+        <!-- Play/pause indicator -->
+        <div class="vp-state-icon" id="vp-state-icon">
+          <div class="vp-state-play"><svg viewBox="0 0 24 24" width="44" height="44" fill="white"><polygon points="6,3 20,12 6,21"/></svg></div>
+          <div class="vp-state-pause"><svg viewBox="0 0 24 24" width="44" height="44" fill="white"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg></div>
+        </div>
+
+        <!-- Skip ripple indicators -->
+        <div class="vp-skip-ripple vp-skip-ripple-left" id="vp-skip-back">
+          <div class="vp-skip-ripple-bg"></div>
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+          <span>10</span>
+        </div>
+        <div class="vp-skip-ripple vp-skip-ripple-right" id="vp-skip-fwd">
+          <div class="vp-skip-ripple-bg"></div>
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+          <span>10</span>
+        </div>
+
+        <!-- Top bar -->
+        <div class="vp-top-bar" id="vp-top-bar">
+          <button class="vp-close-btn" id="vp-close-btn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 5 12 12 19"/></svg>
+          </button>
+          <div class="vp-top-info" onclick="closeVideoPlayer();openUserProfile(${user.id || 0})">
+            <div class="vp-user-avatar" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
+            <div class="vp-user-meta">
+              <span class="vp-username">${userName(user)}</span>
+              <span class="vp-handle">@${user.handle || user.username || 'player'}</span>
+            </div>
+          </div>
+          ${post.game ? `<span class="vp-game-pill">${post.game}</span>` : ''}
+          <div class="vp-top-spacer"></div>
+          <button class="vp-more-btn" id="vp-more-btn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          </button>
+        </div>
+
+        <!-- Side action rail (TikTok-style) -->
+        <div class="vp-rail" id="vp-rail">
+          <div class="vp-rail-avatar" onclick="closeVideoPlayer();openUserProfile(${user.id || 0})">
+            <div class="vp-rail-avatar-img" style="background:${user.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${user.avatar_url?`background-image:url('${user.avatar_url}');background-size:cover;background-position:center`:''}">${user.avatar_url?'':user.avatar||'?'}</div>
+          </div>
+          <button class="vp-rail-btn ${liked ? 'active' : ''}" id="vp-like-btn">
+            <div class="vp-rail-icon">
+              <svg viewBox="0 0 24 24" width="28" height="28"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" ${liked ? 'fill="currentColor"' : ''}/></svg>
+            </div>
+            <span id="vp-like-count">${formatNum(total)}</span>
+          </button>
+          <button class="vp-rail-btn" id="vp-comment-btn">
+            <div class="vp-rail-icon">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            </div>
+            <span id="vp-comment-count">${formatNum(commentCount)}</span>
+          </button>
+          <button class="vp-rail-btn" id="vp-bookmark-btn">
+            <div class="vp-rail-icon">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </div>
+            <span>Save</span>
+          </button>
+          <button class="vp-rail-btn" id="vp-share-btn">
+            <div class="vp-rail-icon">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </div>
+            <span>Share</span>
+          </button>
+        </div>
+
+        <!-- Bottom info + controls -->
+        <div class="vp-bottom" id="vp-bottom">
+          <div class="vp-desc-area">
+            <div class="vp-desc-text" id="vp-desc-text">${escapeHtml(post.body || '')}</div>
+            ${post.body && post.body.length > 80 ? '<button class="vp-desc-more" id="vp-desc-more">more</button>' : ''}
+          </div>
+          <div class="vp-views-row">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span>${formatNum(viewCount)} views</span>
+          </div>
+        </div>
+
+        <!-- YouTube-style progress bar (full width at bottom) -->
+        <div class="vp-controls" id="vp-controls">
+          <div class="vp-progress-bar" id="vp-progress-bar">
+            <div class="vp-progress-buffer" id="vp-progress-buffer"></div>
+            <div class="vp-progress-fill" id="vp-progress-fill"></div>
+            <div class="vp-progress-thumb" id="vp-progress-thumb"></div>
+            <div class="vp-progress-hover-time" id="vp-hover-time">0:00</div>
+          </div>
+          <div class="vp-controls-row">
+            <button class="vp-ctrl-btn" id="vp-play-btn">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="white" id="vp-play-svg"><polygon points="6,3 20,12 6,21"/></svg>
+            </button>
+            <span class="vp-time-display"><span id="vp-time-current">0:00</span> / <span id="vp-time-total">0:00</span></span>
+            <div class="vp-ctrl-spacer"></div>
+            <button class="vp-ctrl-btn" id="vp-mute-btn">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2" id="vp-vol-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comments panel -->
+      <div class="vp-comments-panel hidden" id="vp-comments-panel">
+        <div class="vp-comments-drag-handle"></div>
+        <div class="vp-comments-header">
+          <span id="vp-comments-title">Comments</span>
+          <button class="vp-comments-close" id="vp-comments-close">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="vp-comments-body comment-section" id="vp-comments-body" data-post-id="${postId}"></div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => overlay.classList.add('visible'));
+
+  // ── Element refs ──
+  const video = overlay.querySelector('.vp-video');
+  const stateIcon = overlay.querySelector('#vp-state-icon');
+  const progressFill = overlay.querySelector('#vp-progress-fill');
+  const progressBuffer = overlay.querySelector('#vp-progress-buffer');
+  const progressThumb = overlay.querySelector('#vp-progress-thumb');
+  const progressBar = overlay.querySelector('#vp-progress-bar');
+  const hoverTime = overlay.querySelector('#vp-hover-time');
+  const timeCurrent = overlay.querySelector('#vp-time-current');
+  const timeTotal = overlay.querySelector('#vp-time-total');
+  const heartBurst = overlay.querySelector('#vp-heart-burst');
+  const likeBtn = overlay.querySelector('#vp-like-btn');
+  const commentBtn = overlay.querySelector('#vp-comment-btn');
+  const commentsPanel = overlay.querySelector('#vp-comments-panel');
+  const commentsClose = overlay.querySelector('#vp-comments-close');
+  const shareBtn = overlay.querySelector('#vp-share-btn');
+  const bookmarkBtn = overlay.querySelector('#vp-bookmark-btn');
+  const skipBack = overlay.querySelector('#vp-skip-back');
+  const skipFwd = overlay.querySelector('#vp-skip-fwd');
+  const playBtn = overlay.querySelector('#vp-play-btn');
+  const playSvg = overlay.querySelector('#vp-play-svg');
+  const muteBtn = overlay.querySelector('#vp-mute-btn');
+  const volIcon = overlay.querySelector('#vp-vol-icon');
+  const descText = overlay.querySelector('#vp-desc-text');
+  const descMore = overlay.querySelector('#vp-desc-more');
+  const controls = overlay.querySelector('#vp-controls');
+
+  function fmtTime(s) {
+    if (isNaN(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  }
+
+  // ── Play / Pause ──
+  let stateTimeout;
+  function showStateIcon(playing) {
+    stateIcon.className = 'vp-state-icon show ' + (playing ? 'playing' : 'paused');
+    clearTimeout(stateTimeout);
+    stateTimeout = setTimeout(() => stateIcon.classList.remove('show'), 500);
+  }
+
+  function togglePlay() {
+    if (video.paused) {
+      video.play();
+      showStateIcon(true);
+    } else {
+      video.pause();
+      showStateIcon(false);
+    }
+    updatePlayBtn();
+  }
+
+  function updatePlayBtn() {
+    if (video.paused) {
+      playSvg.innerHTML = '<polygon points="6,3 20,12 6,21"/>';
+    } else {
+      playSvg.innerHTML = '<rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/>';
+    }
+  }
+
+  // Center tap toggles play
+  overlay.querySelector('.vp-tap-center').addEventListener('click', togglePlay);
+  playBtn.addEventListener('click', togglePlay);
+
+  // ── Double-tap detection ──
+  let lastTapTime = { left: 0, center: 0, right: 0 };
+
+  function handleDoubleTap(zone, action) {
+    zone.addEventListener('click', (e) => {
+      const now = Date.now();
+      const key = zone.classList.contains('vp-tap-left') ? 'left'
+                : zone.classList.contains('vp-tap-right') ? 'right' : 'center';
+      if (now - lastTapTime[key] < 300) {
+        e.stopPropagation();
+        action(e);
+      }
+      lastTapTime[key] = now;
+    });
+  }
+
+  // Double-tap center = like with particle burst
+  handleDoubleTap(overlay.querySelector('.vp-tap-center'), (e) => {
+    spawnHeartBurst(e);
+    if (!post._liked && isLoggedIn) vpToggleLike();
+  });
+
+  // Double-tap left = rewind 10s
+  handleDoubleTap(overlay.querySelector('.vp-tap-left'), () => {
+    video.currentTime = Math.max(0, video.currentTime - 10);
+    skipBack.classList.remove('show');
+    void skipBack.offsetWidth;
+    skipBack.classList.add('show');
+    setTimeout(() => skipBack.classList.remove('show'), 700);
+  });
+
+  // Double-tap right = forward 10s
+  handleDoubleTap(overlay.querySelector('.vp-tap-right'), () => {
+    video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+    skipFwd.classList.remove('show');
+    void skipFwd.offsetWidth;
+    skipFwd.classList.add('show');
+    setTimeout(() => skipFwd.classList.remove('show'), 700);
+  });
+
+  // ── Heart particle burst ──
+  function spawnHeartBurst(e) {
+    const rect = overlay.querySelector('.vp-video-area').getBoundingClientRect();
+    const x = (e.clientX || rect.width / 2) - rect.left;
+    const y = (e.clientY || rect.height / 2) - rect.top;
+    for (let i = 0; i < 7; i++) {
+      const heart = document.createElement('div');
+      heart.className = 'vp-heart-particle';
+      heart.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill="#ef4444"/></svg>';
+      heart.style.left = x + 'px';
+      heart.style.top = y + 'px';
+      heart.style.setProperty('--dx', (Math.random() - 0.5) * 120 + 'px');
+      heart.style.setProperty('--dy', -(Math.random() * 140 + 60) + 'px');
+      heart.style.setProperty('--rot', (Math.random() - 0.5) * 90 + 'deg');
+      heart.style.setProperty('--scale', (0.6 + Math.random() * 0.8));
+      heart.style.animationDelay = (i * 0.04) + 's';
+      heartBurst.appendChild(heart);
+      setTimeout(() => heart.remove(), 1000);
+    }
+  }
+
+  // ── Progress bar (YouTube-style) ──
+  video.addEventListener('loadedmetadata', () => {
+    timeTotal.textContent = fmtTime(video.duration);
+  });
+  video.addEventListener('timeupdate', () => {
+    if (!video.duration || isSeeking) return;
+    const pct = (video.currentTime / video.duration) * 100;
+    progressFill.style.width = pct + '%';
+    progressThumb.style.left = pct + '%';
+    timeCurrent.textContent = fmtTime(video.currentTime);
+  });
+  video.addEventListener('progress', () => {
+    if (video.buffered.length > 0) {
+      const buffered = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
+      progressBuffer.style.width = buffered + '%';
+    }
+  });
+  video.addEventListener('play', updatePlayBtn);
+  video.addEventListener('pause', updatePlayBtn);
+
+  // Seekable progress
+  let isSeeking = false;
+  function seekTo(clientX) {
+    const rect = progressBar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    video.currentTime = pct * (video.duration || 0);
+    progressFill.style.width = (pct * 100) + '%';
+    progressThumb.style.left = (pct * 100) + '%';
+    timeCurrent.textContent = fmtTime(video.currentTime);
+  }
+  progressBar.addEventListener('mousedown', (e) => { isSeeking = true; seekTo(e.clientX); progressBar.classList.add('seeking'); });
+  progressBar.addEventListener('touchstart', (e) => { isSeeking = true; seekTo(e.touches[0].clientX); progressBar.classList.add('seeking'); }, { passive: true });
+  document.addEventListener('mousemove', (e) => { if (isSeeking) seekTo(e.clientX); });
+  document.addEventListener('touchmove', (e) => { if (isSeeking) seekTo(e.touches[0].clientX); }, { passive: true });
+  document.addEventListener('mouseup', () => { if (isSeeking) { isSeeking = false; progressBar.classList.remove('seeking'); } });
+  document.addEventListener('touchend', () => { if (isSeeking) { isSeeking = false; progressBar.classList.remove('seeking'); } });
+
+  // Hover time preview
+  progressBar.addEventListener('mousemove', (e) => {
+    const rect = progressBar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    hoverTime.textContent = fmtTime(pct * (video.duration || 0));
+    hoverTime.style.left = (pct * 100) + '%';
+    hoverTime.classList.add('show');
+  });
+  progressBar.addEventListener('mouseleave', () => { hoverTime.classList.remove('show'); });
+
+  // ── Mute / volume ──
+  muteBtn.addEventListener('click', () => {
+    video.muted = !video.muted;
+    volIcon.innerHTML = video.muted
+      ? '<line x1="23" y1="1" x2="1" y2="23"/><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>'
+      : '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/>';
+  });
+
+  // ── Auto-hide controls ──
+  let hideTimer;
+  function showControls() {
+    overlay.classList.add('controls-visible');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (!video.paused && !isSeeking) overlay.classList.remove('controls-visible');
+    }, 3000);
+  }
+  overlay.addEventListener('mousemove', showControls);
+  overlay.addEventListener('touchstart', showControls, { passive: true });
+  showControls();
+  video.addEventListener('pause', () => overlay.classList.add('controls-visible'));
+  video.addEventListener('play', () => {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => overlay.classList.remove('controls-visible'), 3000);
+  });
+
+  // ── Like ──
+  async function vpToggleLike() {
+    if (!isLoggedIn) { showToast('Sign in to like', 'info'); return; }
+    likeBtn.classList.add('vp-btn-pop');
+    setTimeout(() => likeBtn.classList.remove('vp-btn-pop'), 300);
+    try {
+      const result = await api.reactToPost(postId, 'gg');
+      if (result.action === 'added') {
+        post._liked = true;
+        post.reactions.gg = (post.reactions.gg || 0) + 1;
+        likeBtn.classList.add('active');
+        likeBtn.querySelector('path').setAttribute('fill', 'currentColor');
+      } else {
+        post._liked = false;
+        post.reactions.gg = Math.max(0, (post.reactions.gg || 0) - 1);
+        likeBtn.classList.remove('active');
+        likeBtn.querySelector('path').removeAttribute('fill');
+      }
+      const tot = totalReactions(post.reactions);
+      overlay.querySelector('#vp-like-count').textContent = formatNum(tot);
+      // Sync feed
+      const feedBtn = document.querySelector(`#post-${postId} .like-btn`);
+      if (feedBtn) {
+        feedBtn.classList.toggle('liked', post._liked);
+        const fc = document.getElementById(`like-count-${postId}`);
+        if (fc) fc.textContent = formatNum(tot);
+      }
+    } catch { showToast('Failed to like', 'error'); }
+  }
+  likeBtn.addEventListener('click', vpToggleLike);
+
+  // ── Comments ──
+  commentBtn.addEventListener('click', () => {
+    commentsPanel.classList.toggle('hidden');
+    if (!commentsPanel.classList.contains('hidden')) {
+      loadCommentsInSection(postId, overlay.querySelector('#vp-comments-body'));
+    }
+  });
+  commentsClose.addEventListener('click', () => commentsPanel.classList.add('hidden'));
+
+  // ── Bookmark ──
+  bookmarkBtn.addEventListener('click', async () => {
+    bookmarkBtn.classList.add('vp-btn-pop');
+    setTimeout(() => bookmarkBtn.classList.remove('vp-btn-pop'), 300);
+    if (!isLoggedIn) { showToast('Sign in to bookmark', 'info'); return; }
+    try {
+      await api.toggleBookmark(postId);
+      bookmarkBtn.classList.toggle('active');
+      showToast(bookmarkBtn.classList.contains('active') ? 'Saved!' : 'Removed', 'success');
+    } catch { showToast('Failed', 'error'); }
+  });
+
+  // ── Share ──
+  shareBtn.addEventListener('click', () => {
+    if (navigator.share) {
+      navigator.share({ title: post.body || 'Check out this clip', url: window.location.href });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      showToast('Link copied!', 'success');
+    }
+  });
+
+  // ── Description expand ──
+  if (descMore) {
+    descMore.addEventListener('click', () => {
+      descText.classList.toggle('expanded');
+      descMore.textContent = descText.classList.contains('expanded') ? 'less' : 'more';
+    });
+  }
+
+  // ── More menu ──
+  overlay.querySelector('#vp-more-btn').addEventListener('click', () => {
+    showToast('More options coming soon', 'info');
+  });
+
+  // ── Close ──
+  function closeVideoPlayer() {
+    video.pause();
+    overlay.classList.remove('visible');
+    document.body.style.overflow = '';
+    clearTimeout(hideTimer);
+    setTimeout(() => overlay.remove(), 250);
+  }
+  window.closeVideoPlayer = closeVideoPlayer;
+  overlay.querySelector('#vp-close-btn').addEventListener('click', closeVideoPlayer);
+
+  // ── Keyboard shortcuts ──
+  function handleKeydown(e) {
+    if (e.key === 'Escape') { closeVideoPlayer(); document.removeEventListener('keydown', handleKeydown); }
+    if (e.key === ' ' || e.key === 'k') { e.preventDefault(); togglePlay(); }
+    if (e.key === 'ArrowLeft' || e.key === 'j') { video.currentTime = Math.max(0, video.currentTime - 10); }
+    if (e.key === 'ArrowRight' || e.key === 'l') { video.currentTime = Math.min(video.duration || 0, video.currentTime + 10); }
+    if (e.key === 'm') { video.muted = !video.muted; muteBtn.click(); }
+    if (e.key === 'f') { video.requestFullscreen?.(); }
+  }
+  document.addEventListener('keydown', handleKeydown);
+
+  // Auto play
+  video.play().then(() => updatePlayBtn()).catch(() => updatePlayBtn());
+  showControls();
+}
+
 function switchAnalyticsChart(btn, type) {
   btn.closest('.analytics-chart-tabs').querySelectorAll('.analytics-chart-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -3318,13 +4613,19 @@ function scrollToPost(postId) {
   }, 300);
 }
 
-function openUserProfile(userId) {
+async function openUserProfile(userId) {
   if (!userId) return;
   const myId = +(window.Auth?.getUser()?.id || window.CURRENT_USER.id || 0);
   if (+userId === myId) { navigate('profile'); return; }
   state._profileUserId = +userId;
   state._profileBack = state.currentSection;
-  navigate('user-profile');
+  // Resolve handle for URL
+  try {
+    const user = await api.getUser(userId);
+    const handle = cleanHandle(user.handle || user.username);
+    history.pushState(null, '', '#@' + handle);
+  } catch { /* fall back without hash */ }
+  navigate('user-profile', true);
 }
 
 function loadUserProfile() {
@@ -3392,7 +4693,7 @@ async function openFollowModal(type, userId) {
       <div class="follow-modal-user" onclick="closeFollowModal();openUserProfile(${u.id})">
         <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''};width:42px;height:42px;min-width:42px">${u.avatar_url?'':u.avatar||'?'}</div>
         <div style="flex:1">
-          <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:5px">${u.username} ${u.verified?'<span class="verified-badge">✓</span>':''} ${planBadge(u.plan)}</div>
+          <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:5px">${u.username} ${verifiedBadge(u)} ${planBadge(u.plan)}</div>
           <div style="color:var(--text-muted);font-size:12px">@${(u.handle||u.username).replace(/^@/,'')} · <span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
         </div>
       </div>`).join('');
@@ -3417,13 +4718,13 @@ async function loadWidgets() {
     document.getElementById('online-friends').innerHTML = onlineUsers.length
       ? onlineUsers.map(u => `
         <div class="friend-item" onclick="openUserProfile(${u.id})">
-          <div class="friend-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">
-            ${u.avatar||'?'}
+          <div class="friend-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}${u.avatar_url?`;background-image:url('${u.avatar_url}');background-size:cover;background-position:center`:''}">
+            ${u.avatar_url?'':u.avatar||'?'}
             <div class="friend-status-dot" style="background:var(--accent-green)"></div>
           </div>
           <div class="friend-info">
             <div class="friend-name">${u.username||'Player'}</div>
-            <div class="friend-game" data-uid="${u.id}">${u.now_playing ? '🎮 '+u.now_playing : 'In lobby'}</div>
+            <div class="friend-game" data-uid="${u.id}">${u.now_playing ? 'Playing '+u.now_playing : 'Online'}</div>
           </div>
         </div>`).join('')
       : `<div style="padding:12px;color:var(--text-muted);font-size:13px">No one online yet</div>`;
@@ -3441,11 +4742,14 @@ async function loadWidgets() {
         ? (g.twitch_viewers >= 1000 ? (g.twitch_viewers/1000).toFixed(1)+'K' : g.twitch_viewers) + ' live'
         : (g.players || '');
       const icon = g._icon || g.icon || '🎮';
+      const coverImg = g.cover_url
+        ? `<img src="${g.cover_url.replace('t_cover_big','t_thumb')}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="${name}">`
+        : `<div class="trend-icon">${icon}</div>`;
       return `<div class="trend-item" onclick="navigate('games')">
-        <div class="trend-icon">${icon}</div>
+        ${coverImg}
         <div class="trend-info">
           <div class="trend-name">${name}</div>
-          <div class="trend-players">🟢 ${viewers}</div>
+          <div class="trend-players">${viewers}</div>
         </div>
         <div class="trend-rank">#${i+1}</div>
       </div>`;
@@ -3456,7 +4760,7 @@ async function loadWidgets() {
         <div class="trend-icon">${g.icon}</div>
         <div class="trend-info">
           <div class="trend-name">${g.name}</div>
-          <div class="trend-players">🟢 ${g.players}</div>
+          <div class="trend-players">${g.players}</div>
         </div>
         <div class="trend-rank">#${i+1}</div>
       </div>`).join('');
@@ -3781,7 +5085,7 @@ async function doSearch(q) {
         return `<div class="search-player-card" onclick="openUserProfile(${u.id})">
           ${av}
           <div class="search-player-info">
-            <div class="search-player-name">${escapeHtml(u.username)} ${u.verified ? '<span class="verified-badge">✓</span>' : ''} ${planBadge(u.plan)}</div>
+            <div class="search-player-name">${escapeHtml(u.username)} ${verifiedBadge(u)} ${planBadge(u.plan)}</div>
             <div class="search-player-handle">@${escapeHtml((u.handle||u.username||'').replace(/^@/,''))}</div>
             ${u.bio ? `<div class="search-player-bio">${escapeHtml(u.bio).slice(0,80)}</div>` : ''}
           </div>
@@ -4036,6 +5340,375 @@ async function loadTrendingHashtags() {
 // BOOT — Real API version
 // ================================================================
 
+// ================================================================
+// HASH-BASED ROUTING
+// ================================================================
+
+const VALID_SECTIONS = ['home','explore','games','lfg','tournaments','messages','notifications','leaderboard','profile','people','plans','settings','bookmarks','clans','clips','search','admin'];
+
+async function handleHashRoute() {
+  const hash = window.location.hash.slice(1); // remove '#'
+  if (!hash) return false;
+
+  // User profile: #@handle
+  if (hash.startsWith('@')) {
+    const handle = hash.slice(1); // remove '@'
+    if (!handle) return false;
+    try {
+      const user = await api.getUserByHandle(handle);
+      if (user) {
+        const myId = +(window.Auth?.getUser()?.id || window.CURRENT_USER.id || 0);
+        if (+user.id === myId) {
+          navigate('profile', true);
+        } else {
+          state._profileUserId = +user.id;
+          state._profileBack = 'home';
+          navigate('user-profile', true);
+        }
+        return true;
+      }
+    } catch { /* user not found, fall through */ }
+    return false;
+  }
+
+  // Section routes: #explore, #games, #settings, etc.
+  if (VALID_SECTIONS.includes(hash)) {
+    navigate(hash, true);
+    return true;
+  }
+
+  return false;
+}
+
+window.addEventListener('popstate', () => {
+  handleHashRoute().then(handled => {
+    if (!handled) navigate('home', true);
+  });
+});
+
+// ================================================================
+// ADMIN PANEL (Owner only - @Dexide)
+// ================================================================
+let _adminTab = 'dashboard';
+let _adminUserSearch = '';
+let _adminUserPage = 1;
+
+async function loadAdmin() {
+  const container = document.getElementById('admin-container');
+  if (!container) return;
+  if (window.CURRENT_USER?.badge_type !== 'ownership') {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔒</div><p>Access denied</p></div>`;
+    return;
+  }
+  container.innerHTML = `
+    <div class="adm-tabs">
+      <button class="adm-tab ${_adminTab==='dashboard'?'active':''}" onclick="switchAdminTab('dashboard')">Dashboard</button>
+      <button class="adm-tab ${_adminTab==='users'?'active':''}" onclick="switchAdminTab('users')">Users</button>
+      <button class="adm-tab ${_adminTab==='content'?'active':''}" onclick="switchAdminTab('content')">Content</button>
+      <button class="adm-tab ${_adminTab==='badges'?'active':''}" onclick="switchAdminTab('badges')">Badges</button>
+    </div>
+    <div id="adm-content"></div>
+  `;
+  await renderAdminTab();
+}
+
+function switchAdminTab(tab) {
+  _adminTab = tab;
+  document.querySelectorAll('.adm-tab').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.adm-tab[onclick*="${tab}"]`);
+  if (btn) btn.classList.add('active');
+  renderAdminTab();
+}
+
+async function renderAdminTab() {
+  const el = document.getElementById('adm-content');
+  if (!el) return;
+  el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)"><div class="spinner" style="margin:0 auto 12px"></div></div>`;
+
+  if (_adminTab === 'dashboard') await renderAdminDashboard(el);
+  else if (_adminTab === 'users') await renderAdminUsers(el);
+  else if (_adminTab === 'content') await renderAdminContent(el);
+  else if (_adminTab === 'badges') renderAdminBadges(el);
+}
+
+async function renderAdminDashboard(el) {
+  try {
+    const s = await api.adminStats();
+    el.innerHTML = `
+      <div class="adm-stats-grid">
+        <div class="adm-stat-card adm-stat-purple">
+          <div class="adm-stat-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+          <div class="adm-stat-val">${formatNum(s.totalUsers)}</div>
+          <div class="adm-stat-label">Total Users</div>
+          <div class="adm-stat-sub">+${s.usersToday} today / +${s.usersThisWeek} this week</div>
+        </div>
+        <div class="adm-stat-card adm-stat-blue">
+          <div class="adm-stat-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+          <div class="adm-stat-val">${formatNum(s.totalPosts)}</div>
+          <div class="adm-stat-label">Total Posts</div>
+          <div class="adm-stat-sub">+${s.postsToday} today / +${s.postsThisWeek} this week</div>
+        </div>
+        <div class="adm-stat-card adm-stat-green">
+          <div class="adm-stat-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="adm-stat-val">${s.onlineCount}</div>
+          <div class="adm-stat-label">Online Now</div>
+          <div class="adm-stat-sub">${s.commentsToday} comments today</div>
+        </div>
+        <div class="adm-stat-card adm-stat-amber">
+          <div class="adm-stat-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
+          <div class="adm-stat-val">${formatNum(s.totalReactions)}</div>
+          <div class="adm-stat-label">Total Reactions</div>
+          <div class="adm-stat-sub">${formatNum(s.totalComments)} comments</div>
+        </div>
+      </div>
+
+      <div class="adm-row">
+        <div class="adm-card">
+          <div class="adm-card-title">Subscription Breakdown</div>
+          <div class="adm-plan-bars">
+            <div class="adm-plan-row">
+              <span class="adm-plan-label">Free</span>
+              <div class="adm-plan-bar"><div class="adm-plan-fill" style="width:${s.totalUsers?Math.round((s.planCounts.free/s.totalUsers)*100):0}%;background:#6b7280"></div></div>
+              <span class="adm-plan-count">${s.planCounts.free||0}</span>
+            </div>
+            <div class="adm-plan-row">
+              <span class="adm-plan-label" style="color:#a78bfa">DXED+</span>
+              <div class="adm-plan-bar"><div class="adm-plan-fill" style="width:${s.totalUsers?Math.round((s.planCounts.plus/s.totalUsers)*100):0}%;background:#8b5cf6"></div></div>
+              <span class="adm-plan-count">${s.planCounts.plus||0}</span>
+            </div>
+            <div class="adm-plan-row">
+              <span class="adm-plan-label" style="color:#fbbf24">DXED Pro</span>
+              <div class="adm-plan-bar"><div class="adm-plan-fill" style="width:${s.totalUsers?Math.round((s.planCounts.pro/s.totalUsers)*100):0}%;background:#f59e0b"></div></div>
+              <span class="adm-plan-count">${s.planCounts.pro||0}</span>
+            </div>
+          </div>
+        </div>
+        <div class="adm-card">
+          <div class="adm-card-title">Platform Stats</div>
+          <div class="adm-misc-stats">
+            <div class="adm-misc-row"><span>LFG Posts</span><strong>${s.lfgPosts}</strong></div>
+            <div class="adm-misc-row"><span>Clans</span><strong>${s.clans}</strong></div>
+            <div class="adm-misc-row"><span>Messages</span><strong>${formatNum(s.messages)}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="adm-card">
+        <div class="adm-card-title">User Growth (14 Days)</div>
+        <div class="adm-growth-chart">
+          ${s.growth.map(d => `
+            <div class="adm-growth-bar-wrap">
+              <div class="adm-growth-bar" style="height:${d.users?Math.max(8,d.users*20):4}px" title="${d.users} new users"></div>
+              <span class="adm-growth-label">${d.day}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      ${s.topPosters.length ? `
+      <div class="adm-card">
+        <div class="adm-card-title">Top Posters</div>
+        <div class="adm-top-list">
+          ${s.topPosters.map((u, i) => `
+            <div class="adm-top-item" onclick="openUserProfile(${u.id})">
+              <span class="adm-top-rank">${i+1}</span>
+              <div class="adm-top-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
+              <span class="adm-top-name">${u.username}</span>
+              <span class="adm-top-count">${u.count} posts</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
+    `;
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>Failed to load stats</p></div>`;
+  }
+}
+
+async function renderAdminUsers(el) {
+  try {
+    const data = await api.adminUsers(_adminUserSearch, _adminUserPage);
+    el.innerHTML = `
+      <div class="adm-toolbar">
+        <div class="adm-search-wrap">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="adm-search" placeholder="Search users by name, handle, or email..." value="${_adminUserSearch}" oninput="admSearchUsers(this.value)">
+        </div>
+        <span class="adm-count">${data.total} users</span>
+      </div>
+      <div class="adm-users-table">
+        <div class="adm-table-head">
+          <span class="adm-th" style="flex:2">User</span>
+          <span class="adm-th">Plan</span>
+          <span class="adm-th">Badge</span>
+          <span class="adm-th">Status</span>
+          <span class="adm-th" style="flex:1.5">Actions</span>
+        </div>
+        ${data.users.map(u => `
+          <div class="adm-table-row" id="adm-user-${u.id}">
+            <div class="adm-td" style="flex:2;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openUserProfile(${u.id})">
+              <div class="adm-user-av" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
+              <div>
+                <div style="font-weight:700;font-size:13px;color:white">${escapeHtml(u.username||'')}</div>
+                <div style="font-size:11px;color:var(--text-muted)">@${u.handle||u.username} &middot; ID: ${u.id}</div>
+              </div>
+            </div>
+            <div class="adm-td">
+              <select class="adm-select" onchange="admUpdateUser(${u.id},{plan:this.value})">
+                <option value="free" ${(u.plan||'free')==='free'?'selected':''}>Free</option>
+                <option value="plus" ${u.plan==='plus'?'selected':''}>DXED+</option>
+                <option value="pro" ${u.plan==='pro'?'selected':''}>Pro</option>
+              </select>
+            </div>
+            <div class="adm-td">
+              <select class="adm-select" onchange="admUpdateUser(${u.id},{badge_type:this.value})">
+                <option value="" ${!u.badge_type?'selected':''}>None</option>
+                <option value="official" ${u.badge_type==='official'?'selected':''}>Official</option>
+                <option value="verified" ${u.badge_type==='verified'?'selected':''}>Verified</option>
+                <option value="trusted" ${u.badge_type==='trusted'?'selected':''}>Trusted</option>
+                <option value="gold" ${u.badge_type==='gold'?'selected':''}>Gold</option>
+                <option value="premium" ${u.badge_type==='premium'?'selected':''}>Premium</option>
+                <option value="creator" ${u.badge_type==='creator'?'selected':''}>Creator</option>
+                <option value="partner" ${u.badge_type==='partner'?'selected':''}>Partner</option>
+                <option value="staff" ${u.badge_type==='staff'?'selected':''}>Staff</option>
+                <option value="admin" ${u.badge_type==='admin'?'selected':''}>Admin</option>
+                <option value="legend" ${u.badge_type==='legend'?'selected':''}>Legend</option>
+                <option value="newcomer" ${u.badge_type==='newcomer'?'selected':''}>New</option>
+                <option value="elite" ${u.badge_type==='elite'?'selected':''}>Elite</option>
+              </select>
+            </div>
+            <div class="adm-td">
+              <span class="adm-status ${u.online?'adm-online':'adm-offline'}">${u.online?'Online':'Offline'}</span>
+            </div>
+            <div class="adm-td" style="flex:1.5;display:flex;gap:6px">
+              <button class="adm-btn adm-btn-warn" onclick="admBanUser(${u.id},'${escapeHtml(u.username||'')}')" title="Ban">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              </button>
+              <button class="adm-btn adm-btn-danger" onclick="admDeleteUser(${u.id},'${escapeHtml(u.username||'')}')" title="Delete">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m2 0v14a2 2 0 01-2 2H8a2 2 0 01-2-2V6h12"/></svg>
+              </button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ${data.pages > 1 ? `
+      <div class="adm-pagination">
+        ${_adminUserPage > 1 ? `<button class="adm-btn" onclick="_adminUserPage--;renderAdminTab()">Prev</button>` : ''}
+        <span class="adm-page-info">Page ${data.page} of ${data.pages}</span>
+        ${_adminUserPage < data.pages ? `<button class="adm-btn" onclick="_adminUserPage++;renderAdminTab()">Next</button>` : ''}
+      </div>` : ''}
+    `;
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>Failed to load users</p></div>`;
+  }
+}
+
+let _admSearchTimeout;
+function admSearchUsers(q) {
+  clearTimeout(_admSearchTimeout);
+  _admSearchTimeout = setTimeout(() => {
+    _adminUserSearch = q;
+    _adminUserPage = 1;
+    renderAdminTab();
+  }, 300);
+}
+
+async function admUpdateUser(id, changes) {
+  try {
+    await api.adminUpdateUser(id, changes);
+    showToast('User updated', 'success');
+  } catch (err) {
+    showToast('Update failed: ' + (err.message || ''), 'error');
+  }
+}
+
+async function admBanUser(id, name) {
+  if (!confirm(`Ban user "${name}"? They will be unable to use the platform.`)) return;
+  try {
+    await api.adminUpdateUser(id, { banned: true, ban_reason: 'Banned by admin' });
+    showToast(`${name} has been banned`, 'success');
+    renderAdminTab();
+  } catch (err) {
+    showToast('Ban failed', 'error');
+  }
+}
+
+async function admDeleteUser(id, name) {
+  if (!confirm(`Permanently delete user "${name}" and all their data? This cannot be undone.`)) return;
+  if (!confirm(`Are you absolutely sure? This is irreversible.`)) return;
+  try {
+    await api.adminDeleteUser(id);
+    showToast(`${name} has been deleted`, 'success');
+    renderAdminTab();
+  } catch (err) {
+    showToast('Delete failed', 'error');
+  }
+}
+
+async function admDeletePost(id) {
+  if (!confirm('Delete this post?')) return;
+  try {
+    await api.adminDeletePost(id);
+    showToast('Post deleted', 'success');
+    renderAdminTab();
+  } catch (err) {
+    showToast('Delete failed', 'error');
+  }
+}
+
+async function renderAdminContent(el) {
+  try {
+    const data = await api.adminReported();
+    el.innerHTML = `
+      <div class="adm-card" style="margin-top:0">
+        <div class="adm-card-title">Recent Posts</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">Review and moderate recent content across the platform.</p>
+        <div class="adm-content-list">
+          ${data.posts.map(p => `
+            <div class="adm-content-item">
+              <div class="adm-content-meta">
+                <div class="adm-user-av" style="background:${p.user?.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${p.user?.avatar_url?`background-image:url('${p.user.avatar_url}');background-size:cover`:''};width:28px;height:28px;font-size:10px">${p.user?.avatar_url?'':p.user?.avatar||'?'}</div>
+                <strong>${p.user?.username||'Unknown'}</strong>
+                <span style="color:var(--text-muted);font-size:11px">${p.time||''}</span>
+              </div>
+              <div class="adm-content-body">${escapeHtml((p.body||'').substring(0,200))}${(p.body||'').length>200?'...':''}</div>
+              ${p.image_url?`<img src="${p.image_url}" style="max-width:200px;border-radius:8px;margin-top:6px">`:''}
+              <div class="adm-content-actions">
+                <span style="font-size:11px;color:var(--text-muted)">${p.type||'post'} &middot; ${totalReactions(p.reactions||{})} reactions &middot; ${p.comments_count||0} comments</span>
+                <button class="adm-btn adm-btn-danger" onclick="admDeletePost(${p.id})">Delete Post</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } catch {
+    el.innerHTML = `<div class="empty-state"><p>Failed to load content</p></div>`;
+  }
+}
+
+function renderAdminBadges(el) {
+  const badges = Object.entries(BADGE_TYPES);
+  el.innerHTML = `
+    <div class="adm-card" style="margin-top:0">
+      <div class="adm-card-title">Badge Reference</div>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">All available verification badge types. Assign badges from the Users tab.</p>
+      <div class="adm-badges-grid">
+        ${badges.map(([key, b]) => `
+          <div class="adm-badge-card">
+            <div class="adm-badge-preview">${verifiedBadge({verified:true,badge_type:key}, true)}</div>
+            <div class="adm-badge-info">
+              <div class="adm-badge-name">${b.title}</div>
+              <div class="adm-badge-key">${key}</div>
+              <div class="adm-badge-color" style="color:${b.color}">${b.color}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
 async function init(user) {
   if (user) {
     const u = window.CURRENT_USER;
@@ -4054,10 +5727,21 @@ async function init(user) {
     u.avatar_url = user.avatar_url || null;
     u.email     = user.email;
     u.games     = user.games || [];
+    u.badge_type = user.badge_type || '';
+    u.plan      = user.plan || 'free';
   }
+  // Show admin nav only for platform owner
+  const isOwner = window.CURRENT_USER?.badge_type === 'ownership';
+  ['nav-admin', 'mobile-admin', 'mobile-nav-admin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isOwner ? '' : 'none';
+  });
+
   updateSidebarUser();
   await loadWidgets();
-  navigate('home');
+  // Route based on initial URL hash, or default to home
+  const handled = await handleHashRoute();
+  if (!handled) navigate('home');
   await updateNotifBadge();
   loadChallengesWidget();
   loadTrendingHashtags();
@@ -4134,7 +5818,7 @@ async function loadClips() {
 function renderClipCard(post) {
   const user = post.user || {};
   const total = totalReactions(post.reactions || {});
-  return `<div class="clip-card" onclick="playClipInline(this, '${post.clip_url}', ${post.id})">
+  return `<div class="clip-card" onclick="openVideoPlayer(${post.id})">
     <div class="clip-card-thumb">
       <video src="${post.clip_url}" muted preload="metadata"></video>
       <div class="clip-card-play">▶</div>
