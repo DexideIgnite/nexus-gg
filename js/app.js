@@ -5387,10 +5387,10 @@ async function init(user) {
   }
   // Show admin nav only for platform owner (user_id=1)
   const isOwner = window.CURRENT_USER?.id === 1;
-  const adminNav = document.getElementById('nav-admin');
-  if (adminNav) adminNav.style.display = isOwner ? '' : 'none';
-  const mobileAdmin = document.getElementById('mobile-admin');
-  if (mobileAdmin) mobileAdmin.style.display = isOwner ? '' : 'none';
+  ['nav-admin', 'mobile-admin', 'mobile-nav-admin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isOwner ? '' : 'none';
+  });
 
   updateSidebarUser();
   await loadWidgets();

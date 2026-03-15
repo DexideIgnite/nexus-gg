@@ -3547,8 +3547,10 @@ body {
 .adm-badge-key { font-size: 10px; color: var(--text-muted); font-family: monospace; }
 .adm-badge-color { font-size: 10px; font-weight: 600; }
 
-/* Mobile more menu admin item */
+/* Mobile admin nav + more menu */
 .mobile-more-admin svg { fill: none; stroke: currentColor; stroke-width: 2; }
+.mobile-nav-admin.active { color: #f59e0b !important; }
+.mobile-nav-admin svg { width: 22px; height: 22px; }
 
 /* Admin panel mobile responsiveness */
 @media (max-width: 768px) {
