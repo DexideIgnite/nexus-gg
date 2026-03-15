@@ -83,6 +83,7 @@ const state = {
   followedGames: JSON.parse(localStorage.getItem('nx_followed_games') || '[]'),
   feedTab: 'for-you',
   exploreTab: 'trending',
+  newsFilter: 'all',
   gamesFilter: 'all',
   notifs: [],
 };
@@ -2059,23 +2060,7 @@ async function renderExploreContent(tab) {
       container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load players</p></div>`;
     }
   } else {
-    const news = [
-      { title:'Valorant Episode 9 Act 2 launches with new Agent Thorn', desc:'Riot drops massive patch including map rework and new tactical ability system.', icon:'🎯', time:'1h ago' },
-      { title:'Minecraft 1.21.5 drops with new cave biomes and mobs', desc:'The "Deep Darkness" update is finally here with 4 new biomes and 12 new mobs.', icon:'⛏️', time:'3h ago' },
-      { title:'CS2 Major results: Team Vitality claim back-to-back trophies', desc:'Historic run ends in 2-0 sweep of NaVi in Copenhagen finals.', icon:'💣', time:'5h ago' },
-      { title:'Elden Ring DLC "Shattered Realms" announced for Q3', desc:'FromSoftware teases a 30+ hour expansion with 8 new Legacy Dungeons.', icon:'⚱️', time:'8h ago' },
-    ];
-    container.innerHTML = `<div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
-      ${news.map(n => `
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;display:flex;gap:14px;transition:all .2s" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
-          <div style="font-size:36px;flex-shrink:0">${n.icon}</div>
-          <div>
-            <div style="font-weight:800;font-size:14px;margin-bottom:6px">${n.title}</div>
-            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${n.desc}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:8px">📰 ${n.time}</div>
-          </div>
-        </div>`).join('')}
-    </div>`;
+    renderPatchNotes(container);
   }
 }
 
@@ -2094,6 +2079,246 @@ async function searchExplore(val) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Search failed</p></div>`;
   }
 }
+
+// ================================================================
+// PATCH NOTES / NEWS
+// ================================================================
+
+const PATCH_NOTES = [
+  {
+    game: 'Fortnite', icon: '🔫', color: '#1e90ff', version: 'v39.51',
+    date: 'Mar 5, 2026', tag: 'BATTLE ROYALE',
+    title: 'OG Weapons Return + Rick & Morty Wave 2',
+    summary: 'Pump Shotgun, Combat Shotgun, Suppressed SMG and Hunting Rifle unvaulted with tuned stats. Pickle Rick and Prime Rick skins arrive March 7.',
+    details: [
+      'MK-Seven and Deadeye AR shots become projectiles beyond 100m (no longer hitscan at range)',
+      'Rick and Morty collab wave 2: Pickle Rick skin earnable via in-game tourney',
+      'Wild Week 2 (Mar 12): Vending Machines stock Legendary/Exotic/Mythic loot, triple Gold Bars',
+      'Balloons unvaulted; Tactical AR, Deadeye AR, Vengeful Sniper, and Sovereign Shotgun vaulted',
+      'Dark Voyager live event on March 14; Chapter 7 Season 2 (v40.00) launches March 19',
+    ],
+  },
+  {
+    game: 'Call of Duty', icon: '💥', color: '#ff4500', version: 'Season 02 Reloaded',
+    date: 'Mar 10, 2026', tag: 'BLACK OPS 7 / WARZONE',
+    title: 'Black Ops Royale Launches — Warzone Reimagined',
+    summary: 'Brand new Warzone mode with no Loadouts, in-match progression, signature gear, and dynamic world events.',
+    details: [
+      'Black Ops Royale: completely new BR experience — no loadouts, loot-based progression per match',
+      'Win Streak progress tracker added to track consecutive victories',
+      'Altitude Tactics Event: earn Voyak KT-3 Assault Rifle plus camos and reticles across four modes',
+      'Bug fixes: Trauma Kit spectator HUD, wingsuit downed state, Polaris vehicle eject, Reactive Armor perk',
+      'Iron Gauntlet competitive mode and Redacted Contracts (mystery objectives) from March 3 patch',
+    ],
+  },
+  {
+    game: 'Apex Legends', icon: '🦾', color: '#da292a', version: 'Season 28: Breach',
+    date: 'Mar 10, 2026', tag: 'BATTLE ROYALE',
+    title: 'Gundam Takeover Event — Mobile Suits Crash Broken Moon',
+    summary: 'Gundam x Apex crossover transforms Broken Moon with destroyed Mobile Suits. New weapons and Wildcard abilities.',
+    details: [
+      'Broken Moon transformed with Wing Gundam statues and destroyed Mobile Suit debris',
+      'New weapons: Buster Rifle (Care Package — aerial recon + wall-scan + laser beam), Bit Staves (shield/drone mode)',
+      'New Wildcard abilities: Epyon\'s Lash (magnetic pull), Heavyarms Salvo (airstrike), Zero Sacrifice/Rebirth',
+      'Fuse buffs: Tactical duration doubled to ~4s, Ultimate pullout time reduced 25%, explosive wave delay halved',
+      '8 Gundam Legend skins, 8 themed weapon skins, 2 Mythic Universal Melees',
+    ],
+  },
+  {
+    game: 'Marvel Rivals', icon: '🦸', color: '#ed1d24', version: 'Season 6.5',
+    date: 'Mar 12, 2026', tag: 'HERO SHOOTER',
+    title: 'The Thing: Fear Itself + Bug Fixes',
+    summary: 'New store content and multiple bug fixes including Punisher proficiency badges and Rogue costume fixes.',
+    details: [
+      'New store content: The Thing — Fear Itself skin',
+      'Fixed Punisher proficiency badge display issue',
+      'Fixed Rogue\'s Mrs. X costume translucent material rendering',
+      'Controller surrender shortcut can now be remapped',
+      'Chrono-Rush event active (Mar 5-20) with uncapped Chrono Token earning; new Psylocke and Captain America costumes',
+    ],
+  },
+  {
+    game: 'Counter-Strike 2', icon: '💣', color: '#de9b35', version: 'Dead Hand Update',
+    date: 'Mar 11, 2026', tag: 'TACTICAL SHOOTER',
+    title: 'Dead Hand Collection — 17 New Finishes + 22 Gloves',
+    summary: 'Community-contributed weapon finishes and all-new gloves accessible via Dead Hand Terminal as weekly drops — no cases needed.',
+    details: [
+      '17 community-contributed weapon finishes in the Dead Hand Collection',
+      '22 all-new gloves available as rare special items',
+      'Items accessible via Dead Hand Terminal as weekly drops (no cases/gambling)',
+      'Dust II fix: pixel gap in door Outside Long patched',
+      'Previous patch (Mar 4): Inferno A-site rework — graveyard closed off, apartment balcony extended',
+    ],
+  },
+  {
+    game: 'Overwatch 2', icon: '🎯', color: '#f99e1a', version: 'Mar 10 Balance Patch',
+    date: 'Mar 12, 2026', tag: 'HERO SHOOTER',
+    title: 'Roadhog Buff, Illari Nerfs, Bruiser Subrole Rework',
+    summary: 'Roadhog Scrap Gun damage increased for Hook combo consistency. Illari attack speed and damage nerfed. Bruiser subrole triggers at 50% HP.',
+    details: [
+      'Roadhog: Scrap Gun damage per pellet 6.5 → 7 (improves Hook combo kill consistency)',
+      'Illari: Attack speed bonus 30% → 20%, damage 70 → 50, secondary fire resource 3.5s → 3s',
+      'Bruiser subrole: now triggers below 50% HP instead of critical health (major buff)',
+      'Medic subrole: self-healing 25% → 40%; Initiator subrole: healing 75 → 60',
+      'Jetpack Cat: Territorial perk removed; Claws Out moved to Major perk with reduced cooldown (hotfixed Mar 12)',
+    ],
+  },
+  {
+    game: 'Valorant', icon: '🎮', color: '#ff4655', version: 'Patch 12.04',
+    date: 'Mar 3, 2026', tag: 'TACTICAL SHOOTER',
+    title: 'Killjoy Turret QoL + New Progression Hub',
+    summary: 'Killjoy Turret can now rotate with ALT-FIRE. Battlepass tab replaced with Progression Hub showing all progress at a glance.',
+    details: [
+      'Killjoy Turret QoL: can now rotate with ALT-FIRE, ACTIVATE swaps direction (aligned with Sage Barrier Orb)',
+      'Performance fix for stuttering issues introduced in 12.03',
+      'End of Game/Career screens revamped with new Rank summary screen showing RR gains/losses',
+      'Battlepass tab replaced with Progression Hub showing all progress at a glance',
+      'New Sova voicelines added; Patch 12.05 / Act 2 expected March 18',
+    ],
+  },
+  {
+    game: 'League of Legends', icon: '⚔️', color: '#c8aa6e', version: 'Patch 26.5',
+    date: 'Mar 4, 2026', tag: 'MOBA',
+    title: 'Jungle Buffs, Mid Nerfs, Gameplay Bans',
+    summary: 'Lee Sin, Lillia, Nocturne, Volibear buffed. Orianna, Azir, Taliyah nerfed. Gameplay bans replace chat-only bans for toxic players.',
+    details: [
+      'Jungle buffs: Lee Sin, Lillia, Nocturne, Volibear; plus Garen and Mel',
+      'Mid lane nerfs: Orianna, Azir, Taliyah, Neeko, and Kha\'Zix',
+      'Behavioral changes: gameplay bans (not just chat bans) for severely disruptive comms',
+      'Last Hit Assistance feature goes live; Brawl mode returns (Mar 4 – Apr 28)',
+      'New skins: Corrupted Petricite Maokai & Xerath, Prestige Requiem Sona',
+    ],
+  },
+  {
+    game: 'Minecraft', icon: '⛏️', color: '#62b03f', version: '26.1 Pre-Release',
+    date: 'Mar 11, 2026', tag: 'SANDBOX',
+    title: 'Tiny Takeover — Baby Mobs Overhaul',
+    summary: 'Baby mobs get a visual overhaul with chunkier, fluffier designs. Golden Dandelion keeps baby mobs young forever.',
+    details: [
+      'Baby mob visual overhaul: baby wolves, kittens, piglets, calves, chicks, lambs, rabbits now chunkier/fluffier with new sounds',
+      'New baby mounts: mules, skeleton foals, zombie foals, baby donkeys, regular foals',
+      'Golden Dandelion: keeps baby mobs young forever (8 gold ingots + dandelion); feeding another reverses it',
+      'Craftable Name Tags (any nugget + paper)',
+      'New version numbering: versions now start with year (26.x for 2026)',
+    ],
+  },
+  {
+    game: 'Destiny 2', icon: '🪐', color: '#97d8e0', version: 'Update 9.5.5.5',
+    date: 'Mar 10, 2026', tag: 'LOOTER SHOOTER',
+    title: 'Stability Fixes + Suros Week',
+    summary: 'Fixed weapons not benefiting from Weapon Foundry Sponsorships. Suros Week overcharges all Suros weapons in Portal activities.',
+    details: [
+      'Fixed weapons not benefiting from Weapon Foundry Sponsorships when active',
+      'General stability fixes and performance improvements',
+      'Suros Week (Mar 10-17): all Suros weapons overcharged in Portal activities',
+      'Trials of Osiris returns March 13 on Javelin-4 map',
+      'Guardian Games teased for March 24 start',
+    ],
+  },
+  {
+    game: 'GTA VI', icon: '🚗', color: '#81c946', version: 'News',
+    date: 'Mar 2026', tag: 'UPCOMING',
+    title: 'Release Date Confirmed: November 19, 2026',
+    summary: 'Rockstar confirms GTA VI launches November 19, 2026 on PS5 and Xbox Series X|S. PC expected by end of 2026.',
+    details: [
+      'Release date confirmed: November 19, 2026 for PS5 and Xbox Series X|S; PC expected by end of 2026',
+      'GTA 6 Title ID added to PlayStation Store on March 1 — pre-orders may be imminent',
+      'Rockstar posted unusual 3-week GTA Online roadmap through April 1, clearing news slate for possible GTA VI reveal',
+      'Every major publisher avoiding Oct-Dec window to dodge competing with GTA VI',
+      'Game reportedly still not content complete per Jason Schreier reporting',
+    ],
+  },
+  {
+    game: 'Helldivers 2', icon: '🪖', color: '#ffe03d', version: 'Patch 6.0.3',
+    date: 'Feb 10, 2026', tag: 'CO-OP SHOOTER',
+    title: 'Melee Rebalancing + Siegebreakers Warbond',
+    summary: 'All melee weapons buffed with new combos. Siegebreakers Warbond adds new armor sets and stratagems. Next patch expected March 17.',
+    details: [
+      'Melee rebalancing: all melee weapons buffed with improved combos and damage',
+      'Siegebreakers Warbond: new armor sets, stratagems, and cosmetics',
+      'Patch 6.0.1 (Feb 3): "Into The Unjust" added new tank vehicle and increased high-difficulty intensity',
+      'Enemies now better at aiming on higher difficulties',
+      'Next patch expected March 17 — will remove "large" build option from Steam',
+    ],
+  },
+  {
+    game: 'Path of Exile 2', icon: '🗡️', color: '#af6025', version: '0.4.0d',
+    date: 'Jan 26, 2026', tag: 'ARPG',
+    title: 'Hotfix 3 — Major 0.5.0 Update Coming April/May',
+    summary: 'Current patch fixes from January. The massive 0.5.0 update with full endgame/mapping rework is confirmed for late April reveal.',
+    details: [
+      'Latest patch is 0.4.0d Hotfix 3 with bug fixes and balance tuning',
+      'Major 0.5.0 update confirmed for late April reveal, early May release',
+      'Full endgame/mapping system rework expected in 0.5.0',
+      'Possible new Ascendancy classes found in data files: Arcane Archer (Ranger), Wild Speaker (Huntress)',
+      'Full 1.0 release expected late 2026; ExileCon November 7-8',
+    ],
+  },
+  {
+    game: 'Palworld', icon: '🐾', color: '#36c5f0', version: 'v0.7.1',
+    date: 'Jan 22, 2026', tag: 'SURVIVAL',
+    title: 'Combat Balance + Road to 1.0',
+    summary: 'Combat balance adjustments and bug fixes. Pocketpair focused on polishing for the 1.0 full release planned for 2026.',
+    details: [
+      'Combat balance adjustments with Pal damage and capture rate tweaks',
+      'Various bug fixes for stability and performance',
+      'Pocketpair focused on polishing for the 1.0 full release planned for 2026',
+      'World Tree confirmed as centerpiece of endgame content in 1.0',
+      'No March patch — next major update expected with 1.0 release',
+    ],
+  },
+];
+
+function renderPatchNotes(container) {
+  const filterTag = state.newsFilter || 'all';
+  const tags = ['all', ...new Set(PATCH_NOTES.map(n => n.tag))];
+  const filtered = filterTag === 'all' ? PATCH_NOTES : PATCH_NOTES.filter(n => n.tag === filterTag);
+
+  container.innerHTML = `
+    <div style="padding:12px 16px 0;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:18px">📋</span>
+        <span style="font-weight:800;font-size:16px">Game Patch Notes</span>
+        <span style="font-size:12px;color:var(--text-muted);margin-left:auto">Updated Mar 14, 2026</span>
+      </div>
+      <div class="news-filter-row" style="display:flex;gap:6px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        ${tags.map(t => `<button class="news-filter-chip ${t === filterTag ? 'active' : ''}" onclick="state.newsFilter='${t}';renderPatchNotes(document.getElementById('explore-content'))" style="padding:4px 10px;border-radius:20px;border:1px solid ${t === filterTag ? 'var(--accent)' : 'var(--border)'};background:${t === filterTag ? 'var(--accent)' : 'var(--bg-card)'};color:${t === filterTag ? '#fff' : 'var(--text-secondary)'};font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s">${t === 'all' ? 'All Games' : t}</button>`).join('')}
+      </div>
+      ${filtered.map((n, i) => `
+        <div class="news-patch-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:all .2s" onmouseenter="this.style.borderColor='${n.color}'" onmouseleave="this.style.borderColor='var(--border)'">
+          <div style="padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:flex-start" onclick="togglePatchDetail(${i})">
+            <div style="font-size:28px;flex-shrink:0;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:${n.color}22;border-radius:10px">${n.icon}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+                <span style="font-weight:800;font-size:13px;color:${n.color}">${n.game}</span>
+                <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${n.color}22;color:${n.color};font-weight:700">${n.version}</span>
+                <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--bg-tertiary);color:var(--text-muted);font-weight:600">${n.tag}</span>
+              </div>
+              <div style="font-weight:700;font-size:14px;margin-bottom:4px;line-height:1.3">${n.title}</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5">${n.summary}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px">📰 ${n.date}</div>
+            </div>
+            <div id="patch-arrow-${i}" style="color:var(--text-muted);transition:transform .2s;flex-shrink:0;margin-top:4px">▶</div>
+          </div>
+          <div id="patch-detail-${i}" style="display:none;padding:0 16px 14px 68px;border-top:1px solid var(--border)">
+            <ul style="margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px">
+              ${n.details.map(d => `<li style="font-size:12px;color:var(--text-secondary);line-height:1.5;display:flex;gap:8px;align-items:flex-start"><span style="color:${n.color};font-weight:700;flex-shrink:0">▸</span><span>${d}</span></li>`).join('')}
+            </ul>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+window.renderPatchNotes = renderPatchNotes;
+
+function togglePatchDetail(idx) {
+  const detail = document.getElementById(`patch-detail-${idx}`);
+  const arrow = document.getElementById(`patch-arrow-${idx}`);
+  if (!detail) return;
+  const open = detail.style.display !== 'none';
+  detail.style.display = open ? 'none' : 'block';
+  if (arrow) arrow.style.transform = open ? '' : 'rotate(90deg)';
+}
+window.togglePatchDetail = togglePatchDetail;
 
 // ================================================================
 // GAMES
