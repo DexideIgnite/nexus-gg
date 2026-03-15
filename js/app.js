@@ -100,6 +100,34 @@ function rankBadgeClass(rank) {
   return 'rank-badge rank-' + (map[rank] || 'gold');
 }
 
+// Badge type config: label, color, title
+const BADGE_TYPES = {
+  official:  { label: 'Official',  color: '#1D9BF0', title: 'Official Account' },
+  verified:  { label: 'Verified',  color: '#7C3AED', title: 'Verified' },
+  trusted:   { label: 'Trusted',   color: '#059669', title: 'Trusted Member' },
+  gold:      { label: 'Gold',      color: '#D97706', title: 'Gold Verified' },
+  premium:   { label: 'Premium',   color: '#DC2626', title: 'Premium' },
+  creator:   { label: 'Creator',   color: '#DB2777', title: 'Creator' },
+  partner:   { label: 'Partner',   color: '#0891B2', title: 'Partner' },
+  staff:     { label: 'Staff',     color: '#65A30D', title: 'Staff' },
+  admin:     { label: 'Admin',     color: '#9333EA', title: 'Admin' },
+  legend:    { label: 'Legend',    color: '#F59E0B', title: 'Legend' },
+  newcomer:  { label: 'New',       color: '#14B8A6', title: 'New Member' },
+  elite:     { label: 'Elite',     color: '#6366F1', title: 'Elite' },
+  ownership: { label: 'Owner',     color: '#FFD700', title: 'Platform Owner' },
+};
+
+function verifiedBadge(user, large) {
+  if (!user) return '';
+  // Support both badge_type and legacy boolean verified
+  const type = user.badge_type || (user.verified ? 'official' : '');
+  if (!type || !BADGE_TYPES[type]) return '';
+  const b = BADGE_TYPES[type];
+  const sz = large ? 22 : 16;
+  const icsz = large ? 13 : 10;
+  return `<span class="vb vb-${type}${large ? ' vb-lg' : ''}" title="${b.title}"><svg class="vb-svg" viewBox="0 0 64 64" width="${sz}" height="${sz}"><path d="M32 4L54 14Q56 15 56 18L56 34Q56 50 32 60Q8 50 8 34L8 18Q8 15 10 14Z" fill="currentColor"/><path d="M32 10L50 18.5Q51.5 19.2 51.5 21L51.5 34Q51.5 47 32 56Q12.5 47 12.5 34L12.5 21Q12.5 19.2 14 18.5Z" fill="white" opacity="0.15"/><g transform="translate(14,16)"><polyline points="26 8 14 22 8 16" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.25" fill="none"/><polyline points="26 8 14 22 8 16" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g><ellipse cx="26" cy="18" rx="7" ry="3.5" fill="white" opacity="0.18" transform="rotate(-20 26 18)"/></svg></span>`;
+}
+
 function formatNum(n) {
   if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
   if (n >= 1000) return (n/1000).toFixed(1) + 'K';
@@ -1088,7 +1116,7 @@ function renderPost(post) {
       <div class="quoted-post-header">
         <div class="quoted-avatar-sm" style="background:${qu.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'}">${qu.avatar||'?'}</div>
         <span class="quoted-username-sm">${qu.username||'Player'}</span>
-        ${qu.verified ? '<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''}
+        ${verifiedBadge(qu)}
         <span class="quoted-handle-sm">@${cleanHandle(qu.handle||qu.username)}</span>
         <span class="quoted-time-sm">${qp.time}</span>
       </div>
@@ -1102,7 +1130,7 @@ function renderPost(post) {
       <div class="post-user-info">
         <div class="post-user-row">
           <span class="post-username" onclick="openUserProfile(${user.id})">${userName(user)}</span>
-          ${user.verified ? '<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''}
+          ${verifiedBadge(user)}
           ${planBadge(user.plan)}
           <span class="${rankBadgeClass(user.rank)}">${user.rank||'Bronze'}</span>
           ${post.type !== 'post' ? `<span class="post-type-badge type-${post.type}">${post.type === 'clip' ? '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23,7 16,12 23,17"/><rect x="1" y="5" width="15" height="14" rx="3"/></svg> Clip' : post.type === 'achievement' ? '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 21h8M12 17v4M6 3h12v10a6 6 0 0 1-12 0V3Z"/></svg> Achievement' : '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> LFG'}</span>` : ''}
@@ -1324,7 +1352,7 @@ function renderCommentInner(c, postId, depth) {
       <div class="comment-body">
         <div class="comment-meta">
           <span class="comment-author" onclick="openUserProfile(${c.user_id})">${c.username||'Player'}</span>
-          ${isBot ? `<span class="claude-ai-badge">AI</span>` : (c.verified ? '<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : '')}
+          ${isBot ? `<span class="claude-ai-badge">AI</span>` : verifiedBadge(c)}
           ${isBot ? '' : planBadge(c.plan)}
           <span class="comment-time">${c.time||'just now'}</span>
         </div>
@@ -2004,7 +2032,7 @@ async function renderExploreContent(tab) {
           <div style="display:flex;align-items:center;gap:12px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:all .2s" onclick="openUserProfile(${u.id})" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
             <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};width:50px;height:50px;font-size:18px">${u.avatar||'?'}</div>
             <div style="flex:1">
-              <div style="font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px">${u.username||'Player'} ${u.verified?'<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>':''} ${planBadge(u.plan)}</div>
+              <div style="font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px">${u.username||'Player'} ${verifiedBadge(u)} ${planBadge(u.plan)}</div>
               <div style="font-size:13px;color:var(--text-muted)">@${cleanHandle(u.handle||u.username)} · ${formatNum(u.followers||0)} followers</div>
               <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${u.online ? '🟢 Online' : '⚫ Offline'}</div>
             </div>
@@ -2755,7 +2783,7 @@ async function loadPeople() {
       <div class="people-card" onclick="openUserProfile(${u.id})">
         <div class="people-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''}">${u.avatar_url?'':u.avatar||'?'}</div>
         <div class="people-info">
-          <div class="people-name">${escapeHtml(u.username)} ${u.verified?'<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>':''} ${planBadge(u.plan)}</div>
+          <div class="people-name">${escapeHtml(u.username)} ${verifiedBadge(u)} ${planBadge(u.plan)}</div>
           <div class="people-handle">@${escapeHtml(cleanHandle(u.handle||u.username))}</div>
           <div style="margin-top:4px"><span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
           ${u.bio?`<div class="people-bio">${escapeHtml(u.bio.slice(0,60))}${u.bio.length>60?'...':''}</div>`:''}
@@ -3255,7 +3283,7 @@ async function renderProfile(userId, container) {
                  <button class="btn-secondary" onclick="openDirectMessage(${user.id})">Message</button>`}
           </div>
         </div>
-        <div class="profile-name">${user.username||user.name||'Player'} ${user.verified ? '<span class="verified-badge verified-lg"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>
+        <div class="profile-name">${user.username||user.name||'Player'} ${verifiedBadge(user, true)} ${user.is_bot ? '<span class="claude-ai-badge" style="font-size:11px;vertical-align:middle">AI</span>' : `<span class="${rankBadgeClass(user.rank)}" style="font-size:12px">${user.rank||'Bronze'}</span>`} ${planBadge(user.plan)}</div>
         <div class="profile-handle">@${cleanHandle(user.handle||user.username)} <span class="profile-online-dot" style="color:${user.online?'var(--accent-green)':'var(--text-muted)'}">${user.online?'● Online':'● Offline'}</span></div>
         ${user.bio ? `<div class="profile-bio">${user.bio}</div>` : ''}
         <div class="profile-stats-row">
@@ -4189,7 +4217,7 @@ async function openFollowModal(type, userId) {
       <div class="follow-modal-user" onclick="closeFollowModal();openUserProfile(${u.id})">
         <div class="post-avatar" style="background:${u.gradient||'linear-gradient(135deg,#8b5cf6,#3b82f6)'};${u.avatar_url?`background-image:url('${u.avatar_url}');background-size:cover`:''};width:42px;height:42px;min-width:42px">${u.avatar_url?'':u.avatar||'?'}</div>
         <div style="flex:1">
-          <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:5px">${u.username} ${u.verified?'<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>':''} ${planBadge(u.plan)}</div>
+          <div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:5px">${u.username} ${verifiedBadge(u)} ${planBadge(u.plan)}</div>
           <div style="color:var(--text-muted);font-size:12px">@${(u.handle||u.username).replace(/^@/,'')} · <span class="${rankBadgeClass(u.rank)}" style="font-size:11px">${u.rank||'Bronze'}</span></div>
         </div>
       </div>`).join('');
@@ -4578,7 +4606,7 @@ async function doSearch(q) {
         return `<div class="search-player-card" onclick="openUserProfile(${u.id})">
           ${av}
           <div class="search-player-info">
-            <div class="search-player-name">${escapeHtml(u.username)} ${u.verified ? '<span class="verified-badge"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''} ${planBadge(u.plan)}</div>
+            <div class="search-player-name">${escapeHtml(u.username)} ${verifiedBadge(u)} ${planBadge(u.plan)}</div>
             <div class="search-player-handle">@${escapeHtml((u.handle||u.username||'').replace(/^@/,''))}</div>
             ${u.bio ? `<div class="search-player-bio">${escapeHtml(u.bio).slice(0,80)}</div>` : ''}
           </div>

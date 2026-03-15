@@ -49,9 +49,16 @@ async function startServer() {
       platform: 'All',
       region: 'Global',
       verified: true,
+      badge_type: 'official',
       is_bot: true,
     });
     db.T.users._save();
+  }
+
+  // Ensure platform owner (@Dexide, user_id=1) has ownership badge
+  const owner = db.getUser(1);
+  if (owner && owner.badge_type !== 'ownership') {
+    db.updateUser(1, { badge_type: 'ownership', verified: true });
   }
 
   // Sync comment counts after data is loaded

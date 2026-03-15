@@ -406,4 +406,20 @@ router.post('/:id/follow', requireAuth, (req, res) => {
   res.json(result);
 });
 
+// ── Badge assignment (owner only, user_id 1 = @Dexide) ──
+const VALID_BADGE_TYPES = ['official','verified','trusted','gold','premium','creator','partner','staff','admin','legend','newcomer','elite','ownership',''];
+router.put('/users/:id/badge', requireAuth, (req, res) => {
+  // Only platform owner (first registered user, id=1) can assign badges
+  if (req.user.userId !== 1) return res.status(403).json({ error: 'Only the platform owner can assign badges' });
+  const { badge_type } = req.body;
+  if (badge_type !== undefined && !VALID_BADGE_TYPES.includes(badge_type)) {
+    return res.status(400).json({ error: 'Invalid badge type', valid: VALID_BADGE_TYPES.filter(b=>b) });
+  }
+  const targetUser = db.getUser(req.params.id);
+  if (!targetUser) return res.status(404).json({ error: 'User not found' });
+  const verified = badge_type ? true : false;
+  db.updateUser(+req.params.id, { badge_type: badge_type || '', verified });
+  res.json({ success: true, badge_type, verified });
+});
+
 module.exports = router;
